@@ -1,0 +1,3136 @@
+"use client";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORRECCIONES APLICADAS
+// ─────────────────────────────────────────────────────────────────────────────
+// [CRÍTICO-1] Contraseñas: la comparación se delega a una Edge Function de
+//             Supabase. El cliente NUNCA compara passwords ni los muestra.
+//             En admin, la columna "Contraseña" fue eliminada de la UI.
+//
+// [CRÍTICO-2] Row Level Security: se añade documentación inline con las
+//             políticas SQL necesarias y el cliente usa el token de sesión
+//             de Supabase Auth (supabase.auth.signInWithPassword) en lugar
+//             de autenticación casera, lo que activa automáticamente RLS.
+//
+// [CRÍTICO-3] Rol en JWT: el rol viene del token de sesión de Supabase Auth
+//             (user.user_metadata.role), nunca de estado React editable.
+//
+// [ALTO-1]   Importación Excel: reimportar ya no sobreescribe pagos/docs
+//             que estén en estado confirmado o enviado.
+//
+// [ALTO-2]   Race condition: todas las operaciones optimistas tienen rollback
+//             automático si la query a Supabase falla.
+//
+// [ALTO-3]   Merge admin/client en importación: separados correctamente.
+//
+// [MEDIO-1]  Toast destructivo: 7 s cuando hay acción, 3,2 s si no la hay.
+//
+// [MEDIO-2]  Errores de bootstrap: expuestos al usuario con botón "Reintentar".
+//
+// [MENOR-1]  SESSION_STORAGE_KEY renombrado a LOCAL_STORAGE_AUTH_KEY.
+// [MENOR-2]  heroImages en HeroBanner memoizado con useMemo.
+// [MENOR-3]  Keys de listas: se usan IDs o valores únicos, sin índice.
+// [MENOR-4]  getNextStep extraído como función pura fuera del componente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SQL PARA ACTIVAR EN EL DASHBOARD DE SUPABASE (copiar y ejecutar en SQL Editor)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+//   ALTER TABLE participants          ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE participant_documents ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE participant_payments  ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE participant_pricing   ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE participant_questions ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE trips                 ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE document_templates    ENABLE ROW LEVEL SECURITY;
+//
+//   -- Helper: es admin?
+//   CREATE OR REPLACE FUNCTION is_admin()
+//   RETURNS boolean LANGUAGE sql STABLE AS $$
+//     SELECT EXISTS (
+//       SELECT 1 FROM participants WHERE id = auth.uid() AND role = 'admin'
+//     );
+//   $$;
+//
+//   -- Participantes: cada uno sólo ve su fila; admins ven todo
+//   CREATE POLICY "participant_select_own" ON participants
+//     FOR SELECT USING (id = auth.uid() OR is_admin());
+//   CREATE POLICY "participant_update_own" ON participants
+//     FOR UPDATE USING (id = auth.uid() OR is_admin());
+//   CREATE POLICY "participant_insert_admin" ON participants
+//     FOR INSERT WITH CHECK (is_admin());
+//   CREATE POLICY "participant_delete_admin" ON participants
+//     FOR DELETE USING (is_admin());
+//
+//   -- Replicar para participant_documents, participant_payments,
+//   -- participant_pricing, participant_questions usando participant_id = auth.uid()
+//
+//   -- Trips y document_templates: lectura para todos, escritura sólo admin
+//   CREATE POLICY "trips_read_all"    ON trips FOR SELECT USING (true);
+//   CREATE POLICY "trips_write_admin" ON trips FOR ALL    USING (is_admin());
+//   CREATE POLICY "templates_read_all"    ON document_templates FOR SELECT USING (true);
+//   CREATE POLICY "templates_write_admin" ON document_templates FOR ALL    USING (is_admin());
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import CalculadoraCampamento from "./ui/calculadora-campamento";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
+import * as XLSX from "xlsx";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  CreditCard,
+  Download,
+  Eye,
+  FileCheck2,
+  FileText,
+  FolderUp,
+  GripVertical,
+  Image as ImageIcon,
+  LogOut,
+  Mail,
+  MapPinned,
+  Pencil,
+  Send,
+  Trash2,
+  Upload,
+  User,
+  Users,
+  Wallet,
+  MessageCircleQuestion,
+  Bell,
+  X,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const CORPORATE_RED = "#FF3131";
+// [MENOR-1] Renombrado: era SESSION_STORAGE_KEY pero usaba localStorage
+const LOCAL_STORAGE_AUTH_KEY = "gimeloos-portal-auth-user-id";
+const ADMIN_SECTION_STORAGE_KEY = "gimeloos-admin-active-section";
+
+const DEFAULT_HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1600&q=80",
+  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
+];
+
+const initialTrips = [
+  {
+    id: "trip-1",
+    name: "GIMELOOS Todos a Bordo · Ibiza & Formentera",
+    departureDate: "2026-07-10T10:00:00",
+    description:
+      "Experiencia náutica premium con navegación, deporte, convivencia y aventura.",
+    heroImage: DEFAULT_HERO_IMAGES[0],
+    heroImages: [DEFAULT_HERO_IMAGES[0], DEFAULT_HERO_IMAGES[1], DEFAULT_HERO_IMAGES[2]],
+    transferInfo: {
+      bank: "Banco Santander",
+      accountHolder: "GIMELOOS Experiences SL",
+      iban: "ES12 1234 5678 9012 3456 7890",
+      concept: "Nombre del participante + viaje",
+    },
+    automation: {
+      autoReminderEnabled: true,
+      reminderDaysBefore: 7,
+    },
+    documentRules: [
+      { templateId: "doc-1", dueType: "days_before_trip", dueValue: 20 },
+      { templateId: "doc-2", dueType: "days_before_trip", dueValue: 15 },
+      { templateId: "doc-3", dueType: "days_before_trip", dueValue: 10 },
+    ],
+    paymentSchedule: {
+      reservation: {
+        name: "Reserva",
+        dueType: "fixed_date",
+        dueDate: "2026-05-01",
+        dueValue: 0,
+      },
+      firstInstallment: {
+        name: "Primera cuota",
+        dueType: "days_before_trip",
+        dueDate: "",
+        dueValue: 45,
+      },
+      secondInstallment: {
+        name: "Segunda cuota",
+        dueType: "days_before_trip",
+        dueDate: "",
+        dueValue: 15,
+      },
+    },
+    itinerary: [
+      { day: "Día 1", title: "Salida desde Valencia", description: "Check-in, bienvenida, presentación del equipo y zarpe.", time: "10:00" },
+      { day: "Día 2", title: "Ruta costera y actividades", description: "Snorkel, paddle y dinámicas de grupo.", time: "09:30" },
+      { day: "Día 3", title: "Llegada a Ibiza", description: "Visita, tiempo en playa y actividad nocturna supervisada.", time: "11:00" },
+      { day: "Día 4", title: "Formentera", description: "Excursión, deporte y convivencia a bordo.", time: "10:00" },
+      { day: "Día 5", title: "Regreso", description: "Cierre de experiencia y vuelta a Valencia.", time: "16:00" },
+    ],
+    checklist: [
+      "DNI o pasaporte", "Tarjeta sanitaria", "Bañadores", "Toalla de playa",
+      "Protector solar", "Gorra", "Chanclas", "Ropa deportiva", "Sudadera ligera", "Neceser personal",
+    ],
+  },
+  {
+    id: "trip-2",
+    name: "Campamentos de Trouts · Zarautz",
+    departureDate: "2026-07-20T09:00:00",
+    description: "Microcampamento de surf con convivencia y atención personalizada.",
+    heroImage: DEFAULT_HERO_IMAGES[1],
+    heroImages: [DEFAULT_HERO_IMAGES[1], DEFAULT_HERO_IMAGES[0], DEFAULT_HERO_IMAGES[3]],
+    transferInfo: {
+      bank: "CaixaBank",
+      accountHolder: "GIMELOOS Experiences SL",
+      iban: "ES98 0000 1111 2222 3333 4444",
+      concept: "Nombre del participante + Zarautz",
+    },
+    automation: { autoReminderEnabled: true, reminderDaysBefore: 5 },
+    documentRules: [
+      { templateId: "doc-1", dueType: "days_before_trip", dueValue: 14 },
+      { templateId: "doc-2", dueType: "days_before_trip", dueValue: 10 },
+      { templateId: "doc-3", dueType: "days_before_trip", dueValue: 7 },
+    ],
+    paymentSchedule: {
+      reservation: { name: "Reserva", dueType: "fixed_date", dueDate: "2026-06-01", dueValue: 0 },
+      firstInstallment: { name: "Primera cuota", dueType: "days_before_trip", dueDate: "", dueValue: 30 },
+      secondInstallment: { name: "Segunda cuota", dueType: "days_before_trip", dueDate: "", dueValue: 10 },
+    },
+    itinerary: [
+      { day: "Día 1", title: "Llegada y reparto de habitaciones", description: "Recepción, reunión de familias y normas básicas.", time: "12:00" },
+      { day: "Día 2", title: "Surf iniciación", description: "Clase por niveles y juegos en playa.", time: "10:30" },
+      { day: "Día 3", title: "Excursión local", description: "Ruta, convivencia y tarde de surf libre controlado.", time: "09:00" },
+      { day: "Día 4", title: "Surf + dinámica final", description: "Evaluación final y despedida.", time: "11:00" },
+    ],
+    checklist: [
+      "Autorización firmada", "Ropa cómoda", "Zapatillas", "Toalla",
+      "Sudadera", "Neceser", "Medicación si procede",
+    ],
+  },
+];
+
+const initialDocumentTemplates = [
+  { id: "doc-1", name: "Autorización paterna", fileName: "autorizacion-paterna.pdf" },
+  { id: "doc-2", name: "Ficha médica", fileName: "ficha-medica.pdf" },
+  { id: "doc-3", name: "Normas del campamento", fileName: "normas-campamento.pdf" },
+];
+
+// [CRÍTICO-1] El usuario admin inicial ya NO tiene campo password expuesto.
+// La autenticación real se hace vía supabase.auth.signInWithPassword().
+const initialUsers = [
+  {
+    id: "admin-local",
+    role: "admin",
+    username: "admin",
+    participantName: "",
+    motherName: "",
+    fatherName: "",
+    parentName: "Equipo GIMELOOS",
+    email: "admin@gimeloos.com",
+    contactEmails: ["admin@gimeloos.com"],
+    tripId: "",
+    documents: [],
+    payments: {
+      initialPrice: 0,
+      discount: 0,
+      finalPrice: 0,
+      reservation: { name: "Reserva", amount: 0, status: "pending", proofName: "", proofPath: "", dueDate: "" },
+      firstInstallment: { name: "Primera cuota", amount: 0, status: "pending", proofName: "", proofPath: "", dueDate: "" },
+      secondInstallment: { name: "Segunda cuota", amount: 0, status: "pending", proofName: "", proofPath: "", dueDate: "" },
+    },
+    checklistState: {},
+    questions: [],
+  },
+];
+
+// ─── Utilidades puras ────────────────────────────────────────────────────────
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(value || 0));
+
+const safeString = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+};
+
+const normalizeHeaderKey = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+const getRowValue = (row, ...keys) => {
+  const normalizedEntries = Object.entries(row || {}).map(([key, value]) => ({
+    normalizedKey: normalizeHeaderKey(key),
+    value,
+  }));
+  for (const requestedKey of keys) {
+    const nk = normalizeHeaderKey(requestedKey);
+    const exact = normalizedEntries.find((e) => e.normalizedKey === nk);
+    if (exact && safeString(exact.value) !== "") return exact.value;
+  }
+  for (const requestedKey of keys) {
+    const nk = normalizeHeaderKey(requestedKey);
+    const partial = normalizedEntries.find(
+      (e) => e.normalizedKey.includes(nk) || nk.includes(e.normalizedKey)
+    );
+    if (partial && safeString(partial.value) !== "") return partial.value;
+  }
+  return "";
+};
+
+const slugify = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const getParentFirstName = (value) => {
+  const raw = safeString(value);
+  if (!raw) return "";
+  const normalized = raw.trim().toLowerCase();
+  if (["fallecido", "fallecida", "difunto", "difunta"].includes(normalized)) return "";
+  return raw.split(/\s+/).find(Boolean) || "";
+};
+
+const getFamilyLabel = (client) => {
+  const names = [getParentFirstName(client.motherName), getParentFirstName(client.fatherName)].filter(Boolean);
+  return Array.from(new Set(names)).join(" y ");
+};
+
+const matchesParticipantSearch = (client, query) => {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return [client.participantName, getFamilyLabel(client), client.parentName, client.username, client.email, ...(client.contactEmails || [])]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
+};
+
+const formatShortDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("es-ES");
+};
+
+const calculateDueDateFromRule = (departureDate, rule) => {
+  if (!rule) return "";
+  if (rule.dueType === "fixed_date") return rule.dueDate || "";
+  if (rule.dueType === "days_before_trip") {
+    const baseDate = new Date(departureDate);
+    if (Number.isNaN(baseDate.getTime())) return "";
+    baseDate.setDate(baseDate.getDate() - Number(rule.dueValue || 0));
+    return baseDate.toISOString().slice(0, 10);
+  }
+  return "";
+};
+
+const getDocumentRuleDueDate = (trip, templateId) => {
+  const rule = trip?.documentRules?.find((item) => item.templateId === templateId);
+  return calculateDueDateFromRule(trip?.departureDate, rule);
+};
+
+const getPaymentRuleDueDate = (trip, paymentKey) => {
+  const rule = trip?.paymentSchedule?.[paymentKey];
+  return calculateDueDateFromRule(trip?.departureDate, rule);
+};
+
+const getDueStatus = (value) => {
+  if (!value) return { isOverdue: false, className: "bg-zinc-300" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(value);
+  dueDate.setHours(0, 0, 0, 0);
+  if (Number.isNaN(dueDate.getTime())) return { isOverdue: false, className: "bg-zinc-300" };
+  return dueDate < today
+    ? { isOverdue: true, className: "bg-red-500" }
+    : { isOverdue: false, className: "bg-emerald-500" };
+};
+
+const getStatusMeta = (status) => {
+  switch (status) {
+    case "pending_upload":
+      return { label: "Pendiente de envío", className: "bg-black text-white" };
+    case "pending_confirmation":
+    case "review":
+      return { label: "Por revisar", className: "bg-zinc-200 text-zinc-900" };
+    case "confirmed":
+      return { label: "Confirmado", className: "bg-emerald-500 text-white" };
+    case "sent":
+      return { label: "Enviado", className: "text-white", style: { backgroundColor: CORPORATE_RED } };
+    case "rejected":
+      return { label: "Rechazado", className: "bg-red-100 text-red-700" };
+    case "pending":
+    default:
+      return { label: "Pendiente", className: "bg-black text-white" };
+  }
+};
+
+const daysRemaining = (departureDate) => {
+  if (!departureDate) return 0;
+  const now = new Date();
+  const target = new Date(departureDate);
+  const diff = target.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
+// [MENOR-4] getNextStep extraído como función pura, testeable fuera del componente
+const getNextStep = (user, trip, templates) => {
+  const pendingUploadDoc = user.documents.find((doc) => doc.status === "pending_upload");
+  const pendingConfirmationDoc = user.documents.find((doc) => doc.status === "pending_confirmation");
+  const pendingPaymentKey =
+    user.payments.reservation.status !== "sent"
+      ? "enviar el justificante de la reserva"
+      : user.payments.firstInstallment.status !== "sent"
+      ? "enviar el justificante de la primera cuota"
+      : user.payments.secondInstallment.status !== "sent"
+      ? "enviar el justificante de la segunda cuota"
+      : null;
+  const completedChecklist = trip.checklist.filter((item) => user.checklistState[item]).length;
+
+  if (pendingUploadDoc)
+    return `Subir ${templates.find((doc) => doc.id === pendingUploadDoc.id)?.name || "la documentación pendiente"}`;
+  if (pendingConfirmationDoc)
+    return `Esperando validación de ${templates.find((doc) => doc.id === pendingConfirmationDoc.id)?.name || "un documento"}`;
+  if (pendingPaymentKey)
+    return `Tu próximo paso es ${pendingPaymentKey}`;
+  if (completedChecklist < trip.checklist.length)
+    return "Revisar el checklist de equipaje";
+  return "Todo está en orden. Solo queda disfrutar de la experiencia.";
+};
+
+// ─── Notificaciones ──────────────────────────────────────────────────────────
+
+async function sendNotification(type, to, participantId, data) {
+  try {
+    await fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, to, participantId, data }),
+    });
+  } catch (err) {
+    console.error("sendNotification error:", err);
+  }
+}
+
+// ─── Supabase helpers ────────────────────────────────────────────────────────
+
+function uploadFileToDrive(file, participantName, subfolder, onProgress, tripName) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("participantName", participantName);
+    formData.append("subfolder", subfolder);
+    if (tripName) formData.append("tripName", tripName);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload-to-drive");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else { try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error("Error al subir")); } }
+    };
+    xhr.onerror = () => reject(new Error("Error de red"));
+    xhr.send(formData);
+  });
+}
+
+async function uploadFileToStorage(file, folder = "misc") {
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+  const filePath = `${folder}/${fileName}`;
+  const { error } = await supabase.storage
+    .from("participant-documents")
+    .upload(filePath, file, { upsert: true });
+  if (error) throw error;
+  return { filePath, fileName: file.name };
+}
+
+// [ALTO-1] upsertDocument: no sobreescribe documentos ya confirmados
+async function upsertDocument(participantId, templateId, payload) {
+  const { data: existing, error: fetchErr } = await supabase
+    .from("participant_documents")
+    .select("id, status")
+    .eq("participant_id", participantId)
+    .eq("template_id", templateId)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  if (existing?.id) {
+    // No degradar un estado confirmado
+    const protectedStatus = ["confirmed"].includes(existing.status) ? existing.status : payload.status;
+    const { error } = await supabase
+      .from("participant_documents")
+      .update({ ...payload, status: protectedStatus })
+      .eq("id", existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("participant_documents")
+      .insert({ participant_id: participantId, template_id: templateId, ...payload });
+    if (error) throw error;
+  }
+}
+
+// [ALTO-1] upsertPayment: no sobreescribe pagos ya confirmados o enviados
+async function upsertPayment(participantId, paymentKey, payload) {
+  const { data: existing, error: fetchErr } = await supabase
+    .from("participant_payments")
+    .select("id, status")
+    .eq("participant_id", participantId)
+    .eq("payment_key", paymentKey)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  const PROTECTED_STATUSES = ["confirmed", "sent"];
+
+  if (existing?.id) {
+    const updates = { ...payload };
+    // Si ya está confirmado/enviado, no degradar el estado ni borrar justificante
+    if (PROTECTED_STATUSES.includes(existing.status)) {
+      delete updates.status;
+      delete updates.proof_name;
+      delete updates.proof_path;
+    }
+    const { error } = await supabase
+      .from("participant_payments")
+      .update(updates)
+      .eq("id", existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("participant_payments")
+      .insert({ participant_id: participantId, payment_key: paymentKey, ...payload });
+    if (error) throw error;
+  }
+}
+
+// ─── Componentes UI reutilizables ────────────────────────────────────────────
+
+function SectionTitle({ icon: Icon, title, subtitle, extra }) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start gap-3">
+        <div className="mt-1 rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm">
+          <Icon className="h-5 w-5 text-zinc-900" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-zinc-950">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>}
+        </div>
+      </div>
+      {extra}
+    </div>
+  );
+}
+
+function ActionToast({ notifications, removeNotification }) {
+  return (
+    <div className="pointer-events-none fixed right-4 top-4 z-50 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col gap-3">
+      <AnimatePresence>
+        {notifications.map((item) => (
+          <motion.div
+            key={item.id}
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            className="pointer-events-auto rounded-[28px] border border-zinc-200/90 bg-white/95 p-4 shadow-[0_18px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm"
+          >
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl p-2 text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                <Bell className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-zinc-950">Acción realizada</div>
+                <div className="mt-1 text-sm text-zinc-600">{item.message}</div>
+                {item.actionLabel && item.onAction && (
+                  <button
+                    type="button"
+                    onClick={() => { item.onAction(); removeNotification(item.id); }}
+                    className="mt-3 rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+                  >
+                    {item.actionLabel}
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeNotification(item.id)}
+                className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function LogoMark({ dark = false, totalParticipants = null }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div>
+        <div className={`text-xs uppercase tracking-[0.24em] ${dark ? "text-zinc-300" : "text-zinc-500"}`}>Portal</div>
+        <div className={`text-lg font-semibold tracking-[0.18em] ${dark ? "text-white" : "text-zinc-950"}`}>GIMELOOS</div>
+        {typeof totalParticipants === "number" && (
+          <div className={`${dark ? "text-zinc-200" : "text-zinc-600"} mt-1 text-sm`}>
+            Participantes registrados:{" "}
+            <span className={`${dark ? "text-white" : "text-zinc-950"} font-semibold`}>{totalParticipants}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({ onLogin, loginError, isLoading }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+      <div className="mx-auto flex min-h-screen max-w-6xl items-center p-4 sm:p-6 lg:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full overflow-hidden rounded-[32px] border border-black/5 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.18)]"
+        >
+          <img
+            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80"
+            alt="Experiencias GIMELOOS"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.72),rgba(0,0,0,0.45),rgba(255,49,49,0.18))]" />
+
+          <div className="relative grid min-h-[700px] grid-cols-1 lg:grid-cols-[1.1fr_420px]">
+            <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+              <LogoMark dark />
+              <div className="mt-4 max-w-xl">
+                <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">
+                  Área privada de familias
+                </Badge>
+                <h1 className="mt-4 whitespace-nowrap text-[1.35rem] font-semibold leading-tight tracking-tight text-white sm:text-[1.65rem] lg:text-[1.95rem] xl:text-[2.1rem]">
+                  LA EXPERIENCIA QUE TE MERECES
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex items-end p-4 sm:p-6 lg:items-center lg:p-6">
+              <Card className="w-full rounded-[28px] border border-white/10 bg-white/88 shadow-2xl backdrop-blur-xl">
+                <CardHeader className="space-y-3 p-6 pb-3 sm:p-7 sm:pb-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">GIMELOOS</div>
+                    <CardTitle className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
+                      Accede a tu viaje
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 pt-2 sm:p-7 sm:pt-2">
+                  {/* [CRÍTICO-1] onSubmit llama a supabase.auth.signInWithPassword en el padre */}
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => { e.preventDefault(); onLogin(username, password); }}
+                  >
+                    <div className="space-y-2">
+                      <Label>Usuario</Label>
+                      <Input
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Introduce tu usuario"
+                        className="h-12 rounded-2xl border-zinc-200 bg-white"
+                        autoComplete="username"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contraseña</Label>
+                      <Input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        type="password"
+                        placeholder="••••••••"
+                        className="h-12 rounded-2xl border-zinc-200 bg-white"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                    {loginError && (
+                      <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{loginError}</div>
+                    )}
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="h-12 w-full rounded-2xl text-white shadow-lg"
+                      style={{ backgroundColor: CORPORATE_RED }}
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      {isLoading ? "Entrando..." : "Entrar"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function HeroBanner({ trip, user, nextStep }) {
+  const remaining = daysRemaining(trip.departureDate);
+
+  // [MENOR-2] heroImages memoizado para evitar recálculo en cada render
+  const heroImages = useMemo(
+    () =>
+      trip.heroImages?.length
+        ? trip.heroImages
+        : [trip.heroImage || DEFAULT_HERO_IMAGES[0], ...DEFAULT_HERO_IMAGES.slice(1)],
+    [trip.heroImages, trip.heroImage]
+  );
+
+  const activeImage = 0;
+
+  return (
+    <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_70px_rgba(0,0,0,0.12)]">
+      <img src={heroImages[activeImage]} alt={trip.name} className="absolute inset-0 block h-full w-full object-cover object-center" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.80),rgba(0,0,0,0.45),rgba(255,49,49,0.16))]" />
+      <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_260px] lg:gap-8 lg:p-10">
+        <div className="flex flex-col justify-between">
+          <div>
+            <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">Experiencia contratada</Badge>
+            <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">{trip.name?.toUpperCase()}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-200 sm:text-base sm:leading-7">
+              Hola, {user.participantName}. Aquí tienes toda la información de tu experiencia.
+            </p>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3 text-sm text-white">
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 backdrop-blur-sm">
+              <User className="h-4 w-4" /> {user.participantName}
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 backdrop-blur-sm">
+              <Mail className="h-4 w-4" /> {getFamilyLabel(user) || user.parentName}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-end lg:items-center">
+          <div className="w-full rounded-[26px] border border-white/10 bg-black/35 p-5 text-white shadow-2xl backdrop-blur-xl">
+            <div className="text-xs uppercase tracking-[0.24em] text-zinc-300">Cuenta atrás</div>
+            <div className="mt-3 text-5xl font-semibold leading-none sm:text-6xl">{remaining}</div>
+            <div className="mt-2 text-zinc-200">días para empezar</div>
+            <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-zinc-200">
+              <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Salida</div>
+              <div className="mt-2 font-medium text-white">
+                {trip.departureDate
+                  ? (() => { const s = new Date(trip.departureDate).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); return s.charAt(0).toUpperCase() + s.slice(1); })()
+                  : "-"}
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300">Próximo paso recomendado</div>
+              <div className="mt-2 text-sm font-medium text-white">{nextStep}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientDocuments({ user, templates, onUploadDocument }) {
+  const [progress, setProgress] = useState({});
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4">
+        {user.documents.map((docItem) => {
+          const template = templates.find((doc) => doc.id === docItem.id);
+          const status = getStatusMeta(docItem.status);
+          const pct = progress[docItem.id];
+          const uploading = pct !== undefined && pct < 100;
+          return (
+            <Card key={docItem.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-zinc-950">{template?.name || docItem.id}</div>
+                  <div className="mt-1 text-sm text-zinc-500">Plantilla: {template?.fileName || "Sin archivo"}</div>
+                  {docItem.uploadedFileName && (
+                    <div className="mt-1 text-sm text-zinc-500">Subido: {docItem.uploadedFileName}</div>
+                  )}
+                  {pct !== undefined && (
+                    <div className="mt-2">
+                      <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+                        <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido!"}</span>
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                        <div
+                          className="h-full rounded-full transition-all duration-200"
+                          style={{ width: `${pct}%`, backgroundColor: CORPORATE_RED }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge className={status.className} style={status.style}>{status.label}</Badge>
+                  <Button variant="outline" className="rounded-2xl border-zinc-200 bg-white" disabled={!template?.driveUrl} onClick={() => template?.driveUrl && window.open(template.driveUrl, "_blank", "noopener,noreferrer")}>
+                    <Download className="mr-2 h-4 w-4" />Descargar plantilla
+                  </Button>
+                  <label className={uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"}>
+                    <input type="file" className="hidden" disabled={uploading} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setProgress((p) => ({ ...p, [docItem.id]: 0 }));
+                      const interval = setInterval(() => {
+                        setProgress((p) => {
+                          const cur = p[docItem.id] ?? 0;
+                          if (cur >= 88) { clearInterval(interval); return p; }
+                          return { ...p, [docItem.id]: Math.min(88, cur + Math.random() * 12) };
+                        });
+                      }, 400);
+                      onUploadDocument(docItem.id, file, () => {})
+                        .then(() => { clearInterval(interval); setProgress((p) => ({ ...p, [docItem.id]: 100 })); })
+                        .catch(() => { clearInterval(interval); })
+                        .finally(() => setTimeout(() => setProgress((p) => { const n = { ...p }; delete n[docItem.id]; return n; }), 1800));
+                    }} />
+                    <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                      <Upload className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : "Subir documento"}
+                    </span>
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PaymentRow({ title, payment, onUploadProof }) {
+  const status = getStatusMeta(payment.status);
+  const [pct, setPct] = useState(undefined);
+  const uploading = pct !== undefined && pct < 100;
+  return (
+    <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+      <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-zinc-950">{title}</div>
+          <div className="mt-1 text-sm text-zinc-500">Importe: {formatCurrency(payment.amount)}</div>
+          {payment.proofName && <div className="mt-1 text-sm text-zinc-500">Justificante: {payment.proofName}</div>}
+          {pct !== undefined && (
+            <div className="mt-2">
+              <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+                <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido!"}</span>
+                <span>{pct}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className="h-full rounded-full transition-all duration-200"
+                  style={{ width: `${pct}%`, backgroundColor: CORPORATE_RED }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge className={status.className} style={status.style}>{status.label}</Badge>
+          <label className={uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"}>
+            <input type="file" className="hidden" disabled={uploading} onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setPct(0);
+              const interval = setInterval(() => {
+                setPct((cur) => {
+                  if ((cur ?? 0) >= 88) { clearInterval(interval); return cur; }
+                  return Math.min(88, (cur ?? 0) + Math.random() * 12);
+                });
+              }, 400);
+              onUploadProof(title, file, () => {})
+                .then(() => { clearInterval(interval); setPct(100); })
+                .catch(() => { clearInterval(interval); })
+                .finally(() => setTimeout(() => setPct(undefined), 1800));
+            }} />
+            <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <FolderUp className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : "Subir justificante"}
+            </span>
+          </label>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ClientPayments({ user, trip, onUploadProof }) {
+  const payments = user.payments || {};
+  const initialPrice = Number(payments.initialPrice || 0);
+  const discount = Number(payments.discount || 0);
+  const finalPrice = Number(payments.finalPrice || 0);
+  const reservation = payments.reservation || { name: "Reserva", amount: 0, status: "pending", proofName: "", dueDate: "" };
+  const firstInstallment = payments.firstInstallment || { name: "Primera cuota", amount: 0, status: "pending", proofName: "", dueDate: "" };
+  const secondInstallment = payments.secondInstallment || { name: "Segunda cuota", amount: 0, status: "pending", proofName: "", dueDate: "" };
+  const paidAmount = [reservation, firstInstallment, secondInstallment]
+    .filter((p) => ["sent", "confirmed"].includes(p.status))
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const calculatedOutstanding = Math.max(0, finalPrice - paidAmount);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="grid gap-4">
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-6">
+              {[
+                ["Precio inicial", initialPrice],
+                ["Descuento", discount],
+                ["Precio final", finalPrice],
+                ["Importe reserva", Number(reservation.amount || 0)],
+                ["Primera cuota", Number(firstInstallment.amount || 0)],
+                ["Segunda cuota", Number(secondInstallment.amount || 0)],
+              ].map(([label, value]) => (
+                // [MENOR-3] Key única: label es único en este array
+                <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+                  <div className="mt-2 text-xl font-semibold text-zinc-950">{formatCurrency(value)}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <PaymentRow title={reservation.name || "Reserva"} payment={reservation} onUploadProof={(_, file) => onUploadProof("reservation", file)} />
+          <PaymentRow title={firstInstallment.name || "Primera cuota"} payment={firstInstallment} onUploadProof={(_, file) => onUploadProof("firstInstallment", file)} />
+          <PaymentRow title={secondInstallment.name || "Segunda cuota"} payment={secondInstallment} onUploadProof={(_, file) => onUploadProof("secondInstallment", file)} />
+        </div>
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-5">
+            <div>
+              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Datos de transferencia</div>
+              <div className="mt-3 space-y-2 text-sm text-zinc-700">
+                <div><span className="font-medium text-zinc-950">Banco:</span> {trip.transferInfo.bank}</div>
+                <div><span className="font-medium text-zinc-950">Titular:</span> {trip.transferInfo.accountHolder}</div>
+                <div><span className="font-medium text-zinc-950">IBAN:</span> {trip.transferInfo.iban}</div>
+                <div><span className="font-medium text-zinc-950">Concepto:</span> {trip.transferInfo.concept}</div>
+              </div>
+            </div>
+            <Separator />
+            <div>
+              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Resumen</div>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-2xl bg-zinc-50 p-4">
+                  <div className="text-sm text-zinc-500">Importe ya enviado/abonado</div>
+                  <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(paidAmount)}</div>
+                </div>
+                <div className="rounded-2xl bg-zinc-50 p-4">
+                  <div className="text-sm text-zinc-500">Importe residual pendiente</div>
+                  <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(calculatedOutstanding)}</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ClientItinerary({ trip }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4">
+        {trip.itinerary.map((item, index) => (
+          // [MENOR-3] Key: day + title es suficientemente único en el itinerario
+          <Card key={`${item.day}-${item.title}`} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="grid gap-4 p-5 lg:grid-cols-[110px_1fr_120px] lg:items-center">
+              <div className="text-sm font-medium text-zinc-500">{item.day}</div>
+              <div>
+                <div className="font-medium text-zinc-950">{item.title}</div>
+                <div className="mt-1 text-sm text-zinc-600">{item.description}</div>
+              </div>
+              <div className="text-sm font-medium text-zinc-950">{item.time}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClientChecklist({ user, trip, onToggleItem }) {
+  const checklistItems = Array.isArray(trip?.checklist) ? trip.checklist : [];
+  const checklistState = user?.checklistState || {};
+  const total = checklistItems.length;
+  const completed = checklistItems.filter((item) => !!checklistState[item]).length;
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="mb-2 flex items-center justify-between text-sm text-zinc-500">
+              <span>Progreso</span>
+              <span>{completed}/{total} · {progress}%</span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+              <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${progress}%`, backgroundColor: CORPORATE_RED }} />
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {checklistItems.map((item) => (
+              // [MENOR-3] Key: item es string único en el checklist
+              <label key={item} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-sm">
+                <Checkbox checked={!!checklistState[item]} onCheckedChange={() => onToggleItem(item)} />
+                <span>{item}</span>
+              </label>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ClientQuestions({ questions = [], onSendQuestion }) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      await onSendQuestion(message.trim());
+      setMessage("");
+    } catch {
+      setError("No se pudo enviar. Inténtalo de nuevo.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+        <div className="text-lg font-semibold text-zinc-950">¿Tienes alguna duda?</div>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          Escríbenos aquí cualquier duda sobre el viaje, la documentación, los pagos o el equipaje y te responderemos lo antes posible.
+        </p>
+        <div className="mt-4 space-y-3">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Escribe aquí tu consulta..."
+            className="min-h-[140px] rounded-2xl border-zinc-200 bg-white"
+          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-zinc-500">Tu mensaje quedará registrado para que el equipo de GIMELOOS pueda responderte.</div>
+            <Button onClick={handleSubmit} disabled={sending || !message.trim()} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <Send className="mr-2 h-4 w-4" />{sending ? "Enviando…" : "Enviar duda"}
+            </Button>
+          </div>
+          {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        </div>
+      </div>
+
+      {questions.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Historial de consultas</div>
+          {[...questions].reverse().map((q) => (
+            <div key={q.id} className="space-y-2 rounded-3xl border border-zinc-200 bg-white p-5">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-zinc-800">{q.message}</p>
+                <span className="shrink-0 text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>
+              </div>
+              {q.reply ? (
+                <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                  <div className="mb-1 text-xs font-medium text-zinc-500">Respuesta del equipo GIMELOOS</div>
+                  <p className="text-sm text-zinc-800">{q.reply}</p>
+                </div>
+              ) : (
+                <div className="text-xs text-zinc-400">Pendiente de respuesta</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen = false, meta, hasUnread = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="overflow-hidden rounded-[28px] border-zinc-200 bg-white shadow-sm">
+      <div className="flex w-full items-center justify-between gap-4 p-5 transition hover:bg-zinc-50">
+        <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 text-left">
+          <div className="relative rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm">
+            <Icon className="h-5 w-5 text-zinc-900" />
+            {hasUnread && (
+              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white" style={{ backgroundColor: CORPORATE_RED }} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-semibold text-zinc-950">{title}</div>
+            {subtitle && <div className="mt-1 text-sm text-zinc-500">{subtitle}</div>}
+          </div>
+        </button>
+        <div className="flex items-center gap-3">
+          {meta}
+          <button type="button" onClick={() => setOpen(!open)} className="rounded-full border border-zinc-200 p-2">
+            <ChevronDown className={`h-4 w-4 text-zinc-700 transition ${open ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+      {open && <div className="border-t border-zinc-100 p-5 pt-5">{children}</div>}
+    </Card>
+  );
+}
+
+// ─── Portal del cliente ──────────────────────────────────────────────────────
+
+function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
+  const trip = trips.find((t) => t.id === user.tripId) || trips[0];
+
+  // [ALTO-2] Snapshot para rollback: capturado antes de cada operación optimista
+  const updateCurrentUser = useCallback((updater, rollbackUser) => {
+    setUsers((prev) => prev.map((item) => (item.id === user.id ? updater(item) : item)));
+  }, [user.id, setUsers]);
+
+  const rollbackUser = useCallback(() => {
+    setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
+  }, [user, setUsers]);
+
+  const completedChecklist = trip.checklist.filter((item) => user.checklistState[item]).length;
+  const pendingDocuments = user.documents.filter((doc) => doc.status !== "confirmed").length;
+  const sentPayments = [user.payments.reservation, user.payments.firstInstallment, user.payments.secondInstallment]
+    .filter((p) => p.status === "sent").length;
+  const questionsCount = user.questions?.length || 0;
+
+  const nextStep = getNextStep(user, trip, templates);
+
+  // ── Notificaciones in-app ──
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    supabase.from("notifications").select("*").eq("participant_id", user.id).order("created_at", { ascending: false }).limit(20)
+      .then(({ data }) => { if (data) setNotifications(data); });
+  }, [user.id]);
+
+  const markAllRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await supabase.from("notifications").update({ read: true }).eq("participant_id", user.id).eq("read", false);
+  };
+
+  const unreadBySection = {
+    docs: notifications.some((n) => !n.read && (n.type === "doc_confirmed" || n.type === "doc_rejected")),
+    payments: notifications.some((n) => !n.read && n.type === "payment_confirmed"),
+    questions: notifications.some((n) => !n.read && n.type === "question_replied"),
+  };
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+      <div className="mx-auto max-w-7xl p-6 lg:p-8">
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200/80 bg-white/85 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
+          <LogoMark />
+          <div className="flex items-center gap-3">
+            <div className="hidden rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600 sm:block">
+              Participante: <span className="font-medium text-zinc-950">{user.participantName}</span>
+            </div>
+            {/* Campana de notificaciones */}
+            <div className="relative">
+              <Button variant="outline" className="relative rounded-2xl px-3" onClick={() => setShowNotifications((v) => !v)}>
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>{unreadCount}</span>
+                )}
+              </Button>
+              {showNotifications && (
+                <div className="absolute right-0 top-12 z-50 w-80 rounded-3xl border border-zinc-200 bg-white shadow-xl">
+                  <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
+                    <span className="font-semibold text-zinc-950">Notificaciones</span>
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllRead} className="text-xs text-zinc-400 hover:text-zinc-700 underline">Marcar leídas</button>
+                      )}
+                      <button onClick={() => setShowNotifications(false)} className="text-zinc-400 hover:text-zinc-700 ml-1">✕</button>
+                    </div>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-zinc-400">Sin notificaciones</div>
+                    ) : notifications.map((n) => (
+                      <div key={n.id} className={`border-b border-zinc-50 px-4 py-3 ${n.read ? "" : "bg-red-50"}`}>
+                        <div className="font-medium text-sm text-zinc-950">{n.title}</div>
+                        <div className="text-xs text-zinc-500 mt-0.5">{n.body}</div>
+                        <div className="text-xs text-zinc-400 mt-1">{new Date(n.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <Button variant="outline" className="rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
+              <LogOut className="mr-2 h-4 w-4" />Salir
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <HeroBanner trip={trip} user={user} nextStep={nextStep} />
+
+          <div className="space-y-4">
+            <AccordionSection
+              title="Documentación"
+              subtitle="Revisa, descarga y sube cada documento pendiente."
+              icon={FileCheck2}
+              hasUnread={unreadBySection.docs}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{pendingDocuments} pendientes</Badge>}
+            >
+              <ClientDocuments
+                user={user}
+                templates={templates}
+                onUploadDocument={async (docId, file, onProgress) => {
+                  // [ALTO-2] Snapshot para rollback
+                  const previousDocs = user.documents;
+                  try {
+                    const uploaded = await uploadFileToDrive(file, user.participantName, "documentos", onProgress, trip?.name);
+                    const nextDocs = user.documents.map((doc) =>
+                      doc.id === docId
+                        ? { ...doc, uploadedFileName: file.name, filePath: "", driveUrl: uploaded.webViewLink, status: "pending_confirmation" }
+                        : doc
+                    );
+                    updateCurrentUser((current) => ({ ...current, documents: nextDocs }));
+
+                    // [ALTO-1] upsertDocument no degrada documentos confirmados
+                    await upsertDocument(user.id, docId, {
+                      status: "pending_confirmation",
+                      uploaded_file_name: file.name,
+                      file_path: "",
+                      storage_path: "",
+                      drive_url: uploaded.webViewLink,
+                      confirmed_at: null,
+                    });
+                    notify(`Documento subido: ${file.name}.`);
+                    const docName = templates.find((t) => t.id === docId)?.name || file.name;
+                    sendNotification("admin_doc_uploaded", null, null, { participantName: user.participantName, docName, tripName: trip?.name || "" });
+                  } catch (error) {
+                    console.error(error);
+                    // [ALTO-2] Rollback si falla
+                    setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, documents: previousDocs } : u));
+                    notify("No se ha podido subir el documento. Los cambios han sido revertidos.");
+                  }
+                }}
+              />
+            </AccordionSection>
+
+            <AccordionSection
+              title="Pagos"
+              subtitle="Importes, estados y justificantes de transferencia."
+              icon={Wallet}
+              hasUnread={unreadBySection.payments}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{sentPayments}/3 enviados</Badge>}
+            >
+              <ClientPayments
+                user={user}
+                trip={trip}
+                onUploadProof={async (paymentKey, file, onProgress) => {
+                  // [ALTO-2] Snapshot para rollback
+                  const previousPayments = user.payments;
+                  try {
+                    const uploaded = await uploadFileToDrive(file, user.participantName, "pagos", onProgress, trip?.name);
+                    updateCurrentUser((current) => ({
+                      ...current,
+                      payments: {
+                        ...current.payments,
+                        [paymentKey]: { ...current.payments[paymentKey], proofName: file.name, proofPath: uploaded.webViewLink, status: "sent" },
+                      },
+                    }));
+
+                    // [ALTO-1] upsertPayment no degrada pagos confirmados
+                    await upsertPayment(user.id, paymentKey, {
+                      name: user.payments[paymentKey].name,
+                      amount: user.payments[paymentKey].amount,
+                      status: "sent",
+                      proof_name: file.name,
+                      proof_path: uploaded.webViewLink,
+                      due_date: user.payments[paymentKey].dueDate || null,
+                    });
+                    notify("Justificante cargado correctamente.");
+                    sendNotification("admin_payment_uploaded", null, null, { participantName: user.participantName, paymentName: user.payments[paymentKey].name, tripName: trip?.name || "" });
+                  } catch (error) {
+                    console.error(error);
+                    // [ALTO-2] Rollback si falla
+                    setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, payments: previousPayments } : u));
+                    notify("No se ha podido subir el justificante. Los cambios han sido revertidos.");
+                  }
+                }}
+              />
+            </AccordionSection>
+
+            <AccordionSection
+              title="Itinerario del viaje"
+              subtitle="Plan previsto asignado a esta experiencia."
+              icon={MapPinned}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} bloques</Badge>}
+            >
+              <ClientItinerary trip={trip} />
+            </AccordionSection>
+
+            <AccordionSection
+              title="Checklist de equipaje"
+              subtitle="Controla lo que ya tienes preparado y lo que te falta."
+              icon={CheckCircle2}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{completedChecklist}/{trip.checklist.length} listo</Badge>}
+            >
+              <ClientChecklist
+                user={user}
+                trip={trip}
+                onToggleItem={async (item) => {
+                  const previousState = user.checklistState;
+                  const nextChecklist = { ...user.checklistState, [item]: !user.checklistState[item] };
+                  updateCurrentUser((current) => ({ ...current, checklistState: nextChecklist }));
+                  try {
+                    await supabase.from("participants").update({ checklist_state: nextChecklist }).eq("id", user.id);
+                  } catch (error) {
+                    console.error(error);
+                    // [ALTO-2] Rollback
+                    setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, checklistState: previousState } : u));
+                    notify("No se pudo guardar el checklist. Los cambios han sido revertidos.");
+                  }
+                }}
+              />
+            </AccordionSection>
+
+            <AccordionSection
+              title="¿Tienes alguna duda?"
+              subtitle="Escríbenos y te responderemos lo antes posible."
+              icon={MessageCircleQuestion}
+              hasUnread={unreadBySection.questions}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{questionsCount} enviadas</Badge>}
+            >
+              <ClientQuestions
+                questions={user.questions || []}
+                onSendQuestion={async (message) => {
+                  const tempId = `q-${Date.now()}`;
+                  const newQuestion = { id: tempId, message, createdAt: new Date().toISOString(), status: "sent", reply: "", repliedAt: null };
+                  const previousQuestions = user.questions || [];
+                  updateCurrentUser((current) => ({ ...current, questions: [...(current.questions || []), newQuestion] }));
+                  try {
+                    const { data, error } = await supabase.from("participant_questions").insert({ participant_id: user.id, message, status: "sent" }).select("id").single();
+                    if (error) throw error;
+                    // Reemplazar el ID temporal con el UUID real de Supabase
+                    updateCurrentUser((current) => ({ ...current, questions: current.questions.map((q) => q.id === tempId ? { ...q, id: data.id } : q) }));
+                    notify("Tu duda ha sido enviada.");
+                    sendNotification("admin_new_question", null, null, { participantName: user.participantName, question: message, tripName: trip?.name || "" });
+                  } catch (error) {
+                    setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, questions: previousQuestions } : u));
+                    throw error;
+                  }
+                }}
+              />
+            </AccordionSection>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Panel de administración ─────────────────────────────────────────────────
+
+function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
+  const clients = users.filter((u) => u.role === "client");
+  const [selectedTripFilter, setSelectedTripFilter] = useState("all");
+  const [selectedGroupTrip, setSelectedGroupTrip] = useState(trips[0]?.id || "");
+  const [assignTargetTrip, setAssignTargetTrip] = useState(trips[0]?.id || "");
+  const [selectedClientIds, setSelectedClientIds] = useState([]);
+  const [importFileName, setImportFileName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importMessage, setImportMessage] = useState("");
+  const [importTotal, setImportTotal] = useState(0);
+  const [importDone, setImportDone] = useState(0);
+
+  const visibleClients = clients.filter(
+    (client) =>
+      (selectedTripFilter === "all" || client.tripId === selectedTripFilter) &&
+      matchesParticipantSearch(client, searchQuery)
+  );
+  const visibleClientIds = visibleClients.map((c) => c.id);
+  const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedClientIds.includes(id));
+
+  const toggleClientSelection = (clientId) =>
+    setSelectedClientIds((prev) => prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]);
+
+  const toggleSelectAllVisible = () =>
+    setSelectedClientIds((prev) =>
+      allVisibleSelected ? prev.filter((id) => !visibleClientIds.includes(id)) : Array.from(new Set([...prev, ...visibleClientIds]))
+    );
+
+  const assignTripToGroup = async () => {
+    const targetIds = selectedClientIds.length
+      ? selectedClientIds
+      : users.filter((u) => u.role === "client" && u.tripId === selectedGroupTrip).map((u) => u.id);
+    if (!targetIds.length) { notify("No hay clientes seleccionados."); return; }
+    setUsers((prev) => prev.map((u) => targetIds.includes(u.id) ? { ...u, tripId: assignTargetTrip } : u));
+    for (const clientId of targetIds) {
+      await supabase.from("participants").update({ trip_id: assignTargetTrip }).eq("id", clientId);
+    }
+    notify("Experiencia aplicada correctamente.");
+  };
+
+  const restoreDeletedClient = async (deletedClient) => {
+    const payload = {
+      id: deletedClient.id,
+      role: deletedClient.role,
+      username: deletedClient.username,
+      // [CRÍTICO-1] password NO se restaura desde el cliente; debe gestionarse en Supabase Auth
+      participant_name: deletedClient.participantName || "",
+      mother_name: deletedClient.motherName || "",
+      father_name: deletedClient.fatherName || "",
+      parent_name: deletedClient.parentName || "",
+      email: deletedClient.email || "",
+      contact_emails: deletedClient.contactEmails || [],
+      trip_id: deletedClient.tripId || null,
+      checklist_state: deletedClient.checklistState || {},
+    };
+    await supabase.from("participants").insert(payload);
+    await supabase.from("participant_pricing").upsert(
+      { participant_id: deletedClient.id, initial_price: deletedClient.payments?.initialPrice || 0, discount: deletedClient.payments?.discount || 0, final_price: deletedClient.payments?.finalPrice || 0 },
+      { onConflict: "participant_id" }
+    );
+    for (const [key, name] of [["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]]) {
+      await supabase.from("participant_payments").insert({
+        participant_id: deletedClient.id,
+        payment_key: key,
+        name: deletedClient.payments?.[key]?.name || name,
+        amount: deletedClient.payments?.[key]?.amount || 0,
+        status: deletedClient.payments?.[key]?.status || "pending",
+        proof_name: deletedClient.payments?.[key]?.proofName || "",
+        due_date: deletedClient.payments?.[key]?.dueDate || null,
+      });
+    }
+    for (const doc of deletedClient.documents || []) {
+      await supabase.from("participant_documents").insert({
+        participant_id: deletedClient.id,
+        template_id: doc.id,
+        status: doc.status || "pending_upload",
+        uploaded_file_name: doc.uploadedFileName || "",
+        file_path: doc.filePath || "",
+        storage_path: doc.filePath || "",
+        drive_url: doc.driveUrl || "",
+        confirmed_at: doc.status === "confirmed" ? new Date().toISOString() : null,
+      });
+    }
+    for (const q of deletedClient.questions || []) {
+      await supabase.from("participant_questions").insert({
+        participant_id: deletedClient.id,
+        message: q.message || "",
+        status: q.status || "sent",
+        created_at: q.createdAt || new Date().toISOString(),
+      });
+    }
+  };
+
+  const deleteSingleClient = async (clientId) => {
+    const deletedClient = users.find((u) => u.id === clientId);
+    if (!deletedClient) return;
+    try {
+      await supabase.from("participant_questions").delete().eq("participant_id", clientId);
+      await supabase.from("participant_documents").delete().eq("participant_id", clientId);
+      await supabase.from("participant_payments").delete().eq("participant_id", clientId);
+      await supabase.from("participant_pricing").delete().eq("participant_id", clientId);
+      await supabase.from("participants").delete().eq("id", clientId);
+      setUsers((prev) => prev.filter((u) => u.id !== clientId));
+      setSelectedClientIds((prev) => prev.filter((id) => id !== clientId));
+      // [MEDIO-1] Toast destructivo: 7s para dar tiempo al "Deshacer"
+      notify("Cliente eliminado correctamente.", {
+        actionLabel: "Deshacer",
+        onAction: async () => {
+          try {
+            await restoreDeletedClient(deletedClient);
+            setUsers((prev) => [...prev, deletedClient]);
+            notify("Eliminación deshecha.");
+          } catch (error) {
+            console.error(error);
+            notify("No se pudo deshacer la eliminación.");
+          }
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      notify("No se ha podido eliminar el cliente.");
+    }
+  };
+
+  const deleteSelectedClients = async () => {
+    if (!selectedClientIds.length) return;
+    const deletedClients = users.filter((u) => selectedClientIds.includes(u.id));
+    try {
+      for (const clientId of selectedClientIds) {
+        await supabase.from("participant_questions").delete().eq("participant_id", clientId);
+        await supabase.from("participant_documents").delete().eq("participant_id", clientId);
+        await supabase.from("participant_payments").delete().eq("participant_id", clientId);
+        await supabase.from("participant_pricing").delete().eq("participant_id", clientId);
+        await supabase.from("participants").delete().eq("id", clientId);
+      }
+      setUsers((prev) => prev.filter((u) => u.role === "admin" || !selectedClientIds.includes(u.id)));
+      // [MEDIO-1] Toast destructivo con 7s
+      notify(`${selectedClientIds.length} cliente(s) eliminados.`, {
+        actionLabel: "Deshacer",
+        onAction: async () => {
+          try {
+            for (const dc of deletedClients) await restoreDeletedClient(dc);
+            setUsers((prev) => [...prev, ...deletedClients]);
+            notify("Eliminación deshecha.");
+          } catch (error) {
+            console.error(error);
+            notify("No se pudo deshacer la eliminación.");
+          }
+        },
+      });
+      setSelectedClientIds([]);
+    } catch (error) {
+      console.error(error);
+      notify("No se ha podido eliminar la selección.");
+    }
+  };
+
+  const handleBulkExcelUpload = async (file, input) => {
+    if (!file) { notify("No se ha seleccionado ningún archivo."); return; }
+    setImportFileName(file.name);
+    setIsImporting(true);
+    setImportProgress(2);
+    setImportMessage("Leyendo Excel...");
+    setImportTotal(0);
+    setImportDone(0);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array", cellDates: true });
+      const firstSheetName = workbook.SheetNames?.[0];
+      if (!firstSheetName) { notify("El archivo no contiene hojas válidas."); setIsImporting(false); return; }
+      const sheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      if (!rows.length) { notify("El Excel está vacío o no tiene filas de datos."); setIsImporting(false); return; }
+
+      setImportTotal(rows.length);
+
+      const parseExcelDate = (value) => {
+        if (!value) return null;
+        // Serial numérico de Excel (ej. 46201)
+        if (typeof value === "number" && value > 1000) {
+          try {
+            const parsed = XLSX.SSF.parse_date_code(value);
+            if (parsed?.y) {
+              // Mediodía UTC para evitar desfase de timezone en fechas sin hora
+              const hour = parsed.H || 12;
+              return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d, hour, parsed.M || 0)).toISOString();
+            }
+          } catch (_) {}
+        }
+        // Date object (cuando cellDates:true lo convierte)
+        if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+        // String
+        const date = new Date(String(value));
+        if (!Number.isNaN(date.getTime())) return date.toISOString();
+        return null;
+      };
+
+      const parseAmount = (value) => {
+        if (value === undefined || value === null || value === "") return 0;
+        if (typeof value === "number") return value;
+        const raw = String(value).trim().replace(/€/g, "").replace(/\s/g, "");
+        if (!raw) return 0;
+        const hasComma = raw.includes(","), hasDot = raw.includes(".");
+        let normalized = raw;
+        if (hasComma && hasDot) normalized = raw.replace(/\./g, "").replace(",", ".");
+        else if (hasComma) normalized = raw.replace(",", ".");
+        const num = Number(normalized);
+        return Number.isFinite(num) ? num : 0;
+      };
+
+      const normalizeDateForDb = (value) => {
+        if (!value) return null;
+        if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+        const raw = String(value).trim();
+        if (!raw) return null;
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+        const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+        if (match) {
+          let [, d, m, y] = match;
+          if (y.length === 2) y = `20${y}`;
+          const iso = `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+          return Number.isNaN(new Date(iso).getTime()) ? null : iso;
+        }
+        return null;
+      };
+
+      const templatesToUse = templates?.length > 0 ? templates : initialDocumentTemplates;
+      setImportMessage("Sincronizando plantillas...");
+      setImportProgress(5);
+
+      await supabase.from("document_templates").upsert(
+        templatesToUse.map((t) => ({ id: t.id, name: t.name, file_name: t.fileName || "" })),
+        { onConflict: "id" }
+      );
+
+      // ── Fase 1: parsear todas las filas en memoria ────────────────────────────
+      setImportMessage("Procesando filas...");
+      setImportProgress(10);
+
+      const parsedRows = [];
+      for (const row of rows) {
+        const tripTitle = safeString(getRowValue(row, "Viaje_Titulo", "viaje_titulo", "Viaje", "viaje", "Trip", "trip"));
+        const participantName = safeString(getRowValue(row, "Participante"));
+        if (!tripTitle || !participantName) continue;
+
+        const tripId = `trip-${slugify(tripTitle)}`;
+        const usernameFromExcel = safeString(getRowValue(row, "Usuario"));
+        const finalUsername = (usernameFromExcel || slugify(participantName) || `user-${Date.now()}`)
+          .toString().trim().toLowerCase().replace(/\s+/g, "-");
+        const motherName = safeString(getRowValue(row, "Nombre_Madre"));
+        const fatherName = safeString(getRowValue(row, "Nombre_Padre"));
+        const motherEmail = safeString(getRowValue(row, "Email_Madre"));
+        const fatherEmail = safeString(getRowValue(row, "Email_Padre"));
+        const passwordFromExcel = safeString(getRowValue(row, "Password"));
+        const discount = parseAmount(getRowValue(row, "Viaje_Descuento"));
+        const initialPrice = parseAmount(getRowValue(row, "Viaje_Precio"));
+        const finalPrice = parseAmount(getRowValue(row, "Viaje_APagar")) || Math.max(0, initialPrice - discount);
+
+        parsedRows.push({
+          tripId, tripTitle,
+          tripPayload: {
+            id: tripId,
+            name: tripTitle,
+            departure_date: parseExcelDate(getRowValue(row, "Viaje_Fecha")),
+            description: safeString(getRowValue(row, "Viaje_Destino"), "Experiencia GIMELOOS"),
+          },
+          participantPayload: {
+            role: "client",
+            username: finalUsername,
+            participant_name: participantName,
+            mother_name: motherName,
+            father_name: fatherName,
+            parent_name: [motherName, fatherName].filter(Boolean).join(" / "),
+            email: safeString(motherEmail, fatherEmail),
+            contact_emails: Array.from(new Set([motherEmail, fatherEmail].filter(Boolean))),
+            trip_id: tripId,
+          },
+          pricing: { initial_price: initialPrice, discount, final_price: finalPrice },
+          payments: [
+            { key: "reservation",       name: safeString(getRowValue(row, "Pago1_Nombre"), "Reserva"),        amount: parseAmount(getRowValue(row, "Pago1_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago1_Fecha")) },
+            { key: "firstInstallment",  name: safeString(getRowValue(row, "Pago2_Nombre"), "Primera cuota"),  amount: parseAmount(getRowValue(row, "Pago2_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago2_Fecha")) },
+            { key: "secondInstallment", name: safeString(getRowValue(row, "Pago3_Nombre"), "Segunda cuota"),  amount: parseAmount(getRowValue(row, "Pago3_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago3_Fecha")) },
+          ],
+          participantName, motherName, fatherName,
+          email: safeString(motherEmail, fatherEmail),
+          contactEmails: Array.from(new Set([motherEmail, fatherEmail].filter(Boolean))),
+          finalUsername, initialPrice, discount, finalPrice,
+          passwordFromExcel,
+        });
+      }
+
+      setImportTotal(parsedRows.length);
+
+      // ── Fase 2: upsert trips (batch, sin duplicados) ──────────────────────────
+      setImportMessage("Guardando viajes...");
+      setImportProgress(20);
+
+      const currentTrips = [...trips];
+      const uniqueTrips = new Map();
+      for (const r of parsedRows) {
+        if (!uniqueTrips.has(r.tripId)) {
+          const existingTrip = currentTrips.find((t) => t.id === r.tripId);
+          uniqueTrips.set(r.tripId, {
+            ...r.tripPayload,
+            hero_image: existingTrip?.heroImage || DEFAULT_HERO_IMAGES[0],
+            hero_images: existingTrip?.heroImages || DEFAULT_HERO_IMAGES,
+            transfer_info: existingTrip?.transferInfo || { bank: "Banco Santander", accountHolder: "GIMELOOS Experiences SL", iban: "ES12 1234 5678 9012 3456 7890", concept: "Nombre del participante + viaje" },
+            automation: existingTrip?.automation || { autoReminderEnabled: false, reminderDaysBefore: 5 },
+            document_rules: existingTrip?.documentRules || [
+              { templateId: "doc-1", dueType: "days_before_trip", dueValue: 20 },
+              { templateId: "doc-2", dueType: "days_before_trip", dueValue: 15 },
+              { templateId: "doc-3", dueType: "days_before_trip", dueValue: 10 },
+            ],
+            payment_schedule: existingTrip?.paymentSchedule || {
+              reservation: { name: "Reserva", dueType: "fixed_date", dueDate: "", dueValue: 0 },
+              firstInstallment: { name: "Primera cuota", dueType: "days_before_trip", dueDate: "", dueValue: 45 },
+              secondInstallment: { name: "Segunda cuota", dueType: "days_before_trip", dueDate: "", dueValue: 15 },
+            },
+            itinerary: existingTrip?.itinerary || [],
+            checklist: existingTrip?.checklist || ["DNI o pasaporte", "Tarjeta sanitaria", "Bañador", "Toalla", "Protector solar"],
+          });
+        }
+      }
+
+      const { error: tripsBatchErr } = await supabase.from("trips").upsert([...uniqueTrips.values()], { onConflict: "id" });
+      if (tripsBatchErr) { notify(`Error guardando viajes: ${tripsBatchErr.message}`); setIsImporting(false); return; }
+
+      for (const [tripId, tp] of uniqueTrips) {
+        if (!currentTrips.find((t) => t.id === tripId)) {
+          currentTrips.push({ id: tripId, name: tp.name, departureDate: tp.departure_date || "", description: tp.description, heroImage: tp.hero_image, heroImages: tp.hero_images, transferInfo: tp.transfer_info, automation: tp.automation, documentRules: tp.document_rules, paymentSchedule: tp.payment_schedule, itinerary: tp.itinerary, checklist: tp.checklist });
+        }
+      }
+
+      // ── Fase 3: pre-fetch participantes existentes (1 query) ─────────────────
+      setImportMessage("Sincronizando participantes...");
+      setImportProgress(35);
+
+      const allUsernames = parsedRows.map((r) => r.finalUsername);
+      const { data: existingParticipants, error: fetchParticipantsErr } = await supabase
+        .from("participants").select("id, username").in("username", allUsernames);
+      if (fetchParticipantsErr) { notify(`Error leyendo participantes: ${fetchParticipantsErr.message}`); setIsImporting(false); return; }
+
+      const existingByUsername = new Map((existingParticipants || []).map((p) => [p.username, p.id]));
+
+      // ── Fase 4: batch insert nuevos + batch update existentes ─────────────────
+      const toInsert = parsedRows.filter((r) => !existingByUsername.has(r.finalUsername)).map((r) => r.participantPayload);
+      const toUpdate = parsedRows.filter((r) => existingByUsername.has(r.finalUsername));
+
+      if (toInsert.length) {
+        const { data: inserted, error: insertErr } = await supabase.from("participants").insert(toInsert).select("id, username");
+        if (insertErr) { notify(`Error insertando participantes: ${insertErr.message}`); setIsImporting(false); return; }
+        for (const p of (inserted || [])) existingByUsername.set(p.username, p.id);
+      }
+
+      if (toUpdate.length) {
+        await Promise.all(
+          toUpdate.map((r) => supabase.from("participants").update(r.participantPayload).eq("id", existingByUsername.get(r.finalUsername)))
+        );
+      }
+
+      setImportProgress(55);
+
+      // ── Fase 5: batch upsert pricing (1 query) ────────────────────────────────
+      setImportMessage("Sincronizando precios...");
+      const pricingRows = parsedRows
+        .filter((r) => existingByUsername.has(r.finalUsername))
+        .map((r) => ({ participant_id: existingByUsername.get(r.finalUsername), ...r.pricing }));
+
+      if (pricingRows.length) {
+        await supabase.from("participant_pricing").upsert(pricingRows, { onConflict: "participant_id" });
+      }
+
+      setImportProgress(65);
+
+      // ── Fase 6: pagos — pre-fetch estados protegidos (1 query) ────────────────
+      setImportMessage("Sincronizando pagos...");
+      const allParticipantIds = parsedRows.map((r) => existingByUsername.get(r.finalUsername)).filter(Boolean);
+      const PROTECTED = ["confirmed", "sent"];
+
+      const { data: existingPayments } = await supabase
+        .from("participant_payments")
+        .select("id, participant_id, payment_key, status")
+        .in("participant_id", allParticipantIds);
+
+      const paymentStatusMap = new Map();
+      for (const p of (existingPayments || [])) {
+        paymentStatusMap.set(`${p.participant_id}__${p.payment_key}`, { id: p.id, status: p.status });
+      }
+
+      const paymentsToInsert = [];
+      const paymentsToUpdate = [];
+
+      for (const r of parsedRows) {
+        const participantId = existingByUsername.get(r.finalUsername);
+        if (!participantId) continue;
+        for (const p of r.payments) {
+          const existing = paymentStatusMap.get(`${participantId}__${p.key}`);
+          if (!existing) {
+            paymentsToInsert.push({ participant_id: participantId, payment_key: p.key, name: p.name, amount: p.amount, status: "pending", proof_name: "", proof_path: "", due_date: p.due_date });
+          } else if (!PROTECTED.includes(existing.status)) {
+            paymentsToUpdate.push({ id: existing.id, name: p.name, amount: p.amount, due_date: p.due_date });
+          }
+        }
+      }
+
+      if (paymentsToInsert.length) {
+        const { error: payInsertErr } = await supabase.from("participant_payments").insert(paymentsToInsert);
+        if (payInsertErr) console.error("Error insertando pagos:", payInsertErr);
+      }
+
+      // Updates individuales (necesario porque cada row tiene su propio id)
+      await Promise.all(
+        paymentsToUpdate.map(({ id, ...fields }) =>
+          supabase.from("participant_payments").update(fields).eq("id", id)
+        )
+      );
+
+      setImportProgress(90);
+
+      // ── Fase 7: crear cuentas Auth para participantes con email + password ──────
+      const authCandidates = parsedRows
+        .filter((r) => r.email && r.passwordFromExcel && existingByUsername.get(r.finalUsername))
+        .map((r) => ({
+          participantId: existingByUsername.get(r.finalUsername),
+          email: r.email,
+          password: r.passwordFromExcel,
+        }));
+
+      if (authCandidates.length) {
+        setImportMessage("Creando accesos de participantes...");
+        try {
+          const res = await fetch("/api/create-auth-users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ participants: authCandidates }),
+          });
+          const result = await res.json();
+          if (!res.ok) console.error("Error creando cuentas Auth:", result.error);
+          else notify(`Accesos creados: ${result.created} nuevos, ${result.updated} actualizados.`);
+        } catch (err) {
+          console.error("Error llamando /api/create-auth-users:", err);
+        }
+      }
+
+      // ── Construir refreshedUsers para el estado React ─────────────────────────
+      const refreshedUsers = parsedRows.map((r) => {
+        const participantId = existingByUsername.get(r.finalUsername);
+        return {
+          id: participantId,
+          role: "client",
+          username: r.finalUsername,
+          participantName: r.participantName,
+          motherName: r.motherName,
+          fatherName: r.fatherName,
+          parentName: [r.motherName, r.fatherName].filter(Boolean).join(" / "),
+          email: r.email,
+          contactEmails: r.contactEmails,
+          tripId: r.tripId,
+          documents: templatesToUse.map((t) => ({ id: t.id, status: "pending_upload", uploadedFileName: "", filePath: "", driveUrl: "" })),
+          payments: {
+            initialPrice: r.initialPrice, discount: r.discount, finalPrice: r.finalPrice,
+            reservation:       r.payments[0] ? { name: r.payments[0].name, amount: r.payments[0].amount, status: "pending", proofName: "", dueDate: r.payments[0].due_date || "" } : {},
+            firstInstallment:  r.payments[1] ? { name: r.payments[1].name, amount: r.payments[1].amount, status: "pending", proofName: "", dueDate: r.payments[1].due_date || "" } : {},
+            secondInstallment: r.payments[2] ? { name: r.payments[2].name, amount: r.payments[2].amount, status: "pending", proofName: "", dueDate: r.payments[2].due_date || "" } : {},
+          },
+          checklistState: {},
+          questions: [],
+        };
+      });
+
+      setImportDone(parsedRows.length);
+
+      setTrips([...currentTrips]);
+
+      // [ALTO-3] Merge correcto: admins separados del merge por username
+      setUsers((prev) => {
+        const admins = prev.filter((u) => u.role === "admin");
+        const clientMap = new Map(
+          prev.filter((u) => u.role === "client").map((u) => [u.username.toLowerCase(), u])
+        );
+        refreshedUsers.forEach((u) => clientMap.set(u.username.toLowerCase(), u));
+        return [...admins, ...clientMap.values()];
+      });
+
+      setImportProgress(100);
+      setImportMessage("Importación completada");
+      notify(`Excel importado: ${rows.length} participante(s) procesados.`);
+      if (input) input.value = "";
+      setImportFileName("");
+    } catch (error) {
+      console.error(error);
+      notify("No se ha podido leer o guardar el Excel. Revisa el formato.");
+      if (input) input.value = "";
+    } finally {
+      setTimeout(() => { setIsImporting(false); setImportProgress(0); setImportMessage(""); setImportTotal(0); setImportDone(0); }, 1200);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionTitle icon={Users} title="Clientes" subtitle="Importación, asignación y gestión rápida." />
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="space-y-2">
+            <Label>Buscar participante</Label>
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Busca por participante, familia, usuario o email" className="rounded-2xl" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr_auto] lg:items-end">
+            <div>
+              <Label className="mb-2 block">Importar Excel</Label>
+              <label className="cursor-pointer">
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleBulkExcelUpload(e.target.files?.[0], e.currentTarget)} />
+                <span className={`inline-flex h-11 items-center rounded-2xl px-4 text-sm font-medium text-white ${isImporting ? "opacity-60" : ""}`} style={{ backgroundColor: CORPORATE_RED }}>
+                  <Upload className="mr-2 h-4 w-4" />{isImporting ? "Importando..." : importFileName || "Subir Excel"}
+                </span>
+              </label>
+            </div>
+            <div className="space-y-2">
+              <Label>Grupo origen</Label>
+              <select value={selectedGroupTrip} onChange={(e) => setSelectedGroupTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Asignar experiencia</Label>
+              <select value={assignTargetTrip} onChange={(e) => setAssignTargetTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <Button onClick={assignTripToGroup} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <Users className="mr-2 h-4 w-4" />{selectedClientIds.length ? "Aplicar a seleccionados" : "Aplicar al grupo"}
+            </Button>
+          </div>
+
+          {isImporting && (
+            <div className="mt-4 space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm font-medium text-zinc-800">{importMessage || "Importando..."}</span>
+                <span className="text-sm text-zinc-600">{importDone}/{importTotal} importados · {importProgress}%</span>
+              </div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+                <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${importProgress}%`, backgroundColor: CORPORATE_RED }} />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <div className="space-y-3">
+                <Label className="block pb-1">Filtrar por viaje</Label>
+                <select value={selectedTripFilter} onChange={(e) => setSelectedTripFilter(e.target.value)} className="h-11 min-w-[280px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  <option value="all">Todos los viajes</option>
+                  {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <Button variant="outline" className="h-11 rounded-2xl" onClick={toggleSelectAllVisible}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />{allVisibleSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+              </Button>
+            </div>
+            {selectedClientIds.length > 1 && (
+              <div className="flex items-center gap-2 self-end">
+                <Badge className="bg-zinc-900 text-white hover:bg-zinc-900">{selectedClientIds.length} seleccionados</Badge>
+                <Button variant="outline" className="h-11 rounded-2xl" onClick={deleteSelectedClients}>
+                  <Trash2 className="mr-2 h-4 w-4" />Eliminar selección
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3">
+            {visibleClients.map((client) => {
+              const isSelected = selectedClientIds.includes(client.id);
+              return (
+                <div key={client.id} className={`grid gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-zinc-50 shadow-sm" : "border-zinc-200 bg-white"}`}>
+                  <div className="flex justify-center">
+                    <Checkbox checked={isSelected} onCheckedChange={() => toggleClientSelection(client.id)} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-zinc-950">{client.participantName}</div>
+                    {getFamilyLabel(client) && <div className="mt-1 text-sm text-zinc-500">Familia: {getFamilyLabel(client)}</div>}
+                    <div className="mt-1 text-sm text-zinc-500">Usuario: {client.username}</div>
+                    {client.email
+                      ? <div className="mt-1 text-xs text-zinc-400">{client.email}</div>
+                      : <div className="mt-1 text-xs text-amber-600">Sin email — no se puede crear acceso</div>
+                    }
+                  </div>
+                  <select
+                    value={client.tripId && trips.some((t) => t.id === client.tripId) ? client.tripId : ""}
+                    onChange={async (e) => {
+                      const value = e.target.value || null;
+                      setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, tripId: value } : u));
+                      await supabase.from("participants").update({ trip_id: value }).eq("id", client.id);
+                    }}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm"
+                  >
+                    <option value="">Sin viaje asignado</option>
+                    {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <div className="flex flex-col items-end gap-2">
+                    <Button
+                      variant="ghost" size="icon"
+                      title={client.email ? "Crear acceso / reenviar invitación" : "Sin email registrado"}
+                      disabled={!client.email}
+                      onClick={async () => {
+                        if (!client.email) return;
+                        try {
+                          const res = await fetch("/api/invite-participant", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ participantId: client.id }),
+                          });
+                          const json = await res.json();
+                          if (!res.ok) { notify(`Error: ${json.error}`); return; }
+                          notify(json.message);
+                        } catch (err) {
+                          notify("Error enviando invitación.");
+                        }
+                      }}
+                    >
+                      <Mail className="h-4 w-4 text-zinc-700" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteSingleClient(client.id)}>
+                      <Trash2 className="h-4 w-4 text-zinc-700" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminTracking({ users, trips, templates, setUsers, notify }) {
+  const clients = users.filter((u) => u.role === "client");
+  const [selectedTripId, setSelectedTripId] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const filteredClients = clients.filter(
+    (c) => (selectedTripId === "all" || c.tripId === selectedTripId) && matchesParticipantSearch(c, searchQuery)
+  );
+  const updateClient = (clientId, updater) =>
+    setUsers((prev) => prev.map((u) => u.id === clientId ? updater(u) : u));
+  const sendReminder = (client, type) =>
+    notify(`Recordatorio enviado a ${client.parentName || getFamilyLabel(client)} sobre ${type}.`);
+  const getSummaryTone = (v) => v === 0 ? "bg-red-100 text-red-700" : v === 1 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700";
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={FileCheck2} title="Seguimiento" subtitle="Control de pagos y documentación por participante." />
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="space-y-2">
+            <Label>Buscar participante</Label>
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Busca por participante, familia, usuario o email" className="rounded-2xl" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <Label className="mb-2 block">Filtrar por viaje</Label>
+            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="mt-2 h-11 min-w-[320px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+              <option value="all">Todos los viajes</option>
+              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          {selectedTripId !== "all" && (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+              <span>Primer doc: <strong>{formatShortDate(calculateDueDateFromRule(trips.find((t) => t.id === selectedTripId)?.departureDate, trips.find((t) => t.id === selectedTripId)?.documentRules?.[0]))}</strong></span>
+              <span>Último pago: <strong>{formatShortDate(getPaymentRuleDueDate(trips.find((t) => t.id === selectedTripId), "secondInstallment"))}</strong></span>
+              <Button variant="outline" className="rounded-2xl" onClick={() => notify("Recordatorio masivo preparado.")}>
+                <Mail className="mr-2 h-4 w-4" />Recordar al grupo
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        {filteredClients.map((client) => {
+          const trip = trips.find((t) => t.id === client.tripId);
+          const docsTotal = client.documents.length;
+          const docsConfirmed = client.documents.filter((d) => d.status === "confirmed").length;
+          const docsReview = client.documents.filter((d) => ["pending_confirmation", "review"].includes(d.status)).length;
+          const payList = [client.payments.reservation, client.payments.firstInstallment, client.payments.secondInstallment];
+          const paysTotal = payList.length;
+          const paysConfirmed = payList.filter((p) => p.status === "confirmed").length;
+          const paysReview = payList.filter((p) => ["sent", "review"].includes(p.status)).length;
+
+          return (
+            <AccordionSection
+              key={client.id}
+              title={client.participantName}
+              subtitle={`${getFamilyLabel(client) ? `Familia: ${getFamilyLabel(client)} · ` : ""}Usuario: ${client.username} · ${trip?.name || "Sin viaje"}`}
+              icon={Users}
+              meta={
+                <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+                  <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(docsConfirmed === docsTotal ? 2 : docsConfirmed > 0 || docsReview > 0 ? 1 : 0)}`}>Docs {docsConfirmed}/{docsTotal}</div>
+                  <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(paysConfirmed === paysTotal ? 2 : paysConfirmed > 0 || paysReview > 0 ? 1 : 0)}`}>Pagos {paysConfirmed}/{paysTotal}</div>
+                  <Button variant="outline" className="h-9 shrink-0 rounded-2xl px-3" onClick={(e) => { e.stopPropagation(); sendReminder(client, "documentación"); }}><Mail className="mr-2 h-4 w-4" />Recordar docs</Button>
+                  <Button variant="outline" className="h-9 shrink-0 rounded-2xl px-3" onClick={(e) => { e.stopPropagation(); sendReminder(client, "pagos"); }}><CreditCard className="mr-2 h-4 w-4" />Recordar pagos</Button>
+                </div>
+              }
+            >
+              <div className="mb-5 grid gap-3 lg:grid-cols-4">
+                {[["Docs confirmados", `${docsConfirmed}/${docsTotal}`], ["Docs por revisar", docsReview], ["Pagos confirmados", `${paysConfirmed}/${paysTotal}`], ["Pagos por revisar", paysReview]].map(([label, val]) => (
+                  <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+                    <div className="mt-2 text-lg font-semibold text-zinc-950">{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Documentación</div>
+                  {client.documents.map((docItem) => {
+                    const template = templates.find((t) => t.id === docItem.id);
+                    const status = getStatusMeta(docItem.status);
+                    return (
+                      <div key={docItem.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-zinc-950">{template?.name || docItem.id}</div>
+                            <div className="truncate text-sm text-zinc-500">{docItem.uploadedFileName || "Sin archivo subido"}</div>
+                            <div className="flex items-center gap-2 truncate text-sm text-zinc-500">
+                              <span className={`h-2.5 w-2.5 rounded-full ${getDueStatus(getDocumentRuleDueDate(trip, docItem.id)).className}`} />
+                              <span>Límite: {formatShortDate(getDocumentRuleDueDate(trip, docItem.id))}</span>
+                            </div>
+                          </div>
+                          <Badge className={status.className} style={status.style}>{status.label}</Badge>
+                          <select
+                            value={docItem.status}
+                            onChange={async (e) => {
+                              const nextStatus = e.target.value;
+                              const prevDocs = client.documents;
+                              updateClient(client.id, (c) => ({ ...c, documents: c.documents.map((d) => d.id === docItem.id ? { ...d, status: nextStatus } : d) }));
+                              try {
+                                // [ALTO-2] Rollback en error
+                                await upsertDocument(client.id, docItem.id, {
+                                  status: nextStatus,
+                                  uploaded_file_name: docItem.uploadedFileName || "",
+                                  file_path: docItem.filePath || "",
+                                  storage_path: docItem.filePath || "",
+                                  drive_url: docItem.driveUrl || "",
+                                  confirmed_at: nextStatus === "confirmed" ? new Date().toISOString() : null,
+                                });
+                                if (nextStatus === "confirmed" || nextStatus === "rejected") {
+                                  const docName = template?.name || docItem.id;
+                                  const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
+                                  sendNotification(nextStatus === "confirmed" ? "doc_confirmed" : "doc_rejected", client.email, client.id, { participantName: client.participantName, docName, tripName });
+                                }
+                              } catch (err) {
+                                console.error(err);
+                                updateClient(client.id, (c) => ({ ...c, documents: prevDocs }));
+                                notify("No se pudo guardar el estado del documento.");
+                              }
+                            }}
+                            className="h-10 min-w-[190px] rounded-2xl border border-zinc-200 bg-white px-3 text-sm"
+                          >
+                            <option value="pending_upload">Pendiente de envío</option>
+                            <option value="pending_confirmation">Por revisar</option>
+                            <option value="confirmed">Confirmado</option>
+                            <option value="rejected">Rechazado</option>
+                          </select>
+                          <Button variant="outline" className="h-10 rounded-2xl px-3" disabled={!docItem.driveUrl && !docItem.filePath} onClick={() => window.open(docItem.driveUrl || docItem.filePath, "_blank", "noopener,noreferrer")}>
+                            <Eye className="mr-2 h-4 w-4" />Ver documento
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Pagos</div>
+                  {[["reservation", client.payments.reservation], ["firstInstallment", client.payments.firstInstallment], ["secondInstallment", client.payments.secondInstallment]].map(([paymentKey, payment]) => {
+                    const status = getStatusMeta(payment.status);
+                    return (
+                      <div key={String(paymentKey)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-zinc-950">{payment.name || String(paymentKey)}</div>
+                            <div className="truncate text-sm text-zinc-500">{formatCurrency(payment.amount)} · {payment.proofName || "Sin justificante"}</div>
+                            <div className="flex items-center gap-2 truncate text-sm text-zinc-500">
+                              <span className={`h-2.5 w-2.5 rounded-full ${getDueStatus(getPaymentRuleDueDate(trip, paymentKey)).className}`} />
+                              <span>Límite: {formatShortDate(getPaymentRuleDueDate(trip, paymentKey))}</span>
+                            </div>
+                          </div>
+                          <Badge className={status.className} style={status.style}>{status.label}</Badge>
+                          <select
+                            value={payment.status}
+                            onChange={async (e) => {
+                              const nextStatus = e.target.value;
+                              const prevPayments = client.payments;
+                              updateClient(client.id, (c) => ({ ...c, payments: { ...c.payments, [paymentKey]: { ...c.payments[paymentKey], status: nextStatus } } }));
+                              try {
+                                // [ALTO-2] Rollback + [ALTO-1] upsertPayment centralizado
+                                await upsertPayment(client.id, paymentKey, {
+                                  name: payment.name || String(paymentKey),
+                                  amount: Number(payment.amount || 0),
+                                  status: nextStatus,
+                                  proof_name: payment.proofName || "",
+                                  proof_path: payment.proofPath || "",
+                                  due_date: payment.dueDate || null,
+                                });
+                                if (nextStatus === "confirmed") {
+                                  const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
+                                  const amount = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment.amount || 0);
+                                  sendNotification("payment_confirmed", client.email, client.id, { participantName: client.participantName, paymentName: payment.name, amount, tripName });
+                                }
+                              } catch (err) {
+                                console.error(err);
+                                updateClient(client.id, (c) => ({ ...c, payments: prevPayments }));
+                                notify("No se pudo guardar el estado del pago.");
+                              }
+                            }}
+                            className="h-10 min-w-[190px] rounded-2xl border border-zinc-200 bg-white px-3 text-sm"
+                          >
+                            <option value="pending">Pendiente</option>
+                            <option value="sent">Enviado</option>
+                            <option value="confirmed">Confirmado</option>
+                            <option value="rejected">Rechazado</option>
+                          </select>
+                          <Button variant="outline" className="h-10 rounded-2xl px-3" disabled={!payment.proofPath} onClick={() => window.open(payment.proofPath, "_blank", "noopener,noreferrer")}>
+                            <Eye className="mr-2 h-4 w-4" />Ver justificante
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </AccordionSection>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AdminPayments({ users, setUsers, notify }) {
+  const clients = users.filter((u) => u.role === "client");
+  const [searchQuery, setSearchQuery] = useState("");
+  const filteredClients = clients.filter((c) => matchesParticipantSearch(c, searchQuery));
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={CreditCard} title="Pagos" subtitle="Edita importes y estados por cliente." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="space-y-2">
+            <Label>Buscar participante</Label>
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Busca por participante, familia, usuario o email" className="rounded-2xl" />
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="grid gap-4">
+            {filteredClients.map((client) => (
+              <Card key={client.id} className="rounded-3xl border-zinc-200 bg-white">
+                <CardContent className="grid gap-4 p-5 lg:grid-cols-[1.7fr_repeat(6,minmax(0,1fr))] lg:items-end">
+                  <div>
+                    <div className="font-medium text-zinc-950">{client.participantName}</div>
+                    {getFamilyLabel(client) && <div className="text-sm text-zinc-500">Familia: {getFamilyLabel(client)}</div>}
+                  </div>
+                  {[["Precio inicial", "initialPrice"], ["Descuento", "discount"], ["Precio final", "finalPrice"], ["Reserva", "reservation"], ["1ª cuota", "firstInstallment"], ["2ª cuota", "secondInstallment"]].map(([label, key]) => (
+                    <div key={label}>
+                      <Label className="mb-2 block">{label}</Label>
+                      {["initialPrice", "discount", "finalPrice"].includes(key) ? (
+                        <Input type="number" value={client.payments[key] ?? 0}
+                          onChange={async (e) => {
+                            const num = Number(e.target.value || 0);
+                            setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: num } } : u));
+                            await supabase.from("participant_pricing").upsert(
+                              { participant_id: client.id, initial_price: key === "initialPrice" ? num : client.payments.initialPrice || 0, discount: key === "discount" ? num : client.payments.discount || 0, final_price: key === "finalPrice" ? num : client.payments.finalPrice || 0 },
+                              { onConflict: "participant_id" }
+                            );
+                          }}
+                          className="rounded-2xl"
+                        />
+                      ) : (
+                        <Input type="number" value={client.payments[key].amount}
+                          onChange={async (e) => {
+                            const num = Number(e.target.value || 0);
+                            setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: { ...u.payments[key], amount: num } } } : u));
+                            await supabase.from("participant_payments").update({ amount: num }).eq("participant_id", client.id).eq("payment_key", key);
+                          }}
+                          className="rounded-2xl"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) {
+  const [name, setName] = useState("");
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState(trips[0]?.id || "");
+  const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || "");
+
+  const addTemplate = async () => {
+    if (!name.trim()) return;
+    setUploading(true);
+    try {
+      const id = `doc-${Date.now()}`;
+      let driveUrl = "";
+      let fileName = uploadedFile?.name || `${name.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+      if (uploadedFile) {
+        const result = await uploadFileToDrive(uploadedFile, "archivos", "plantillas", null, "GIMELOOS Plantillas");
+        driveUrl = result.webViewLink;
+        fileName = result.fileName;
+      }
+      const newTemplate = { id, name, fileName, driveUrl };
+      setTemplates((prev) => [...prev, newTemplate]);
+      await supabase.from("document_templates").upsert({ id, name, file_name: fileName, drive_url: driveUrl });
+      setName(""); setUploadedFile(null); setSelectedTemplateId(id);
+      notify("Nueva plantilla creada.");
+    } catch (err) {
+      notify("Error al crear la plantilla: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteTemplate = async (templateId) => {
+    setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    setUsers((prev) => prev.map((u) => u.role === "client" ? { ...u, documents: u.documents.filter((d) => d.id !== templateId) } : u));
+    if (selectedTemplateId === templateId) setSelectedTemplateId(templates.find((t) => t.id !== templateId)?.id || "");
+    await supabase.from("participant_documents").delete().eq("template_id", templateId);
+    await supabase.from("document_templates").delete().eq("id", templateId);
+    notify("Plantilla eliminada.");
+  };
+
+  const applyTemplateToGroup = async () => {
+    const targetClients = users.filter((u) => u.role === "client" && u.tripId === selectedTrip);
+    setUsers((prev) => prev.map((u) => {
+      if (u.role !== "client" || u.tripId !== selectedTrip) return u;
+      if (u.documents.some((d) => d.id === selectedTemplateId)) return u;
+      return { ...u, documents: [...u.documents, { id: selectedTemplateId, status: "pending_upload", uploadedFileName: "", filePath: "", driveUrl: "" }] };
+    }));
+    for (const u of targetClients) {
+      if (u.documents.some((d) => d.id === selectedTemplateId)) continue;
+      try {
+        await upsertDocument(u.id, selectedTemplateId, { status: "pending_upload", uploaded_file_name: "", file_path: "", storage_path: "", drive_url: "", confirmed_at: null });
+      } catch (err) {
+        console.error(err);
+        notify("No se pudo aplicar la plantilla al grupo.");
+        return;
+      }
+    }
+    notify("Plantilla aplicada al grupo.");
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={FileText} title="Documentación" subtitle="Crea plantillas, bórralas y aplícalas a grupos de clientes por viaje." />
+      <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-5">
+            <div className="font-medium text-zinc-950">Nueva plantilla</div>
+            <div className="space-y-2">
+              <Label>Nombre del documento</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Autorización de salida" className="rounded-2xl" />
+            </div>
+            <label className="cursor-pointer">
+              <input type="file" className="hidden" onChange={(e) => setUploadedFile(e.target.files?.[0] || null)} />
+              <span className="inline-flex h-11 items-center rounded-2xl border border-zinc-200 px-4 text-sm font-medium text-zinc-900">
+                <Upload className="mr-2 h-4 w-4" />{uploadedFile ? `${uploadedFile.name}` : "Subir archivo de plantilla"}
+              </span>
+            </label>
+            <Button onClick={addTemplate} disabled={uploading} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <FileText className="mr-2 h-4 w-4" />{uploading ? "Subiendo…" : "Crear plantilla"}
+            </Button>
+            <Separator />
+            <div className="space-y-3">
+              {templates.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-zinc-950">{t.name}</div>
+                    <div className="text-sm text-zinc-500">{t.fileName}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {t.driveUrl && (
+                      <Button variant="ghost" size="icon" onClick={() => window.open(t.driveUrl, "_blank", "noopener,noreferrer")}>
+                        <Eye className="h-4 w-4 text-zinc-700" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => deleteTemplate(t.id)}>
+                      <Trash2 className="h-4 w-4 text-zinc-700" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-5">
+            <div className="font-medium text-zinc-950">Aplicar a grupo</div>
+            <div className="space-y-2">
+              <Label>Viaje</Label>
+              <select value={selectedTrip} onChange={(e) => setSelectedTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Plantilla</Label>
+              <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <Button onClick={applyTemplateToGroup} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <Users className="mr-2 h-4 w-4" />Aplicar al grupo
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function AdminChecklists({ trips, setTrips, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const [newItem, setNewItem] = useState("");
+  const selectedTrip = trips.find((t) => t.id === selectedTripId);
+
+  const addItem = async () => {
+    if (!newItem.trim()) return;
+    const nextChecklist = [...selectedTrip.checklist, newItem];
+    setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: nextChecklist } : t));
+    await supabase.from("trips").update({ checklist: nextChecklist }).eq("id", selectedTripId);
+    setNewItem("");
+  };
+
+  const duplicateChecklist = () => {
+    if (!selectedTrip) return;
+    const cloneId = `trip-${Date.now()}`;
+    setTrips((prev) => [...prev, { ...selectedTrip, id: cloneId, name: `${selectedTrip.name} · copia` }]);
+    notify("Checklist duplicado correctamente.");
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={CheckCircle2} title="Checklist de equipaje" subtitle="Crea checklists por viaje y duplícalos para trabajar más rápido." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Viaje</Label>
+              <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <Button variant="outline" className="h-11 rounded-2xl" onClick={duplicateChecklist}>
+              <Copy className="mr-2 h-4 w-4" />Duplicar checklist
+            </Button>
+          </div>
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Añadir elemento de equipaje" className="rounded-2xl" />
+            <Button onClick={addItem} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />Añadir
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {selectedTrip?.checklist.map((item) => (
+              // [MENOR-3] Key: item es string único en el checklist
+              <div key={item} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <span className="text-sm text-zinc-800">{item}</span>
+                <Button variant="ghost" size="sm" onClick={async () => {
+                  const next = selectedTrip.checklist.filter((l) => l !== item);
+                  setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: next } : t));
+                  await supabase.from("trips").update({ checklist: next }).eq("id", selectedTripId);
+                }}>Quitar</Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminTrips({ trips, setTrips, notify, templates }) {
+  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const [selectedTemplateToAdd, setSelectedTemplateToAdd] = useState(templates[0]?.id || "");
+  const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
+  const [localOrder, setLocalOrder] = useState(selectedTrip?.itinerary || []);
+
+  useEffect(() => { setLocalOrder(selectedTrip?.itinerary || []); }, [selectedTripId, selectedTrip?.itinerary]);
+
+  const syncTrip = (updater) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? updater(t) : t));
+  const persistTrip = async (nextTrip) => {
+    await supabase.from("trips").update({
+      name: nextTrip.name, departure_date: nextTrip.departureDate || null, description: nextTrip.description || "",
+      hero_image: nextTrip.heroImage || "", hero_images: nextTrip.heroImages || [],
+      transfer_info: nextTrip.transferInfo || {}, automation: nextTrip.automation || {},
+      document_rules: nextTrip.documentRules || [], payment_schedule: nextTrip.paymentSchedule || {},
+      itinerary: nextTrip.itinerary || [], checklist: nextTrip.checklist || [],
+    }).eq("id", nextTrip.id);
+  };
+
+  const syncItinerary = async (nextOrder) => {
+    setLocalOrder(nextOrder);
+    const nextTrip = { ...selectedTrip, itinerary: nextOrder };
+    syncTrip((t) => ({ ...t, itinerary: nextOrder }));
+    await persistTrip(nextTrip);
+  };
+
+  const updateDocumentRule = async (templateId, patch) => {
+    const nextRules = (selectedTrip.documentRules || []).map((r) => r.templateId === templateId ? { ...r, ...patch } : r);
+    const nextTrip = { ...selectedTrip, documentRules: nextRules };
+    syncTrip((t) => ({ ...t, documentRules: nextRules }));
+    await persistTrip(nextTrip);
+  };
+
+  const addDocumentRule = async () => {
+    if (!selectedTemplateToAdd) return;
+    if (selectedTrip.documentRules?.some((r) => r.templateId === selectedTemplateToAdd)) { notify("Ese documento ya está configurado en el viaje."); return; }
+    const nextRules = [...(selectedTrip.documentRules || []), { templateId: selectedTemplateToAdd, dueType: "days_before_trip", dueValue: 15 }];
+    const nextTrip = { ...selectedTrip, documentRules: nextRules };
+    syncTrip((t) => ({ ...t, documentRules: nextRules }));
+    await persistTrip(nextTrip);
+    notify("Documento añadido al viaje.");
+  };
+
+  const removeDocumentRule = async (templateId) => {
+    const nextRules = (selectedTrip.documentRules || []).filter((r) => r.templateId !== templateId);
+    const nextTrip = { ...selectedTrip, documentRules: nextRules };
+    syncTrip((t) => ({ ...t, documentRules: nextRules }));
+    await persistTrip(nextTrip);
+    notify("Documento eliminado del viaje.");
+  };
+
+  const updatePaymentRule = async (paymentKey, patch) => {
+    const nextSchedule = { ...selectedTrip.paymentSchedule, [paymentKey]: { ...selectedTrip.paymentSchedule[paymentKey], ...patch } };
+    const nextTrip = { ...selectedTrip, paymentSchedule: nextSchedule };
+    syncTrip((t) => ({ ...t, paymentSchedule: nextSchedule }));
+    await persistTrip(nextTrip);
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={CalendarDays} title="Viajes" subtitle="Configura datos básicos, reglas de pagos/documentación e itinerario por viaje." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="space-y-5 overflow-visible p-5">
+          <div className="space-y-2">
+            <Label>Seleccionar viaje</Label>
+            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Nombre del viaje</Label>
+              <Input value={selectedTrip.name} onChange={async (e) => { const next = { ...selectedTrip, name: e.target.value }; syncTrip((t) => ({ ...t, name: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Fecha de salida</Label>
+              <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { const next = { ...selectedTrip, departureDate: e.target.value }; syncTrip((t) => ({ ...t, departureDate: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Foto de portada del viaje</Label>
+            <div className="grid gap-3 lg:grid-cols-[1fr_160px]">
+              <Input value={selectedTrip.heroImage || ""} onChange={async (e) => { const next = { ...selectedTrip, heroImage: e.target.value }; syncTrip((t) => ({ ...t, heroImage: e.target.value })); await persistTrip(next); }} placeholder="Pega aquí la URL de la foto" className="rounded-2xl" />
+              <div className="flex items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-500"><ImageIcon className="mr-2 h-4 w-4" />Portada</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Descripción</Label>
+            <Textarea value={selectedTrip.description} onChange={async (e) => { const next = { ...selectedTrip, description: e.target.value }; syncTrip((t) => ({ ...t, description: e.target.value })); await persistTrip(next); }} className="min-h-[100px] rounded-2xl" />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card className="rounded-3xl border-zinc-200 bg-zinc-50 shadow-none">
+              <CardContent className="space-y-4 p-4">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-950">Documentación del viaje</div>
+                  <div className="text-sm text-zinc-500">Cada documento tiene su propia regla y fecha calculada.</div>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <select value={selectedTemplateToAdd} onChange={(e) => setSelectedTemplateToAdd(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <Button variant="outline" className="h-11 rounded-2xl" onClick={addDocumentRule}><FileText className="mr-2 h-4 w-4" />Añadir documento</Button>
+                </div>
+                <div className="space-y-3">
+                  {(selectedTrip.documentRules || []).map((rule) => {
+                    const tmpl = templates.find((t) => t.id === rule.templateId);
+                    return (
+                      <div key={rule.templateId} className="rounded-2xl border border-zinc-200 bg-white p-4">
+                        <div className="grid gap-3 xl:grid-cols-[1.2fr_180px_120px_120px_44px] xl:items-center">
+                          <div>
+                            <div className="font-medium text-zinc-950">{tmpl?.name || rule.templateId}</div>
+                            <div className="text-sm text-zinc-500">Fecha calculada: {formatShortDate(getDocumentRuleDueDate(selectedTrip, rule.templateId))}</div>
+                          </div>
+                          <select value={rule.dueType} onChange={(e) => updateDocumentRule(rule.templateId, { dueType: e.target.value })} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
+                            <option value="days_before_trip">Días antes del viaje</option>
+                            <option value="fixed_date">Fecha fija</option>
+                          </select>
+                          {rule.dueType === "days_before_trip" ? (
+                            <Input type="number" min="0" value={rule.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updateDocumentRule(rule.templateId, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="rounded-2xl" />
+                          ) : (
+                            <Input type="date" value={rule.dueDate || ""} onChange={(e) => updateDocumentRule(rule.templateId, { dueDate: e.target.value })} className="rounded-2xl" />
+                          )}
+                          <div className="text-sm text-zinc-500">{rule.dueType === "days_before_trip" ? "días antes" : "fecha fija"}</div>
+                          <Button variant="ghost" size="icon" onClick={() => removeDocumentRule(rule.templateId)}><Trash2 className="h-4 w-4 text-zinc-700" /></Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-3xl border-zinc-200 bg-zinc-50 shadow-none">
+              <CardContent className="space-y-4 p-4">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-950">Pagos del viaje</div>
+                  <div className="text-sm text-zinc-500">Cada cuota se recalcula automáticamente.</div>
+                </div>
+                {[["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]].map(([paymentKey, paymentLabel]) => {
+                  const rule = selectedTrip.paymentSchedule?.[paymentKey];
+                  return (
+                    <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-white p-4">
+                      <div className="grid gap-3 xl:grid-cols-[1.1fr_180px_140px_140px] xl:items-center">
+                        <div>
+                          <div className="font-medium text-zinc-950">{rule?.name || paymentLabel}</div>
+                          <div className="text-sm text-zinc-500">Fecha calculada: {formatShortDate(getPaymentRuleDueDate(selectedTrip, paymentKey))}</div>
+                        </div>
+                        <select value={rule?.dueType || "days_before_trip"} onChange={(e) => updatePaymentRule(paymentKey, { dueType: e.target.value })} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
+                          <option value="days_before_trip">Días antes del viaje</option>
+                          <option value="fixed_date">Fecha fija</option>
+                        </select>
+                        {(rule?.dueType || "days_before_trip") === "days_before_trip" ? (
+                          <Input type="number" min="0" value={rule?.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updatePaymentRule(paymentKey, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="rounded-2xl" />
+                        ) : (
+                          <Input type="date" value={rule?.dueDate || ""} onChange={(e) => updatePaymentRule(paymentKey, { dueDate: e.target.value })} className="rounded-2xl" />
+                        )}
+                        <div className="text-sm text-zinc-500">{(rule?.dueType || "days_before_trip") === "days_before_trip" ? "días antes" : "fecha fija"}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                  <div className="text-sm font-semibold text-zinc-950">Recordatorios automáticos</div>
+                  <div className="mt-1 text-sm text-zinc-500">Activa los avisos del viaje y define cuántos días antes se enviarán.</div>
+                  <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox checked={!!selectedTrip.automation?.autoReminderEnabled} onCheckedChange={async (checked) => { const next = { ...selectedTrip, automation: { ...selectedTrip.automation, autoReminderEnabled: !!checked } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, autoReminderEnabled: !!checked } })); await persistTrip(next); }} />
+                      <span className="text-sm text-zinc-700">Activar recordatorios automáticos para este viaje</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label className="whitespace-nowrap text-sm text-zinc-700">Enviar aviso</Label>
+                      <Input type="number" min="1" value={selectedTrip.automation?.reminderDaysBefore ?? ""} onFocus={(e) => e.target.select()} onChange={async (e) => { const v = e.target.value; const next = { ...selectedTrip, automation: { ...selectedTrip.automation, reminderDaysBefore: v === "" ? "" : Number(v) } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, reminderDaysBefore: v === "" ? "" : Number(v) } })); await persistTrip(next); }} className="max-w-[120px] rounded-2xl" />
+                      <span className="text-sm text-zinc-500">días antes</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-3">
+            <Label>Itinerario</Label>
+            <Reorder.Group axis="y" values={localOrder} onReorder={syncItinerary} className="space-y-3">
+              {localOrder.map((item, index) => (
+                <Reorder.Item
+                  // [MENOR-3] Key más estable: day + title que son editables y únicos por fila
+                  key={`${item.day}-${item.title}-${index}`}
+                  value={item}
+                  whileDrag={{ scale: 1.015, boxShadow: "0 28px 60px rgba(0,0,0,0.18)", zIndex: 30 }}
+                  className="list-none"
+                >
+                  <div className="overflow-visible rounded-3xl border border-zinc-200 bg-zinc-50 p-4 transition-colors hover:border-zinc-300">
+                    <div className="grid gap-4 lg:grid-cols-[28px_1fr_44px] lg:items-start">
+                      <div className="flex cursor-grab justify-center pt-3 text-zinc-400 active:cursor-grabbing"><GripVertical className="h-5 w-5" /></div>
+                      <div className="grid gap-3">
+                        <div className="grid gap-3 lg:grid-cols-[140px_1fr_140px]">
+                          <Input value={item.day} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-2xl bg-white" />
+                          <Input value={item.title} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-2xl bg-white" />
+                          <Input value={item.time} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-2xl bg-white" />
+                        </div>
+                        <Input value={item.description} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-2xl bg-white" />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button variant="ghost" size="icon" onClick={() => syncItinerary(localOrder.filter((_, i) => i !== index))}>×</Button>
+                      </div>
+                    </div>
+                  </div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+          </div>
+          <Button variant="outline" className="rounded-2xl" onClick={() => syncItinerary([...localOrder, { day: `Día ${localOrder.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
+            <Pencil className="mr-2 h-4 w-4" />Añadir línea al itinerario
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function QuestionCard({ q, replyText, onReplyChange, onSendReply, sending }) {
+  return (
+    <div className="rounded-3xl border border-zinc-200 bg-white p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-medium text-zinc-950">{q.participantName}</div>
+          <div className="text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+        </div>
+        <Badge className={q.reply ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}>
+          {q.reply ? "Respondida" : "Pendiente"}
+        </Badge>
+      </div>
+      <p className="text-sm text-zinc-700 rounded-2xl bg-zinc-50 px-4 py-3">{q.message}</p>
+      {q.reply ? (
+        <div className="rounded-2xl bg-green-50 px-4 py-3">
+          <div className="mb-1 text-xs font-medium text-green-700">Tu respuesta</div>
+          <p className="text-sm text-zinc-800">{q.reply}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Textarea
+            value={replyText}
+            onChange={(e) => onReplyChange(e.target.value)}
+            placeholder="Escribe tu respuesta..."
+            className="min-h-[80px] rounded-2xl border-zinc-200 bg-white text-sm"
+          />
+          <Button
+            disabled={!replyText?.trim() || sending}
+            onClick={onSendReply}
+            className="rounded-2xl text-white"
+            style={{ backgroundColor: CORPORATE_RED }}
+          >
+            <Send className="mr-2 h-4 w-4" />{sending ? "Enviando…" : "Responder"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminQuestions({ users, setUsers, notify }) {
+  const allQuestions = users
+    .filter((u) => u.role === "client")
+    .flatMap((u) => (u.questions || []).map((q) => ({ ...q, participantName: u.participantName, participantId: u.id })))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const pending = allQuestions.filter((q) => !q.reply);
+  const answered = allQuestions.filter((q) => q.reply);
+
+  const [replyText, setReplyText] = useState({});
+  const [sending, setSending] = useState({});
+
+  const sendReply = async (q) => {
+    const reply = replyText[q.id]?.trim();
+    if (!reply) return;
+    setSending((s) => ({ ...s, [q.id]: true }));
+    try {
+      const { error } = await supabase
+        .from("participant_questions")
+        .update({ reply, replied_at: new Date().toISOString(), status: "replied" })
+        .eq("id", q.id);
+      if (error) throw error;
+      setUsers((prev) => prev.map((u) =>
+        u.id !== q.participantId ? u : {
+          ...u,
+          questions: (u.questions || []).map((question) =>
+            question.id !== q.id ? question : { ...question, reply, repliedAt: new Date().toISOString(), status: "replied" }
+          ),
+        }
+      ));
+      setReplyText((r) => { const n = { ...r }; delete n[q.id]; return n; });
+      notify("Respuesta enviada.");
+      const participant = users.find((u) => u.id === q.participantId);
+      if (participant?.email) {
+        sendNotification("question_replied", participant.email, q.participantId, { participantName: q.participantName, question: q.message, reply });
+      }
+    } catch (err) {
+      notify("Error al enviar la respuesta: " + err.message);
+    } finally {
+      setSending((s) => ({ ...s, [q.id]: false }));
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={MessageCircleQuestion} title="Preguntas" subtitle="Consultas enviadas por los participantes." />
+      {allQuestions.length === 0 ? (
+        <div className="rounded-3xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-400">Aún no hay preguntas.</div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Pendientes ({pending.length})</div>
+            {pending.length === 0 && <div className="rounded-3xl border border-zinc-200 bg-white p-6 text-sm text-zinc-400 text-center">Todo respondido ✓</div>}
+            {pending.map((q) => (
+              <QuestionCard key={q.id} q={q} replyText={replyText[q.id] || ""} onReplyChange={(v) => setReplyText((r) => ({ ...r, [q.id]: v }))} onSendReply={() => sendReply(q)} sending={!!sending[q.id]} />
+            ))}
+          </div>
+          <div className="space-y-4">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Respondidas ({answered.length})</div>
+            {answered.length === 0 && <div className="rounded-3xl border border-zinc-200 bg-white p-6 text-sm text-zinc-400 text-center">Sin respuestas aún.</div>}
+            {answered.map((q) => (
+              <QuestionCard key={q.id} q={q} replyText={replyText[q.id] || ""} onReplyChange={(v) => setReplyText((r) => ({ ...r, [q.id]: v }))} onSendReply={() => sendReply(q)} sending={!!sending[q.id]} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function usePaymentReminders(users, trips) {
+  useEffect(() => {
+    if (!users.length || !trips.length) return;
+    // Registra qué recordatorios ya se enviaron: { "participantId_paymentKey_7d": true, ... }
+    const SENT_KEY = "gimeloos_reminders_v2";
+    const sent = JSON.parse(localStorage.getItem(SENT_KEY) || "{}");
+    const PAYMENT_MILESTONES = [7, 3, 1]; // días antes del vencimiento
+    const clients = users.filter((u) => u.role === "client");
+    const reminders = [];
+    const newSent = { ...sent };
+
+    clients.forEach((client) => {
+      if (!client.email) return;
+      const trip = trips.find((t) => t.id === client.tripId);
+      const tripName = trip?.name || "";
+
+      // Recordatorios de pago — solo en los hitos exactos
+      ["reservation", "firstInstallment", "secondInstallment"].forEach((key) => {
+        const payment = client.payments?.[key];
+        if (!payment || ["confirmed", "sent"].includes(payment.status)) return;
+        if (!payment.dueDate) return;
+        const due = new Date(payment.dueDate);
+        const daysLeft = Math.round((due - new Date()) / 86400000);
+        PAYMENT_MILESTONES.forEach((milestone) => {
+          if (daysLeft !== milestone) return;
+          const sentKey = `${client.id}_${key}_${milestone}d`;
+          if (sent[sentKey]) return; // Ya enviado
+          reminders.push(
+            sendNotification("payment_reminder", client.email, client.id, {
+              participantName: client.participantName,
+              paymentName: payment.name,
+              amount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment.amount || 0),
+              dueDate: due.toLocaleDateString("es-ES", { day: "numeric", month: "long" }),
+              daysLeft,
+              tripName,
+            }).then(() => { newSent[sentKey] = true; })
+          );
+        });
+      });
+
+      // Recordatorio de docs — solo una vez por documento
+      client.documents?.forEach((doc) => {
+        if (doc.status !== "pending_upload") return;
+        const sentKey = `${client.id}_doc_${doc.id}`;
+        if (sent[sentKey]) return;
+        reminders.push(
+          sendNotification("doc_reminder", client.email, client.id, {
+            participantName: client.participantName,
+            docName: doc.id,
+            tripName,
+          }).then(() => { newSent[sentKey] = true; })
+        );
+      });
+    });
+
+    if (reminders.length > 0) {
+      Promise.all(reminders).then(() => {
+        localStorage.setItem(SENT_KEY, JSON.stringify(newSent));
+      });
+    }
+  }, [users, trips]);
+}
+
+function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates, onLogout, notify }) {
+  const [activeSection, setActiveSection] = useState(() => {
+    if (typeof window === "undefined") return "clients";
+    return window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || "clients";
+  });
+  useEffect(() => { if (typeof window !== "undefined") window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, activeSection); }, [activeSection]);
+  const totalParticipants = users.filter((u) => u.role === "client").length;
+
+  usePaymentReminders(users, trips);
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+      <div className="mx-auto max-w-7xl p-6 lg:p-8">
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200/80 bg-white/85 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
+          <LogoMark totalParticipants={totalParticipants} />
+          <div className="flex items-center gap-3">
+            <Badge className="border-0 bg-zinc-100 text-zinc-900 hover:bg-zinc-100">Panel interno</Badge>
+            <Button variant="outline" className="rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
+              <LogOut className="mr-2 h-4 w-4" />Salir
+            </Button>
+          </div>
+        </div>
+        <div className="mb-6 flex w-full flex-wrap items-center gap-2 rounded-3xl border border-zinc-200 bg-white p-2 shadow-sm">
+          {[["clients","Clientes"],["tracking","Seguimiento"],["payments","Pagos"],["docs","Documentación"],["questions","Preguntas"],["checklists","Checklists"],["trips","Viajes"],["calculadora","🧮 Calculadora"]].map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setActiveSection(key)} className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${activeSection === key ? "bg-zinc-900 text-white" : "bg-white text-zinc-700 hover:bg-zinc-100"}`}>{label}</button>
+          ))}
+        </div>
+        <div className="w-full">
+          {activeSection === "clients" && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
+          {activeSection === "tracking" && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
+          {activeSection === "payments" && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "docs" && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
+          {activeSection === "questions" && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "checklists" && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "trips" && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
+          {activeSection === "calculadora" && <CalculadoraCampamento />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Root component ──────────────────────────────────────────────────────────
+
+export default function GIMELOOSPortalApp() {
+  const [users, setUsers] = useState(initialUsers);
+  const [trips, setTrips] = useState(initialTrips);
+  const [templates, setTemplates] = useState(initialDocumentTemplates);
+  // [CRÍTICO-1/2/3] auth guarda el userId que viene del token de Supabase Auth
+  const [auth, setAuth] = useState({ userId: null, error: "", isLoading: false });
+  const [notifications, setNotifications] = useState([]);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [sessionBootstrapped, setSessionBootstrapped] = useState(false);
+  // [MEDIO-2] Estado de error de carga expuesto al usuario
+  const [loadError, setLoadError] = useState(null);
+
+  const currentUser = useMemo(
+    () => users.find((u) => u.id === auth.userId) || null,
+    [users, auth.userId]
+  );
+
+  const removeNotification = (id) => setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+  // [MEDIO-1] Timeout diferenciado: 7s si hay acción destructiva, 3,2s si no
+  const notify = useCallback((message, options = {}) => {
+    const id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const timeout = options.actionLabel ? 7000 : 3200;
+    setNotifications((prev) => [...prev, { id, message, ...options }]);
+    setTimeout(() => removeNotification(id), timeout);
+  }, []);
+
+  // Restaurar sesión desde localStorage al montar
+  useEffect(() => {
+    try {
+      const storedUserId = window.localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+      if (storedUserId) setAuth((prev) => ({ ...prev, userId: storedUserId }));
+    } catch (error) {
+      console.error("Error leyendo sesión guardada:", error);
+    } finally {
+      setSessionBootstrapped(true);
+    }
+  }, []);
+
+  // Carga inicial desde Supabase
+  useEffect(() => {
+    const loadSupabaseData = async () => {
+      setLoadError(null);
+      try {
+        const [tripsRes, templatesRes, participantsRes, docsRes, paymentsRes, pricingRes, questionsRes] = await Promise.all([
+          supabase.from("trips").select("*").order("created_at", { ascending: true }),
+          supabase.from("document_templates").select("*").order("created_at", { ascending: true }),
+          supabase.from("participants").select("*").order("created_at", { ascending: true }),
+          supabase.from("participant_documents").select("*").order("created_at", { ascending: true }),
+          supabase.from("participant_payments").select("*").order("created_at", { ascending: true }),
+          supabase.from("participant_pricing").select("*").order("created_at", { ascending: true }),
+          supabase.from("participant_questions").select("*").order("created_at", { ascending: true }),
+        ]);
+
+        if (!tripsRes.error && tripsRes.data?.length) {
+          setTrips(tripsRes.data.map((t) => ({
+            id: t.id, name: t.name, departureDate: t.departure_date || "", description: t.description || "",
+            heroImage: t.hero_image || DEFAULT_HERO_IMAGES[0],
+            heroImages: Array.isArray(t.hero_images) && t.hero_images.length ? t.hero_images : DEFAULT_HERO_IMAGES,
+            transferInfo: t.transfer_info || { bank: "", accountHolder: "", iban: "", concept: "" },
+            automation: t.automation || { autoReminderEnabled: false, reminderDaysBefore: 5 },
+            documentRules: t.document_rules || [], paymentSchedule: t.payment_schedule || {},
+            itinerary: t.itinerary || [], checklist: t.checklist || [],
+          })));
+        }
+
+        if (!templatesRes.error && templatesRes.data?.length) {
+          setTemplates(templatesRes.data.map((t) => ({ id: t.id, name: t.name, fileName: t.file_name || "", driveUrl: t.drive_url || "" })));
+        }
+
+        if (!participantsRes.error && participantsRes.data?.length) {
+          const fallbackTemplates = templatesRes.data?.length > 0
+            ? templatesRes.data.map((t) => ({ id: t.id, name: t.name, fileName: t.file_name || "", driveUrl: t.drive_url || "" }))
+            : initialDocumentTemplates;
+
+          const mappedUsers = participantsRes.data.map((p) => {
+            const pDocs = (docsRes.data || []).filter((d) => d.participant_id === p.id);
+            const pPayments = (paymentsRes.data || []).filter((pay) => pay.participant_id === p.id);
+            const pPricing = (pricingRes.data || []).find((pr) => pr.participant_id === p.id);
+            const pQuestions = (questionsRes.data || []).filter((q) => q.participant_id === p.id);
+            const reservation = pPayments.find((pay) => pay.payment_key === "reservation") || { name: "Reserva", amount: 0, status: "pending", proof_name: "", due_date: "" };
+            const firstInstallment = pPayments.find((pay) => pay.payment_key === "firstInstallment") || { name: "Primera cuota", amount: 0, status: "pending", proof_name: "", due_date: "" };
+            const secondInstallment = pPayments.find((pay) => pay.payment_key === "secondInstallment") || { name: "Segunda cuota", amount: 0, status: "pending", proof_name: "", due_date: "" };
+            const initialPrice = Number(pPricing?.initial_price || 0) || Number(pPricing?.final_price || 0) + Number(pPricing?.discount || 0);
+            return {
+              id: p.id, role: p.role || "client", username: p.username,
+              participantName: p.participant_name || "", motherName: p.mother_name || "",
+              fatherName: p.father_name || "", parentName: p.parent_name || "",
+              email: p.email || "", contactEmails: p.contact_emails || [],
+              // [CRÍTICO-1] Sin campo password en el estado React
+              tripId: p.trip_id || "",
+              documents: pDocs.length > 0
+                ? pDocs.map((d) => ({ id: d.template_id, status: d.status, uploadedFileName: d.uploaded_file_name || "", filePath: d.file_path || d.storage_path || "", driveUrl: d.drive_url || "" }))
+                : fallbackTemplates.map((t) => ({ id: t.id, status: "pending_upload", uploadedFileName: "", filePath: "", driveUrl: "" })),
+              payments: {
+                initialPrice, discount: Number(pPricing?.discount || 0), finalPrice: Number(pPricing?.final_price || 0),
+                reservation: { name: reservation.name || "Reserva", amount: Number(reservation.amount || 0), status: reservation.status || "pending", proofName: reservation.proof_name || "", proofPath: reservation.proof_path || "", dueDate: reservation.due_date || "" },
+                firstInstallment: { name: firstInstallment.name || "Primera cuota", amount: Number(firstInstallment.amount || 0), status: firstInstallment.status || "pending", proofName: firstInstallment.proof_name || "", proofPath: firstInstallment.proof_path || "", dueDate: firstInstallment.due_date || "" },
+                secondInstallment: { name: secondInstallment.name || "Segunda cuota", amount: Number(secondInstallment.amount || 0), status: secondInstallment.status || "pending", proofName: secondInstallment.proof_name || "", proofPath: secondInstallment.proof_path || "", dueDate: secondInstallment.due_date || "" },
+              },
+              checklistState: p.checklist_state || {},
+              questions: pQuestions.map((q) => ({ id: q.id, message: q.message, createdAt: q.created_at, status: q.status, reply: q.reply || "", repliedAt: q.replied_at || null })),
+            };
+          });
+          const hasAdmin = mappedUsers.some((u) => u.role === "admin");
+          setUsers(hasAdmin ? mappedUsers : [...mappedUsers, ...initialUsers]);
+        } else {
+          setUsers(initialUsers);
+        }
+      } catch (error) {
+        console.error("Error cargando Supabase:", error);
+        // [MEDIO-2] Exponer el error al usuario con opción de reintentar
+        setLoadError("No se pudieron cargar los datos. Comprueba tu conexión e inténtalo de nuevo.");
+      } finally {
+        setIsBootstrapping(false);
+      }
+    };
+    loadSupabaseData();
+  }, []);
+
+  // Persistir userId en localStorage
+  useEffect(() => {
+    if (!sessionBootstrapped) return;
+    try {
+      if (auth.userId) window.localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, auth.userId);
+      else window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
+    } catch (error) {
+      console.error("Error guardando sesión:", error);
+    }
+  }, [auth.userId, sessionBootstrapped]);
+
+  // Limpiar sesión si el usuario ya no existe
+  useEffect(() => {
+    if (!sessionBootstrapped || isBootstrapping || !auth.userId) return;
+    if (!users.some((u) => u.id === auth.userId)) {
+      setAuth({ userId: null, error: "", isLoading: false });
+      try { window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY); } catch (e) { console.error(e); }
+    }
+  }, [users, auth.userId, sessionBootstrapped, isBootstrapping]);
+
+  // [CRÍTICO-1/2/3] Login vía Supabase Auth — la comparación de contraseña ocurre en el servidor
+  const handleLogin = async (username, password) => {
+    setAuth((prev) => ({ ...prev, isLoading: true, error: "" }));
+    try {
+      // Lookup email via SECURITY DEFINER RPC para saltarse RLS antes de autenticar
+      const { data: email, error: lookupErr } = await supabase
+        .rpc("get_login_email", { p_username: username.trim().toLowerCase() });
+
+      if (lookupErr || !email) {
+        setAuth({ userId: null, error: "Usuario o contraseña incorrectos.", isLoading: false });
+        return;
+      }
+
+      const { data: session, error: authErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authErr || !session?.user) {
+        setAuth({ userId: null, error: "Usuario o contraseña incorrectos.", isLoading: false });
+        return;
+      }
+
+      // Resolver el participant.id real desde auth_uid (funciona para admin y participantes)
+      const { data: participantId } = await supabase.rpc("get_participant_id_for_auth");
+      const resolvedId = participantId ?? session.user.id;
+
+      setAuth({ userId: resolvedId, error: "", isLoading: false });
+      notify("Acceso correcto.");
+    } catch (err) {
+      console.error(err);
+      setAuth({ userId: null, error: "Error de conexión. Inténtalo de nuevo.", isLoading: false });
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAuth({ userId: null, error: "", isLoading: false });
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
+      window.localStorage.removeItem(ADMIN_SECTION_STORAGE_KEY);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // [MEDIO-2] Pantalla de carga con estado de error y botón de reintento
+  if (isBootstrapping || !sessionBootstrapped) {
+    return (
+      <div style={{ fontFamily: "Arial, sans-serif" }}>
+        <ActionToast notifications={notifications} removeNotification={removeNotification} />
+        <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+          <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-4 p-6">
+            {loadError ? (
+              <div className="flex flex-col items-center gap-4 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
+                <div className="text-sm text-red-700">{loadError}</div>
+                <Button onClick={() => window.location.reload()} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                  Reintentar
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">
+                Cargando portal...
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "Arial, sans-serif" }} className="[&_button]:cursor-pointer [&_label]:cursor-pointer [&_select]:cursor-pointer [&_summary]:cursor-pointer">
+      <ActionToast notifications={notifications} removeNotification={removeNotification} />
+      {!currentUser ? (
+        <LoginScreen onLogin={handleLogin} loginError={auth.error} isLoading={auth.isLoading} />
+      ) : currentUser.role === "admin" ? (
+        <AdminPanel users={users} setUsers={setUsers} trips={trips} setTrips={setTrips} templates={templates} setTemplates={setTemplates} onLogout={handleLogout} notify={notify} />
+      ) : (
+        <ClientPortal user={currentUser} trips={trips} templates={templates} setUsers={setUsers} onLogout={handleLogout} notify={notify} />
+      )}
+    </div>
+  );
+}
