@@ -104,6 +104,15 @@ import {
   MessageCircleQuestion,
   Bell,
   X,
+  BarChart2,
+  Calculator,
+  LayoutGrid,
+  Settings,
+  ChevronRight,
+  Sparkles,
+  Map,
+  ListChecks,
+  Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -532,8 +541,8 @@ function SectionTitle({ icon: Icon, title, subtitle, extra }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-start gap-3">
-        <div className="mt-1 rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm">
-          <Icon className="h-5 w-5 text-zinc-900" />
+        <div className="mt-1 rounded-2xl p-2.5 shadow-sm text-white" style={{ backgroundColor: CORPORATE_RED }}>
+          <Icon className="h-5 w-5" />
         </div>
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-zinc-950">{title}</h2>
@@ -698,10 +707,9 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
   );
 }
 
-function HeroBanner({ trip, user, nextStep }) {
+function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
   const remaining = daysRemaining(trip.departureDate);
 
-  // [MENOR-2] heroImages memoizado para evitar recálculo en cada render
   const heroImages = useMemo(
     () =>
       trip.heroImages?.length
@@ -711,6 +719,7 @@ function HeroBanner({ trip, user, nextStep }) {
   );
 
   const activeImage = 0;
+  const totalPending = pendingSummary.reduce((acc, s) => acc + s.count, 0);
 
   return (
     <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_70px_rgba(0,0,0,0.12)]">
@@ -747,9 +756,34 @@ function HeroBanner({ trip, user, nextStep }) {
                   : "-"}
               </div>
             </div>
+            {/* Resumen de tareas pendientes */}
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300">Próximo paso recomendado</div>
-              <div className="mt-2 text-sm font-medium text-white">{nextStep}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300 mb-3">Tareas pendientes</div>
+              {totalPending === 0 ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4" />
+                  ¡Todo al día!
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {pendingSummary.filter((s) => s.count > 0).map(({ key, label, icon: Icon, sectionId, count }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => sectionId && onNavigate?.(key)}
+                      className={`relative flex flex-col items-center gap-1 ${sectionId ? "cursor-pointer" : "cursor-default"}`}
+                    >
+                      <div className="relative rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm transition hover:bg-white/20">
+                        <Icon className="h-5 w-5 text-white" />
+                        <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                          {count}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-zinc-300 text-center leading-tight max-w-[52px]">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1078,31 +1112,48 @@ function ClientQuestions({ questions = [], onSendQuestion }) {
   );
 }
 
-function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen = false, meta, hasUnread = false }) {
+function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen = false, meta, hasUnread = false, sectionId, forceOpen, onForceOpenConsumed }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (forceOpen) {
+      setOpen(true);
+      if (sectionId) {
+        setTimeout(() => {
+          document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 80);
+      }
+      onForceOpenConsumed?.();
+    }
+  }, [forceOpen]);
+
   return (
-    <Card className="overflow-hidden rounded-[28px] border-zinc-200 bg-white shadow-sm">
-      <div className="flex w-full items-center justify-between gap-4 p-5 transition hover:bg-zinc-50">
+    <Card id={sectionId} className={`overflow-hidden rounded-[28px] border bg-white shadow-sm transition-all ${open ? "border-zinc-200 shadow-md" : "border-zinc-200"}`}>
+      <div className={`flex w-full items-center justify-between gap-4 px-5 py-4 transition ${open ? "bg-white" : "hover:bg-zinc-50/70"}`}>
         <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 text-left">
-          <div className="relative rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm">
-            <Icon className="h-5 w-5 text-zinc-900" />
+          <div className="relative shrink-0 rounded-2xl p-2.5 shadow-sm transition" style={{ backgroundColor: open ? CORPORATE_RED : "#f4f4f5" }}>
+            <Icon className={`h-5 w-5 transition ${open ? "text-white" : "text-zinc-700"}`} />
             {hasUnread && (
               <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white" style={{ backgroundColor: CORPORATE_RED }} />
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-semibold text-zinc-950">{title}</div>
-            {subtitle && <div className="mt-1 text-sm text-zinc-500">{subtitle}</div>}
+            <div className="text-base font-semibold text-zinc-950">{title}</div>
+            {subtitle && <div className="mt-0.5 text-sm text-zinc-400">{subtitle}</div>}
           </div>
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {meta}
-          <button type="button" onClick={() => setOpen(!open)} className="rounded-full border border-zinc-200 p-2">
-            <ChevronDown className={`h-4 w-4 text-zinc-700 transition ${open ? "rotate-180" : ""}`} />
+          <button type="button" onClick={() => setOpen(!open)} className={`rounded-full border p-2 transition ${open ? "border-zinc-200 bg-zinc-50" : "border-zinc-200 bg-white"}`}>
+            <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
           </button>
         </div>
       </div>
-      {open && <div className="border-t border-zinc-100 p-5 pt-5">{children}</div>}
+      {open && (
+        <div className="border-t border-zinc-100 p-5">
+          {children}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1123,11 +1174,12 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
 
   const completedChecklist = trip.checklist.filter((item) => user.checklistState[item]).length;
   const pendingDocuments = user.documents.filter((doc) => doc.status !== "confirmed").length;
+  const pendingPayments = [user.payments.reservation, user.payments.firstInstallment, user.payments.secondInstallment]
+    .filter((p) => p.status === "pending").length;
   const sentPayments = [user.payments.reservation, user.payments.firstInstallment, user.payments.secondInstallment]
     .filter((p) => p.status === "sent").length;
   const questionsCount = user.questions?.length || 0;
-
-  const nextStep = getNextStep(user, trip, templates);
+  const unreadReplies = (user.questions || []).filter((q) => q.reply && q.status === "replied").length;
 
   // ── Notificaciones in-app ──
   const [notifications, setNotifications] = useState([]);
@@ -1149,6 +1201,16 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
     payments: notifications.some((n) => !n.read && n.type === "payment_confirmed"),
     questions: notifications.some((n) => !n.read && n.type === "question_replied"),
   };
+
+  const [openSection, setOpenSection] = useState(null);
+  const navigateTo = (key) => setOpenSection(key);
+
+  const pendingSummary = [
+    { key: "docs",      label: "Docs",       icon: FileCheck2,           count: pendingDocuments, sectionId: "section-docs" },
+    { key: "payments",  label: "Pagos",      icon: Wallet,               count: pendingPayments,  sectionId: "section-payments" },
+    { key: "replies",   label: "Respuestas", icon: MessageCircleQuestion, count: unreadReplies,   sectionId: "section-questions" },
+    { key: "notifs",    label: "Avisos",     icon: Bell,                 count: unreadCount,      sectionId: null },
+  ];
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
@@ -1199,7 +1261,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
         </div>
 
         <div className="space-y-6">
-          <HeroBanner trip={trip} user={user} nextStep={nextStep} />
+          <HeroBanner trip={trip} user={user} pendingSummary={pendingSummary} onNavigate={navigateTo} />
 
           <div className="space-y-4">
             <AccordionSection
@@ -1207,6 +1269,9 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               subtitle="Revisa, descarga y sube cada documento pendiente."
               icon={FileCheck2}
               hasUnread={unreadBySection.docs}
+              sectionId="section-docs"
+              forceOpen={openSection === "docs"}
+              onForceOpenConsumed={() => setOpenSection(null)}
               meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{pendingDocuments} pendientes</Badge>}
             >
               <ClientDocuments
@@ -1251,6 +1316,9 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               subtitle="Importes, estados y justificantes de transferencia."
               icon={Wallet}
               hasUnread={unreadBySection.payments}
+              sectionId="section-payments"
+              forceOpen={openSection === "payments"}
+              onForceOpenConsumed={() => setOpenSection(null)}
               meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{sentPayments}/3 enviados</Badge>}
             >
               <ClientPayments
@@ -1329,6 +1397,9 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               subtitle="Escríbenos y te responderemos lo antes posible."
               icon={MessageCircleQuestion}
               hasUnread={unreadBySection.questions}
+              sectionId="section-questions"
+              forceOpen={openSection === "replies"}
+              onForceOpenConsumed={() => setOpenSection(null)}
               meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{questionsCount} enviadas</Badge>}
             >
               <ClientQuestions
@@ -2477,6 +2548,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
   const [selectedTemplateToAdd, setSelectedTemplateToAdd] = useState(templates[0]?.id || "");
   const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
   const [localOrder, setLocalOrder] = useState(selectedTrip?.itinerary || []);
+  const [tripTab, setTripTab] = useState("datos");
 
   useEffect(() => { setLocalOrder(selectedTrip?.itinerary || []); }, [selectedTripId, selectedTrip?.itinerary]);
 
@@ -2530,165 +2602,235 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
     await persistTrip(nextTrip);
   };
 
+  const tripTabs = [
+    { key: "datos",       label: "Datos básicos",    icon: Settings },
+    { key: "itinerario",  label: "Itinerario",       icon: Map },
+    { key: "documentos",  label: "Documentos",       icon: FileCheck2 },
+    { key: "pagos",       label: "Pagos",            icon: CreditCard },
+  ];
+
   return (
     <div className="space-y-5">
       <SectionTitle icon={CalendarDays} title="Viajes" subtitle="Configura datos básicos, reglas de pagos/documentación e itinerario por viaje." />
+
+      {/* Selector de viaje */}
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-        <CardContent className="space-y-5 overflow-visible p-5">
-          <div className="space-y-2">
-            <Label>Seleccionar viaje</Label>
-            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-1">
+              <Label>Viaje activo</Label>
+              <select value={selectedTripId} onChange={(e) => { setSelectedTripId(e.target.value); setTripTab("datos"); }} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            {selectedTrip?.departureDate && (
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-2 text-center">
+                <div className="text-xs text-zinc-400">Fecha de salida</div>
+                <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+              </div>
+            )}
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Nombre del viaje</Label>
-              <Input value={selectedTrip.name} onChange={async (e) => { const next = { ...selectedTrip, name: e.target.value }; syncTrip((t) => ({ ...t, name: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+        </CardContent>
+      </Card>
+
+      {/* Pestañas */}
+      <div className="flex gap-2 flex-wrap">
+        {tripTabs.map(({ key, label, icon: Icon }) => {
+          const active = tripTab === key;
+          return (
+            <button key={key} type="button" onClick={() => setTripTab(key)}
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={active ? { backgroundColor: CORPORATE_RED } : {}}
+            >
+              <Icon className="h-4 w-4" />{label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Pestaña: Datos básicos ── */}
+      {tripTab === "datos" && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-5 p-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Nombre del viaje</Label>
+                <Input value={selectedTrip.name} onChange={async (e) => { const next = { ...selectedTrip, name: e.target.value }; syncTrip((t) => ({ ...t, name: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha de salida</Label>
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { const next = { ...selectedTrip, departureDate: e.target.value }; syncTrip((t) => ({ ...t, departureDate: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Fecha de salida</Label>
-              <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { const next = { ...selectedTrip, departureDate: e.target.value }; syncTrip((t) => ({ ...t, departureDate: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+              <Label>Foto de portada (URL)</Label>
+              <div className="flex gap-3">
+                <Input value={selectedTrip.heroImage || ""} onChange={async (e) => { const next = { ...selectedTrip, heroImage: e.target.value }; syncTrip((t) => ({ ...t, heroImage: e.target.value })); await persistTrip(next); }} placeholder="https://..." className="rounded-2xl" />
+                {selectedTrip.heroImage && (
+                  <img src={selectedTrip.heroImage} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
+                )}
+              </div>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Foto de portada del viaje</Label>
-            <div className="grid gap-3 lg:grid-cols-[1fr_160px]">
-              <Input value={selectedTrip.heroImage || ""} onChange={async (e) => { const next = { ...selectedTrip, heroImage: e.target.value }; syncTrip((t) => ({ ...t, heroImage: e.target.value })); await persistTrip(next); }} placeholder="Pega aquí la URL de la foto" className="rounded-2xl" />
-              <div className="flex items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-500"><ImageIcon className="mr-2 h-4 w-4" />Portada</div>
+            <div className="space-y-2">
+              <Label>Descripción</Label>
+              <Textarea value={selectedTrip.description} onChange={async (e) => { const next = { ...selectedTrip, description: e.target.value }; syncTrip((t) => ({ ...t, description: e.target.value })); await persistTrip(next); }} className="min-h-[120px] rounded-2xl" />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Descripción</Label>
-            <Textarea value={selectedTrip.description} onChange={async (e) => { const next = { ...selectedTrip, description: e.target.value }; syncTrip((t) => ({ ...t, description: e.target.value })); await persistTrip(next); }} className="min-h-[100px] rounded-2xl" />
-          </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card className="rounded-3xl border-zinc-200 bg-zinc-50 shadow-none">
-              <CardContent className="space-y-4 p-4">
-                <div>
-                  <div className="text-sm font-semibold text-zinc-950">Documentación del viaje</div>
-                  <div className="text-sm text-zinc-500">Cada documento tiene su propia regla y fecha calculada.</div>
-                </div>
-                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                  <select value={selectedTemplateToAdd} onChange={(e) => setSelectedTemplateToAdd(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                  <Button variant="outline" className="h-11 rounded-2xl" onClick={addDocumentRule}><FileText className="mr-2 h-4 w-4" />Añadir documento</Button>
-                </div>
-                <div className="space-y-3">
-                  {(selectedTrip.documentRules || []).map((rule) => {
-                    const tmpl = templates.find((t) => t.id === rule.templateId);
-                    return (
-                      <div key={rule.templateId} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                        <div className="grid gap-3 xl:grid-cols-[1.2fr_180px_120px_120px_44px] xl:items-center">
-                          <div>
-                            <div className="font-medium text-zinc-950">{tmpl?.name || rule.templateId}</div>
-                            <div className="text-sm text-zinc-500">Fecha calculada: {formatShortDate(getDocumentRuleDueDate(selectedTrip, rule.templateId))}</div>
-                          </div>
-                          <select value={rule.dueType} onChange={(e) => updateDocumentRule(rule.templateId, { dueType: e.target.value })} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
-                            <option value="days_before_trip">Días antes del viaje</option>
-                            <option value="fixed_date">Fecha fija</option>
-                          </select>
-                          {rule.dueType === "days_before_trip" ? (
-                            <Input type="number" min="0" value={rule.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updateDocumentRule(rule.templateId, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="rounded-2xl" />
-                          ) : (
-                            <Input type="date" value={rule.dueDate || ""} onChange={(e) => updateDocumentRule(rule.templateId, { dueDate: e.target.value })} className="rounded-2xl" />
-                          )}
-                          <div className="text-sm text-zinc-500">{rule.dueType === "days_before_trip" ? "días antes" : "fecha fija"}</div>
-                          <Button variant="ghost" size="icon" onClick={() => removeDocumentRule(rule.templateId)}><Trash2 className="h-4 w-4 text-zinc-700" /></Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-3xl border-zinc-200 bg-zinc-50 shadow-none">
-              <CardContent className="space-y-4 p-4">
-                <div>
-                  <div className="text-sm font-semibold text-zinc-950">Pagos del viaje</div>
-                  <div className="text-sm text-zinc-500">Cada cuota se recalcula automáticamente.</div>
-                </div>
-                {[["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]].map(([paymentKey, paymentLabel]) => {
-                  const rule = selectedTrip.paymentSchedule?.[paymentKey];
-                  return (
-                    <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                      <div className="grid gap-3 xl:grid-cols-[1.1fr_180px_140px_140px] xl:items-center">
-                        <div>
-                          <div className="font-medium text-zinc-950">{rule?.name || paymentLabel}</div>
-                          <div className="text-sm text-zinc-500">Fecha calculada: {formatShortDate(getPaymentRuleDueDate(selectedTrip, paymentKey))}</div>
-                        </div>
-                        <select value={rule?.dueType || "days_before_trip"} onChange={(e) => updatePaymentRule(paymentKey, { dueType: e.target.value })} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
-                          <option value="days_before_trip">Días antes del viaje</option>
-                          <option value="fixed_date">Fecha fija</option>
-                        </select>
-                        {(rule?.dueType || "days_before_trip") === "days_before_trip" ? (
-                          <Input type="number" min="0" value={rule?.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updatePaymentRule(paymentKey, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="rounded-2xl" />
-                        ) : (
-                          <Input type="date" value={rule?.dueDate || ""} onChange={(e) => updatePaymentRule(paymentKey, { dueDate: e.target.value })} className="rounded-2xl" />
-                        )}
-                        <div className="text-sm text-zinc-500">{(rule?.dueType || "days_before_trip") === "days_before_trip" ? "días antes" : "fecha fija"}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                  <div className="text-sm font-semibold text-zinc-950">Recordatorios automáticos</div>
-                  <div className="mt-1 text-sm text-zinc-500">Activa los avisos del viaje y define cuántos días antes se enviarán.</div>
-                  <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-3">
-                      <Checkbox checked={!!selectedTrip.automation?.autoReminderEnabled} onCheckedChange={async (checked) => { const next = { ...selectedTrip, automation: { ...selectedTrip.automation, autoReminderEnabled: !!checked } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, autoReminderEnabled: !!checked } })); await persistTrip(next); }} />
-                      <span className="text-sm text-zinc-700">Activar recordatorios automáticos para este viaje</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Label className="whitespace-nowrap text-sm text-zinc-700">Enviar aviso</Label>
-                      <Input type="number" min="1" value={selectedTrip.automation?.reminderDaysBefore ?? ""} onFocus={(e) => e.target.select()} onChange={async (e) => { const v = e.target.value; const next = { ...selectedTrip, automation: { ...selectedTrip.automation, reminderDaysBefore: v === "" ? "" : Number(v) } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, reminderDaysBefore: v === "" ? "" : Number(v) } })); await persistTrip(next); }} className="max-w-[120px] rounded-2xl" />
-                      <span className="text-sm text-zinc-500">días antes</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-3">
-            <Label>Itinerario</Label>
+      {/* ── Pestaña: Itinerario ── */}
+      {tripTab === "itinerario" && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-zinc-950">Itinerario del viaje</div>
+                <div className="text-sm text-zinc-500">Arrastra las filas para reordenar.</div>
+              </div>
+              <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                onClick={() => syncItinerary([...localOrder, { day: `Día ${localOrder.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
+                <Plus className="mr-2 h-4 w-4" />Añadir tramo
+              </Button>
+            </div>
             <Reorder.Group axis="y" values={localOrder} onReorder={syncItinerary} className="space-y-3">
               {localOrder.map((item, index) => (
-                <Reorder.Item
-                  // [MENOR-3] Key más estable: day + title que son editables y únicos por fila
-                  key={`${item.day}-${item.title}-${index}`}
-                  value={item}
-                  whileDrag={{ scale: 1.015, boxShadow: "0 28px 60px rgba(0,0,0,0.18)", zIndex: 30 }}
-                  className="list-none"
-                >
-                  <div className="overflow-visible rounded-3xl border border-zinc-200 bg-zinc-50 p-4 transition-colors hover:border-zinc-300">
-                    <div className="grid gap-4 lg:grid-cols-[28px_1fr_44px] lg:items-start">
-                      <div className="flex cursor-grab justify-center pt-3 text-zinc-400 active:cursor-grabbing"><GripVertical className="h-5 w-5" /></div>
-                      <div className="grid gap-3">
-                        <div className="grid gap-3 lg:grid-cols-[140px_1fr_140px]">
-                          <Input value={item.day} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-2xl bg-white" />
-                          <Input value={item.title} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-2xl bg-white" />
-                          <Input value={item.time} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-2xl bg-white" />
+                <Reorder.Item key={`${item.day}-${item.title}-${index}`} value={item} whileDrag={{ scale: 1.015, boxShadow: "0 28px 60px rgba(0,0,0,0.18)", zIndex: 30 }} className="list-none">
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 transition hover:border-zinc-300">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-3 cursor-grab text-zinc-300 active:cursor-grabbing"><GripVertical className="h-5 w-5" /></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <Input value={item.day} placeholder="Día" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
+                          <Input value={item.title} placeholder="Título" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
+                          <Input value={item.time} placeholder="Hora" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                         </div>
-                        <Input value={item.description} onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-2xl bg-white" />
+                        <Input value={item.description} placeholder="Descripción" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                       </div>
-                      <div className="flex justify-end">
-                        <Button variant="ghost" size="icon" onClick={() => syncItinerary(localOrder.filter((_, i) => i !== index))}>×</Button>
-                      </div>
+                      <button type="button" onClick={() => syncItinerary(localOrder.filter((_, i) => i !== index))} className="mt-2 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 </Reorder.Item>
               ))}
             </Reorder.Group>
-          </div>
-          <Button variant="outline" className="rounded-2xl" onClick={() => syncItinerary([...localOrder, { day: `Día ${localOrder.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
-            <Pencil className="mr-2 h-4 w-4" />Añadir línea al itinerario
-          </Button>
-        </CardContent>
-      </Card>
+            {localOrder.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+                Sin tramos. Pulsa "Añadir tramo" para empezar.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Pestaña: Documentos ── */}
+      {tripTab === "documentos" && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-zinc-950">Documentación requerida</div>
+                <div className="text-sm text-zinc-500">Cada documento tiene su propia regla y fecha límite.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <select value={selectedTemplateToAdd} onChange={(e) => setSelectedTemplateToAdd(e.target.value)} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={addDocumentRule}>
+                  <Plus className="mr-2 h-4 w-4" />Añadir
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {(selectedTrip.documentRules || []).length === 0 && (
+                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">Sin documentos configurados para este viaje.</div>
+              )}
+              {(selectedTrip.documentRules || []).map((rule) => {
+                const tmpl = templates.find((t) => t.id === rule.templateId);
+                return (
+                  <div key={rule.templateId} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center">
+                    <div className="flex-1">
+                      <div className="font-medium text-zinc-950">{tmpl?.name || rule.templateId}</div>
+                      <div className="text-xs text-zinc-400 mt-0.5">Vence: {formatShortDate(getDocumentRuleDueDate(selectedTrip, rule.templateId))}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select value={rule.dueType} onChange={(e) => updateDocumentRule(rule.templateId, { dueType: e.target.value })} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm">
+                        <option value="days_before_trip">Días antes</option>
+                        <option value="fixed_date">Fecha fija</option>
+                      </select>
+                      {rule.dueType === "days_before_trip" ? (
+                        <Input type="number" min="0" value={rule.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updateDocumentRule(rule.templateId, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="w-20 rounded-xl text-sm" />
+                      ) : (
+                        <Input type="date" value={rule.dueDate || ""} onChange={(e) => updateDocumentRule(rule.templateId, { dueDate: e.target.value })} className="rounded-xl text-sm" />
+                      )}
+                      <button type="button" onClick={() => removeDocumentRule(rule.templateId)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-200 hover:text-red-600">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Pestaña: Pagos ── */}
+      {tripTab === "pagos" && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-5 p-6">
+            <div>
+              <div className="font-semibold text-zinc-950">Calendario de pagos</div>
+              <div className="text-sm text-zinc-500">Configura fechas límite y recordatorios por cuota.</div>
+            </div>
+            <div className="space-y-3">
+              {[["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]].map(([paymentKey, paymentLabel]) => {
+                const rule = selectedTrip.paymentSchedule?.[paymentKey];
+                return (
+                  <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="min-w-[140px]">
+                        <div className="font-medium text-zinc-950">{rule?.name || paymentLabel}</div>
+                        <div className="text-xs text-zinc-400 mt-0.5">Vence: {formatShortDate(getPaymentRuleDueDate(selectedTrip, paymentKey))}</div>
+                      </div>
+                      <div className="flex flex-1 items-center gap-2">
+                        <select value={rule?.dueType || "days_before_trip"} onChange={(e) => updatePaymentRule(paymentKey, { dueType: e.target.value })} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm">
+                          <option value="days_before_trip">Días antes</option>
+                          <option value="fixed_date">Fecha fija</option>
+                        </select>
+                        {(rule?.dueType || "days_before_trip") === "days_before_trip" ? (
+                          <Input type="number" min="0" value={rule?.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updatePaymentRule(paymentKey, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="w-24 rounded-xl text-sm" />
+                        ) : (
+                          <Input type="date" value={rule?.dueDate || ""} onChange={(e) => updatePaymentRule(paymentKey, { dueDate: e.target.value })} className="rounded-xl text-sm" />
+                        )}
+                        <span className="text-xs text-zinc-400">{(rule?.dueType || "days_before_trip") === "days_before_trip" ? "días antes" : "fecha fija"}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+              <div>
+                <div className="font-medium text-zinc-950">Recordatorios automáticos</div>
+                <div className="text-sm text-zinc-400">Avisos automáticos a los participantes antes de cada vencimiento.</div>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <Checkbox checked={!!selectedTrip.automation?.autoReminderEnabled} onCheckedChange={async (checked) => { const next = { ...selectedTrip, automation: { ...selectedTrip.automation, autoReminderEnabled: !!checked } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, autoReminderEnabled: !!checked } })); await persistTrip(next); }} />
+                  <span className="text-sm text-zinc-700">Activar recordatorios para este viaje</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="whitespace-nowrap text-sm text-zinc-500">Enviar aviso</Label>
+                  <Input type="number" min="1" value={selectedTrip.automation?.reminderDaysBefore ?? ""} onFocus={(e) => e.target.select()} onChange={async (e) => { const v = e.target.value; const next = { ...selectedTrip, automation: { ...selectedTrip.automation, reminderDaysBefore: v === "" ? "" : Number(v) } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, reminderDaysBefore: v === "" ? "" : Number(v) } })); await persistTrip(next); }} className="w-20 rounded-xl text-sm" />
+                  <span className="text-sm text-zinc-400">días antes</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -2876,33 +3018,100 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
   usePaymentReminders(users, trips);
 
+  const navItems = [
+    { key: "clients",     label: "Clientes",       icon: Users },
+    { key: "tracking",    label: "Seguimiento",     icon: BarChart2 },
+    { key: "payments",    label: "Pagos",           icon: CreditCard },
+    { key: "docs",        label: "Documentación",   icon: FileCheck2 },
+    { key: "questions",   label: "Preguntas",       icon: MessageCircleQuestion },
+    { key: "checklists",  label: "Checklists",      icon: ListChecks },
+    { key: "trips",       label: "Viajes",          icon: Map },
+    { key: "calculadora", label: "Calculadora",     icon: Calculator },
+  ];
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
-      <div className="mx-auto max-w-7xl p-6 lg:p-8">
-        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200/80 bg-white/85 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
-          <LogoMark totalParticipants={totalParticipants} />
+    <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <Badge className="border-0 bg-zinc-100 text-zinc-900 hover:bg-zinc-100">Panel interno</Badge>
-            <Button variant="outline" className="rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
-              <LogOut className="mr-2 h-4 w-4" />Salir
-            </Button>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel interno</div>
+              <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
+            </div>
+            <div className="ml-2 hidden rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 sm:block">
+              {totalParticipants} participantes
+            </div>
           </div>
+          <Button variant="outline" className="rounded-2xl text-sm" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
+            <LogOut className="mr-2 h-4 w-4" />Salir
+          </Button>
         </div>
-        <div className="mb-6 flex w-full flex-wrap items-center gap-2 rounded-3xl border border-zinc-200 bg-white p-2 shadow-sm">
-          {[["clients","Clientes"],["tracking","Seguimiento"],["payments","Pagos"],["docs","Documentación"],["questions","Preguntas"],["checklists","Checklists"],["trips","Viajes"],["calculadora","🧮 Calculadora"]].map(([key, label]) => (
-            <button key={key} type="button" onClick={() => setActiveSection(key)} className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${activeSection === key ? "bg-zinc-900 text-white" : "bg-white text-zinc-700 hover:bg-zinc-100"}`}>{label}</button>
-          ))}
+      </header>
+
+      <div className="mx-auto flex max-w-[1400px] gap-6 px-6 py-6">
+        {/* Sidebar */}
+        <aside className="hidden w-56 shrink-0 lg:block">
+          <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
+            <nav className="space-y-1">
+              {navItems.map(({ key, label, icon: Icon }) => {
+                const active = activeSection === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveSection(key)}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${
+                      active
+                        ? "text-white shadow-sm"
+                        : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                    }`}
+                    style={active ? { backgroundColor: CORPORATE_RED } : {}}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {label}
+                    {active && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </aside>
+
+        {/* Mobile tabs */}
+        <div className="mb-4 flex w-full flex-wrap gap-2 lg:hidden">
+          {navItems.map(({ key, label, icon: Icon }) => {
+            const active = activeSection === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveSection(key)}
+                className={`flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition ${
+                  active ? "text-white" : "border border-zinc-200 bg-white text-zinc-700"
+                }`}
+                style={active ? { backgroundColor: CORPORATE_RED } : {}}
+              >
+                <Icon className="h-3.5 w-3.5" />{label}
+              </button>
+            );
+          })}
         </div>
-        <div className="w-full">
-          {activeSection === "clients" && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
-          {activeSection === "tracking" && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
-          {activeSection === "payments" && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "docs" && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
-          {activeSection === "questions" && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "checklists" && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "trips" && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
+
+        {/* Content */}
+        <main className="min-w-0 flex-1">
+          {activeSection === "clients"     && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
+          {activeSection === "tracking"    && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
+          {activeSection === "payments"    && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "docs"        && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
+          {activeSection === "questions"   && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "checklists"  && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "trips"       && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
           {activeSection === "calculadora" && <CalculadoraCampamento />}
-        </div>
+        </main>
       </div>
     </div>
   );

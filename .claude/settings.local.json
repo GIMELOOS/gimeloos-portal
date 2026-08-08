@@ -12,7 +12,13 @@
       "Bash(kill 84798)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(echo \"PID: $!\")",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s http://localhost:3001)",
+      "Bash(curl -s --max-time 15 http://localhost:3001)",
+      "Bash(curl -v --max-time 20 http://localhost:3001)",
+      "Read(//Users/adri/Desktop/**)"
     ]
   }
 }
