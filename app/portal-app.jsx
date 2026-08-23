@@ -4960,23 +4960,59 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
         </aside>
 
         {/* Mobile tabs */}
-        <div className="mb-4 flex w-full flex-wrap gap-2 lg:hidden">
-          {[...navItems, { key: "colegios", label: "Colegios", icon: Users }].map(({ key, label, icon: Icon }) => {
-            const active = activeSection === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveSection(key)}
-                className={`flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition ${
-                  active ? "text-white" : "border border-zinc-200 bg-white text-zinc-700"
-                }`}
-                style={active ? { backgroundColor: CORPORATE_RED } : {}}
-              >
-                <Icon className="h-3.5 w-3.5" />{label}
-              </button>
-            );
-          })}
+        <div className="mb-4 w-full lg:hidden space-y-2">
+          {/* Campamentos group */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-2">
+            <button type="button" onClick={() => setCampExpanded(!campExpanded)}
+              className="flex w-full items-center justify-between px-2 py-1 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
+              <span>Campamentos</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${campExpanded ? "rotate-180" : ""}`} />
+            </button>
+            {campExpanded && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {campamentosItems.map(({ key, label, icon: Icon }) => {
+                  const active = activeSection === key;
+                  return (
+                    <button key={key} type="button" onClick={() => setActiveSection(key)}
+                      className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${active ? "text-white" : "border border-zinc-200 bg-zinc-50 text-zinc-700"}`}
+                      style={active ? { backgroundColor: CORPORATE_RED } : {}}>
+                      <Icon className="h-3.5 w-3.5" />{label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* Colegios group */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-2">
+            <button type="button" onClick={() => setColExpanded(!colExpanded)}
+              className="flex w-full items-center justify-between px-2 py-1 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
+              <span>Colegios</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${colExpanded ? "rotate-180" : ""}`} />
+            </button>
+            {colExpanded && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {colegiosItems.map(({ key, label, icon: Icon }) => {
+                  const active = activeSection === key;
+                  return (
+                    <button key={key} type="button" onClick={() => setActiveSection(key)}
+                      className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${active ? "text-white" : "border border-zinc-200 bg-zinc-50 text-zinc-700"}`}
+                      style={active ? { backgroundColor: CORPORATE_RED } : {}}>
+                      <Icon className="h-3.5 w-3.5" />{label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* Calculadora */}
+          <div>
+            <button type="button" onClick={() => setActiveSection("calculadora")}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${activeSection === "calculadora" ? "text-white" : "border border-zinc-200 bg-white text-zinc-700"}`}
+              style={activeSection === "calculadora" ? { backgroundColor: CORPORATE_RED } : {}}>
+              <Calculator className="h-3.5 w-3.5" />Calculadora
+            </button>
+          </div>
         </div>
 
         {/* Content */}
