@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdmin } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,9 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request) {
+  const { error: authError } = await requireAdmin(request);
+  if (authError) return authError;
+
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ error: "Falta SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
   }

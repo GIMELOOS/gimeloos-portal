@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { requireAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,9 @@ async function findOrCreateFolder(drive, name, parentId) {
 // POST /api/upload-to-drive
 // body: FormData { file, username, subfolder ("documentos" | "pagos") }
 export async function POST(request) {
+  const { error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
   try {
     const formData = await request.formData();
     const file = formData.get("file");

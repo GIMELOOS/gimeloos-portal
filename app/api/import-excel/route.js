@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import { requireAdmin } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -224,7 +225,10 @@ async function readBootstrap() {
   return { trips: normalizedTrips, users: normalizedUsers, tripByName };
 }
 
-export async function GET() {
+export async function GET(request) {
+  const { error: authError } = await requireAdmin(request);
+  if (authError) return authError;
+
   try {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json(
@@ -247,6 +251,9 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const { error: authError } = await requireAdmin(request);
+  if (authError) return authError;
+
   try {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json(

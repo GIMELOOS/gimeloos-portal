@@ -428,11 +428,20 @@ const getNextStep = (user, trip, templates) => {
 
 // ─── Notificaciones ──────────────────────────────────────────────────────────
 
+async function getAuthToken() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
 async function sendNotification(type, to, participantId, data) {
   try {
+    const token = await getAuthToken();
     await fetch("/api/notify", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ type, to, participantId, data }),
     });
   } catch (err) {
@@ -442,7 +451,8 @@ async function sendNotification(type, to, participantId, data) {
 
 // ─── Supabase helpers ────────────────────────────────────────────────────────
 
-function uploadFileToDrive(file, participantName, subfolder, onProgress, tripName) {
+async function uploadFileToDrive(file, participantName, subfolder, onProgress, tripName) {
+  const token = await getAuthToken();
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -451,6 +461,7 @@ function uploadFileToDrive(file, participantName, subfolder, onProgress, tripNam
     if (tripName) formData.append("tripName", tripName);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload-to-drive");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -1867,9 +1878,13 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       if (authCandidates.length) {
         setImportMessage("Creando accesos de participantes...");
         try {
+          const token = await getAuthToken();
           const res = await fetch("/api/create-auth-users", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ participants: authCandidates }),
           });
           const result = await res.json();
@@ -2052,9 +2067,13 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                       onClick={async () => {
                         if (!client.email) return;
                         try {
+                          const token = await getAuthToken();
                           const res = await fetch("/api/invite-participant", {
                             method: "POST",
-                            headers: { "Content-Type": "application/json" },
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
                             body: JSON.stringify({ participantId: client.id }),
                           });
                           const json = await res.json();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -174,6 +175,9 @@ const templates = {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request) {
+  const { error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { type, to, participantId, data } = body;
