@@ -2619,84 +2619,27 @@ function AdminChecklists({ trips, setTrips, notify }) {
   );
 }
 
-function AdminTrips({ trips, setTrips, notify, templates }) {
+function AdminTrips({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
-  const [selectedTemplateToAdd, setSelectedTemplateToAdd] = useState(templates[0]?.id || "");
   const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
-  const [localOrder, setLocalOrder] = useState(selectedTrip?.itinerary || []);
-  const [tripTab, setTripTab] = useState("datos");
 
-  useEffect(() => { setLocalOrder(selectedTrip?.itinerary || []); }, [selectedTripId, selectedTrip?.itinerary]);
-
-  const syncTrip = (updater) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? updater(t) : t));
-  const persistTrip = async (nextTrip) => {
-    await supabase.from("trips").update({
-      name: nextTrip.name, departure_date: nextTrip.departureDate || null, description: nextTrip.description || "",
-      hero_image: nextTrip.heroImage || "", hero_images: nextTrip.heroImages || [],
-      transfer_info: nextTrip.transferInfo || {}, automation: { ...(nextTrip.automation || {}), showItinerary: nextTrip.showItinerary !== false, showLogistics: nextTrip.showLogistics !== false },
-      document_rules: nextTrip.documentRules || [], payment_schedule: nextTrip.paymentSchedule || {},
-      itinerary: nextTrip.itinerary || [], logistics: nextTrip.logistics || [], checklist: nextTrip.checklist || [],
-    }).eq("id", nextTrip.id);
+  const syncField = (field, value) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, [field]: value } : t));
+  const saveField = async (field, value) => {
+    syncField(field, value);
+    await supabase.from("trips").update({ [field]: value }).eq("id", selectedTripId);
   };
 
-  const syncItinerary = async (nextOrder) => {
-    setLocalOrder(nextOrder);
-    const nextTrip = { ...selectedTrip, itinerary: nextOrder };
-    syncTrip((t) => ({ ...t, itinerary: nextOrder }));
-    await persistTrip(nextTrip);
-  };
-
-  const updateDocumentRule = async (templateId, patch) => {
-    const nextRules = (selectedTrip.documentRules || []).map((r) => r.templateId === templateId ? { ...r, ...patch } : r);
-    const nextTrip = { ...selectedTrip, documentRules: nextRules };
-    syncTrip((t) => ({ ...t, documentRules: nextRules }));
-    await persistTrip(nextTrip);
-  };
-
-  const addDocumentRule = async () => {
-    if (!selectedTemplateToAdd) return;
-    if (selectedTrip.documentRules?.some((r) => r.templateId === selectedTemplateToAdd)) { notify("Ese documento ya está configurado en el viaje."); return; }
-    const nextRules = [...(selectedTrip.documentRules || []), { templateId: selectedTemplateToAdd, dueType: "days_before_trip", dueValue: 15 }];
-    const nextTrip = { ...selectedTrip, documentRules: nextRules };
-    syncTrip((t) => ({ ...t, documentRules: nextRules }));
-    await persistTrip(nextTrip);
-    notify("Documento añadido al viaje.");
-  };
-
-  const removeDocumentRule = async (templateId) => {
-    const nextRules = (selectedTrip.documentRules || []).filter((r) => r.templateId !== templateId);
-    const nextTrip = { ...selectedTrip, documentRules: nextRules };
-    syncTrip((t) => ({ ...t, documentRules: nextRules }));
-    await persistTrip(nextTrip);
-    notify("Documento eliminado del viaje.");
-  };
-
-  const updatePaymentRule = async (paymentKey, patch) => {
-    const nextSchedule = { ...selectedTrip.paymentSchedule, [paymentKey]: { ...selectedTrip.paymentSchedule[paymentKey], ...patch } };
-    const nextTrip = { ...selectedTrip, paymentSchedule: nextSchedule };
-    syncTrip((t) => ({ ...t, paymentSchedule: nextSchedule }));
-    await persistTrip(nextTrip);
-  };
-
-  const tripTabs = [
-    { key: "datos",       label: "Datos básicos",    icon: Settings },
-    { key: "logistica",   label: "Logística",        icon: MapPinned },
-    { key: "itinerario",  label: "Itinerario",       icon: CalendarDays },
-    { key: "documentos",  label: "Documentos",       icon: FileCheck2 },
-    { key: "pagos",       label: "Pagos",            icon: CreditCard },
-  ];
+  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={CalendarDays} title="Viajes" subtitle="Configura datos básicos, reglas de pagos/documentación e itinerario por viaje." />
-
-      {/* Selector de viaje */}
+      <SectionTitle icon={Map} title="Viajes" subtitle="Información básica y foto de portada de cada viaje." />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1 space-y-1">
               <Label>Viaje activo</Label>
-              <select value={selectedTripId} onChange={(e) => { setSelectedTripId(e.target.value); setTripTab("datos"); }} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+              <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
@@ -2709,40 +2652,23 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Pestañas */}
-      <div className="flex gap-2 flex-wrap">
-        {tripTabs.map(({ key, label, icon: Icon }) => {
-          const active = tripTab === key;
-          return (
-            <button key={key} type="button" onClick={() => setTripTab(key)}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-white"}`}
-              style={active ? { backgroundColor: CORPORATE_RED } : {}}
-            >
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Pestaña: Datos básicos ── */}
-      {tripTab === "datos" && (
+      {selectedTrip && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-5 p-6">
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre del viaje</Label>
-                <Input value={selectedTrip.name} onChange={async (e) => { const next = { ...selectedTrip, name: e.target.value }; syncTrip((t) => ({ ...t, name: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} onBlur={(e) => saveField("name", e.target.value)} className="rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { const next = { ...selectedTrip, departureDate: e.target.value }; syncTrip((t) => ({ ...t, departureDate: e.target.value })); await persistTrip(next); }} className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTripId); }} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Foto de portada (URL)</Label>
               <div className="flex gap-3">
-                <Input value={selectedTrip.heroImage || ""} onChange={async (e) => { const next = { ...selectedTrip, heroImage: e.target.value }; syncTrip((t) => ({ ...t, heroImage: e.target.value })); await persistTrip(next); }} placeholder="https://..." className="rounded-2xl" />
+                <Input value={selectedTrip.heroImage || ""} onChange={(e) => syncField("heroImage", e.target.value)} onBlur={(e) => saveField("hero_image", e.target.value)} placeholder="https://..." className="rounded-2xl" />
                 {selectedTrip.heroImage && (
                   <img src={selectedTrip.heroImage} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
                 )}
@@ -2750,99 +2676,44 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea value={selectedTrip.description} onChange={async (e) => { const next = { ...selectedTrip, description: e.target.value }; syncTrip((t) => ({ ...t, description: e.target.value })); await persistTrip(next); }} className="min-h-[120px] rounded-2xl" />
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} onBlur={(e) => saveField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
             </div>
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
 
-      {/* ── Pestaña: Logística ── */}
-      {tripTab === "logistica" && (
-        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-          <CardContent className="space-y-4 p-6">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <div className="font-semibold text-zinc-950">Información logística</div>
-                <div className="text-sm text-zinc-500">Datos clave previos al viaje: horarios, lugar de encuentro, qué llevar...</div>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <div
-                    onClick={async () => {
-                      const next = { ...selectedTrip, showLogistics: selectedTrip.showLogistics === false ? true : false };
-                      syncTrip((t) => ({ ...t, showLogistics: selectedTrip.showLogistics === false ? true : false }));
-                      await persistTrip(next);
-                    }}
-                    className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showLogistics !== false ? "bg-green-500" : "bg-zinc-300"}`}
-                  >
-                    <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedTrip.showLogistics !== false ? "left-5" : "left-0.5"}`} />
-                  </div>
-                  <span className="text-sm text-zinc-700">Visible para clientes</span>
-                </label>
-                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
-                  onClick={async () => {
-                    const nextLogistics = [...(selectedTrip.logistics || []), { title: "Nuevo punto", description: "" }];
-                    const next = { ...selectedTrip, logistics: nextLogistics };
-                    syncTrip((t) => ({ ...t, logistics: nextLogistics }));
-                    await persistTrip(next);
-                  }}>
-                  <Plus className="mr-2 h-4 w-4" />Añadir punto
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {(selectedTrip.logistics || []).map((item, index) => (
-                <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-white p-4">
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      value={item.title}
-                      placeholder="Título (ej: Punto de encuentro)"
-                      onChange={async (e) => {
-                        const nextLogistics = (selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, title: e.target.value } : l);
-                        const next = { ...selectedTrip, logistics: nextLogistics };
-                        syncTrip((t) => ({ ...t, logistics: nextLogistics }));
-                        await persistTrip(next);
-                      }}
-                      className="rounded-xl bg-white text-sm font-medium"
-                    />
-                    <Textarea
-                      value={item.description}
-                      placeholder="Descripción (ej: Parking del instituto a las 8:00)"
-                      onChange={async (e) => {
-                        const nextLogistics = (selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, description: e.target.value } : l);
-                        const next = { ...selectedTrip, logistics: nextLogistics };
-                        syncTrip((t) => ({ ...t, logistics: nextLogistics }));
-                        await persistTrip(next);
-                      }}
-                      className="min-h-[72px] rounded-xl bg-white text-sm"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const nextLogistics = (selectedTrip.logistics || []).filter((_, i) => i !== index);
-                      const next = { ...selectedTrip, logistics: nextLogistics };
-                      syncTrip((t) => ({ ...t, logistics: nextLogistics }));
-                      await persistTrip(next);
-                    }}
-                    className="mt-1 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {(selectedTrip.logistics || []).length === 0 && (
-                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
-                  Sin puntos logísticos. Pulsa "Añadir punto" para empezar.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+function AdminItinerary({ trips, setTrips, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
+  const [localOrder, setLocalOrder] = useState(selectedTrip?.itinerary || []);
 
-      {/* ── Pestaña: Itinerario ── */}
-      {tripTab === "itinerario" && (
+  useEffect(() => { setLocalOrder(selectedTrip?.itinerary || []); }, [selectedTripId]);
+
+  const syncItinerary = async (nextOrder) => {
+    setLocalOrder(nextOrder);
+    setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, itinerary: nextOrder } : t));
+    await supabase.from("trips").update({ itinerary: nextOrder }).eq("id", selectedTripId);
+  };
+
+  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={CalendarDays} title="Itinerario" subtitle="Programa día a día de cada viaje. Arrastra para reordenar." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="space-y-1">
+            <Label>Viaje</Label>
+            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+      {selectedTrip && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -2854,9 +2725,9 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <div
                     onClick={async () => {
-                      const next = { ...selectedTrip, showItinerary: selectedTrip.showItinerary === false ? true : false };
-                      syncTrip((t) => ({ ...t, showItinerary: selectedTrip.showItinerary === false ? true : false }));
-                      await persistTrip(next);
+                      const next = selectedTrip.showItinerary === false;
+                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showItinerary: next } : t));
+                      await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showItinerary: next } }).eq("id", selectedTripId);
                     }}
                     className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showItinerary !== false ? "bg-green-500" : "bg-zinc-300"}`}
                   >
@@ -2880,7 +2751,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
                         <div className="grid gap-2 sm:grid-cols-3">
                           <Input value={item.day} placeholder="Día" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                           <Input value={item.title} placeholder="Título" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
-                          <Input value={item.time} placeholder="Hora" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
+                          <Input value={item.time || ""} placeholder="Hora" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                         </div>
                         <Input value={item.description} placeholder="Descripción" onChange={(e) => syncItinerary(localOrder.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                       </div>
@@ -2900,110 +2771,79 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
 
-      {/* ── Pestaña: Documentos ── */}
-      {tripTab === "documentos" && (
+function AdminLogistica({ trips, setTrips, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
+
+  const syncLogistics = async (nextLogistics) => {
+    setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, logistics: nextLogistics } : t));
+    await supabase.from("trips").update({ logistics: nextLogistics }).eq("id", selectedTripId);
+  };
+
+  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={MapPinned} title="Logística" subtitle="Datos clave previos al viaje: horarios, lugar de encuentro, qué llevar..." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="space-y-1">
+            <Label>Viaje</Label>
+            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+      {selectedTrip && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="font-semibold text-zinc-950">Documentación requerida</div>
-                <div className="text-sm text-zinc-500">Cada documento tiene su propia regla y fecha límite.</div>
+                <div className="font-semibold text-zinc-950">Puntos logísticos</div>
+                <div className="text-sm text-zinc-500">Punto de encuentro, hora de salida, qué traer, contacto de emergencia...</div>
               </div>
-              <div className="flex items-center gap-2">
-                <select value={selectedTemplateToAdd} onChange={(e) => setSelectedTemplateToAdd(e.target.value)} className="h-10 rounded-2xl border border-zinc-200 bg-white px-3 text-sm">
-                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={addDocumentRule}>
-                  <Plus className="mr-2 h-4 w-4" />Añadir
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <div
+                    onClick={async () => {
+                      const next = selectedTrip.showLogistics === false;
+                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showLogistics: next } : t));
+                      await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showLogistics: next } }).eq("id", selectedTripId);
+                    }}
+                    className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showLogistics !== false ? "bg-green-500" : "bg-zinc-300"}`}
+                  >
+                    <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedTrip.showLogistics !== false ? "left-5" : "left-0.5"}`} />
+                  </div>
+                  <span className="text-sm text-zinc-700">Visible para clientes</span>
+                </label>
+                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                  onClick={() => syncLogistics([...(selectedTrip.logistics || []), { title: "Nuevo punto", description: "" }])}>
+                  <Plus className="mr-2 h-4 w-4" />Añadir punto
                 </Button>
               </div>
             </div>
             <div className="space-y-3">
-              {(selectedTrip.documentRules || []).length === 0 && (
-                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">Sin documentos configurados para este viaje.</div>
+              {(selectedTrip.logistics || []).map((item, index) => (
+                <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-white p-4">
+                  <div className="flex-1 space-y-2">
+                    <Input value={item.title} placeholder="Título (ej: Punto de encuentro)" onChange={(e) => syncLogistics((selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl bg-white text-sm font-medium" />
+                    <Textarea value={item.description} placeholder="Descripción (ej: Parking del instituto a las 8:00)" onChange={(e) => syncLogistics((selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="min-h-[72px] rounded-xl bg-white text-sm" />
+                  </div>
+                  <button type="button" onClick={() => syncLogistics((selectedTrip.logistics || []).filter((_, i) => i !== index))} className="mt-1 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {(selectedTrip.logistics || []).length === 0 && (
+                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+                  Sin puntos logísticos. Pulsa "Añadir punto" para empezar.
+                </div>
               )}
-              {(selectedTrip.documentRules || []).map((rule) => {
-                const tmpl = templates.find((t) => t.id === rule.templateId);
-                return (
-                  <div key={rule.templateId} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center">
-                    <div className="flex-1">
-                      <div className="font-medium text-zinc-950">{tmpl?.name || rule.templateId}</div>
-                      <div className="text-xs text-zinc-400 mt-0.5">Vence: {formatShortDate(getDocumentRuleDueDate(selectedTrip, rule.templateId))}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select value={rule.dueType} onChange={(e) => updateDocumentRule(rule.templateId, { dueType: e.target.value })} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm">
-                        <option value="days_before_trip">Días antes</option>
-                        <option value="fixed_date">Fecha fija</option>
-                      </select>
-                      {rule.dueType === "days_before_trip" ? (
-                        <Input type="number" min="0" value={rule.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updateDocumentRule(rule.templateId, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="w-20 rounded-xl text-sm" />
-                      ) : (
-                        <Input type="date" value={rule.dueDate || ""} onChange={(e) => updateDocumentRule(rule.templateId, { dueDate: e.target.value })} className="rounded-xl text-sm" />
-                      )}
-                      <button type="button" onClick={() => removeDocumentRule(rule.templateId)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-200 hover:text-red-600">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Pestaña: Pagos ── */}
-      {tripTab === "pagos" && (
-        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-          <CardContent className="space-y-5 p-6">
-            <div>
-              <div className="font-semibold text-zinc-950">Calendario de pagos</div>
-              <div className="text-sm text-zinc-500">Configura fechas límite y recordatorios por cuota.</div>
-            </div>
-            <div className="space-y-3">
-              {[["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]].map(([paymentKey, paymentLabel]) => {
-                const rule = selectedTrip.paymentSchedule?.[paymentKey];
-                return (
-                  <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <div className="min-w-[140px]">
-                        <div className="font-medium text-zinc-950">{rule?.name || paymentLabel}</div>
-                        <div className="text-xs text-zinc-400 mt-0.5">Vence: {formatShortDate(getPaymentRuleDueDate(selectedTrip, paymentKey))}</div>
-                      </div>
-                      <div className="flex flex-1 items-center gap-2">
-                        <select value={rule?.dueType || "days_before_trip"} onChange={(e) => updatePaymentRule(paymentKey, { dueType: e.target.value })} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm">
-                          <option value="days_before_trip">Días antes</option>
-                          <option value="fixed_date">Fecha fija</option>
-                        </select>
-                        {(rule?.dueType || "days_before_trip") === "days_before_trip" ? (
-                          <Input type="number" min="0" value={rule?.dueValue ?? ""} onFocus={(e) => e.target.select()} onChange={(e) => updatePaymentRule(paymentKey, { dueValue: e.target.value === "" ? "" : Number(e.target.value), dueDate: "" })} className="w-24 rounded-xl text-sm" />
-                        ) : (
-                          <Input type="date" value={rule?.dueDate || ""} onChange={(e) => updatePaymentRule(paymentKey, { dueDate: e.target.value })} className="rounded-xl text-sm" />
-                        )}
-                        <span className="text-xs text-zinc-400">{(rule?.dueType || "days_before_trip") === "days_before_trip" ? "días antes" : "fecha fija"}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-3">
-              <div>
-                <div className="font-medium text-zinc-950">Recordatorios automáticos</div>
-                <div className="text-sm text-zinc-400">Avisos automáticos a los participantes antes de cada vencimiento.</div>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <Checkbox checked={!!selectedTrip.automation?.autoReminderEnabled} onCheckedChange={async (checked) => { const next = { ...selectedTrip, automation: { ...selectedTrip.automation, autoReminderEnabled: !!checked } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, autoReminderEnabled: !!checked } })); await persistTrip(next); }} />
-                  <span className="text-sm text-zinc-700">Activar recordatorios para este viaje</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="whitespace-nowrap text-sm text-zinc-500">Enviar aviso</Label>
-                  <Input type="number" min="1" value={selectedTrip.automation?.reminderDaysBefore ?? ""} onFocus={(e) => e.target.select()} onChange={async (e) => { const v = e.target.value; const next = { ...selectedTrip, automation: { ...selectedTrip.automation, reminderDaysBefore: v === "" ? "" : Number(v) } }; syncTrip((t) => ({ ...t, automation: { ...t.automation, reminderDaysBefore: v === "" ? "" : Number(v) } })); await persistTrip(next); }} className="w-20 rounded-xl text-sm" />
-                  <span className="text-sm text-zinc-400">días antes</span>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -3903,6 +3743,18 @@ function SchoolPortal({ user, onLogout, notify }) {
 
 // ─── Admin Schools ────────────────────────────────────────────────────────────
 
+function ChecklistInput({ onAdd }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="flex gap-2">
+      <Input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && val.trim()) { onAdd(val.trim()); setVal(""); } }} placeholder="Añadir elemento (Enter para confirmar)" className="rounded-2xl" />
+      <Button onClick={() => { if (val.trim()) { onAdd(val.trim()); setVal(""); } }} className="rounded-2xl text-white shrink-0" style={{ backgroundColor: CORPORATE_RED }}>
+        <Plus className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 function SchoolQuestionCard({ q, schoolName, onReply }) {
   const [replyText, setReplyText] = useState(q.reply || "");
   const [editing, setEditing] = useState(false);
@@ -3956,7 +3808,12 @@ function SchoolQuestionCard({ q, schoolName, onReply }) {
 }
 
 function AdminSchools({ trips, notify, section = "colegios" }) {
-  const tab = section === "colegios" ? "schools" : section === "alumnos" ? "students" : section === "alergias" ? "allergies" : section === "docs" ? "docs" : section === "preguntas" ? "questions" : section === "rooming" ? "rooming" : "groups";
+  const tab = {
+    "colegios": "schools", "alumnos": "students", "alergias": "allergies",
+    "docs": "docs", "preguntas": "questions", "rooming": "rooming", "grupos": "groups",
+    "seguimiento": "tracking", "checklist": "checklist",
+    "itinerario": "itinerary", "logistica": "logistics", "viajes": "school_viajes",
+  }[section] || "schools";
   const [schools, setSchools] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [allCourses, setAllCourses] = useState([]);
@@ -4008,7 +3865,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       try {
         const [schoolsRes, schoolTripsRes, coursesRes, studentsRes, docsRes] = await Promise.all([
           supabase.from("schools").select("*").order("name"),
-          supabase.from("school_trips").select("*, trips(name, departure_date)").order("created_at"),
+          supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, description)").order("created_at"),
           supabase.from("school_courses").select("*").order("course_name"),
           supabase.from("students").select("*").order("name"),
           supabase.from("school_documents").select("*").order("created_at"),
@@ -4055,7 +3912,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
     setAssignCourse(""); setAssignGroup("");
     // Reload
     const [stRes, scRes] = await Promise.all([
-      supabase.from("school_trips").select("*, trips(name, departure_date)").order("created_at"),
+      supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, description)").order("created_at"),
       supabase.from("school_courses").select("*").order("course_name"),
     ]);
     setAllSchoolTrips(stRes.data || []);
@@ -4838,6 +4695,437 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           })()}
         </div>
       )}
+
+      {/* Seguimiento tab */}
+      {tab === "tracking" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Seguimiento por colegio y curso</h2>
+            <p className="text-xs text-zinc-400">Estado completo de cada colegio: alumnos, alergias, documentación, rooming y grupos por curso.</p>
+          </div>
+
+          {/* Filtro colegio */}
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).length === 0 ? (
+            <p className="text-sm text-zinc-400">No hay colegios registrados.</p>
+          ) : (
+            <div className="space-y-5">
+              {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).map((school) => {
+                const stList = allSchoolTrips.filter((st) => st.school_id === school.id);
+                if (stList.length === 0) return (
+                  <Card key={school.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                    <CardContent className="p-5">
+                      <div className="font-semibold text-zinc-950">{school.name}</div>
+                      <p className="mt-2 text-xs text-zinc-400">Sin viajes asignados.</p>
+                    </CardContent>
+                  </Card>
+                );
+
+                // Cálculos globales del colegio
+                const allSchoolCourseIds = allCourses.filter((c) => stList.map(t => t.id).includes(c.school_trip_id)).map(c => c.id);
+                const totalStudents = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id)).length;
+                const totalDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id)).length;
+                const uploadedDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id) && d.status !== "pending").length;
+                const missingDocs = totalDocs - uploadedDocs;
+                const coursesWithoutRooming = stList.filter((st) => !st.rooming?.length).length;
+                const coursesWithoutGroups = stList.filter((st) => !st.activity_groups?.length).length;
+
+                // Semáforo global: rojo si algo falta, amarillo si parcial, verde si todo OK
+                const globalOk = totalStudents > 0 && missingDocs === 0 && coursesWithoutRooming === 0 && coursesWithoutGroups === 0;
+                const globalWarning = !globalOk && (totalStudents > 0 || uploadedDocs > 0);
+                const globalColor = globalOk ? "border-emerald-300 bg-emerald-50" : globalWarning ? "border-amber-300 bg-amber-50/40" : "border-zinc-200 bg-white";
+
+                return (
+                  <Card key={school.id} className={`rounded-2xl border shadow-sm ${globalColor}`}>
+                    <CardContent className="p-5 space-y-4">
+                      {/* Cabecera colegio */}
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-zinc-950 text-base">{school.name}</div>
+                          {school.contact_name && <div className="text-xs text-zinc-500 mt-0.5">{school.contact_name}{school.email ? ` · ${school.email}` : ""}</div>}
+                        </div>
+                        <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold ${globalOk ? "bg-emerald-100 text-emerald-700" : globalWarning ? "bg-amber-100 text-amber-700" : "bg-zinc-100 text-zinc-500"}`}>
+                          <div className={`h-2 w-2 rounded-full ${globalOk ? "bg-emerald-500" : globalWarning ? "bg-amber-400" : "bg-zinc-300"}`} />
+                          {globalOk ? "Todo completado" : globalWarning ? "Pendiente de completar" : "Sin datos"}
+                        </div>
+                      </div>
+
+                      {/* Resumen rápido en chips */}
+                      <div className="flex flex-wrap gap-2">
+                        <div className={`rounded-xl px-3 py-1.5 text-xs font-medium ${totalStudents > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                          {totalStudents > 0 ? `✓ ${totalStudents} alumnos` : "⚠ Sin listado de alumnos"}
+                        </div>
+                        {totalDocs > 0 ? (
+                          <div className={`rounded-xl px-3 py-1.5 text-xs font-medium ${missingDocs === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                            {missingDocs === 0 ? `✓ Docs completos (${totalDocs})` : `⚠ Faltan ${missingDocs} docs de ${totalDocs}`}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-zinc-100 text-zinc-500">Sin documentos requeridos</div>
+                        )}
+                        {coursesWithoutRooming > 0 && (
+                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-red-100 text-red-600">
+                            ⚠ Rooming pendiente en {coursesWithoutRooming} {coursesWithoutRooming === 1 ? "viaje" : "viajes"}
+                          </div>
+                        )}
+                        {coursesWithoutRooming === 0 && stList.length > 0 && (
+                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700">✓ Rooming completo</div>
+                        )}
+                        {coursesWithoutGroups > 0 && (
+                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-red-100 text-red-600">
+                            ⚠ Grupos pendientes en {coursesWithoutGroups} {coursesWithoutGroups === 1 ? "viaje" : "viajes"}
+                          </div>
+                        )}
+                        {coursesWithoutGroups === 0 && stList.length > 0 && (
+                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700">✓ Grupos completos</div>
+                        )}
+                      </div>
+
+                      {/* Detalle por viaje y curso */}
+                      <div className="space-y-3">
+                        {stList.map((st) => {
+                          const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
+                          return (
+                            <div key={st.id} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+                              {/* Cabecera viaje */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-2.5">
+                                <div className="text-sm font-semibold text-zinc-900">{st.trips?.name || st.trip_id}</div>
+                                {st.trips?.departure_date && (
+                                  <div className="text-xs text-zinc-400">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</div>
+                                )}
+                              </div>
+
+                              {/* Detalle por curso */}
+                              <div className="divide-y divide-zinc-50">
+                                {stCourses.length === 0 ? (
+                                  <div className="px-4 py-3 text-xs text-zinc-400">Sin cursos asignados a este viaje.</div>
+                                ) : stCourses.map((course) => {
+                                  const cStudents = allStudents.filter((s) => s.school_course_id === course.id);
+                                  const cWithAllergies = cStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
+                                  const cDocs = allSchoolDocs.filter((d) => d.school_course_id === course.id);
+                                  const cDocsUploaded = cDocs.filter((d) => d.status !== "pending");
+                                  const cMissingDocs = cDocs.length - cDocsUploaded.length;
+
+                                  // El rooming y grupos son por school_trip, no por curso
+                                  // Se muestran en la cabecera del viaje (no por curso)
+                                  const courseItems = [
+                                    {
+                                      label: "Listado alumnos",
+                                      ok: cStudents.length > 0,
+                                      detail: cStudents.length > 0 ? `${cStudents.length} alumnos` : "Sin listado",
+                                    },
+                                    {
+                                      label: "Alergias revisadas",
+                                      ok: cWithAllergies.length > 0 || cStudents.length > 0,
+                                      neutral: cWithAllergies.length === 0,
+                                      detail: cWithAllergies.length > 0 ? `${cWithAllergies.length} con alergia/intolerancia` : cStudents.length > 0 ? "Sin alergias registradas ✓" : "Sin datos",
+                                    },
+                                    {
+                                      label: "Documentación",
+                                      ok: cDocs.length > 0 && cMissingDocs === 0,
+                                      warn: cDocs.length > 0 && cMissingDocs > 0,
+                                      detail: cDocs.length === 0 ? "Sin docs requeridos" : cMissingDocs === 0 ? `Completa (${cDocs.length})` : `Faltan ${cMissingDocs} de ${cDocs.length}`,
+                                    },
+                                  ];
+
+                                  return (
+                                    <div key={course.id} className="px-4 py-3">
+                                      <div className="mb-2 flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-zinc-700">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</span>
+                                      </div>
+                                      <div className="grid gap-1.5 sm:grid-cols-3">
+                                        {courseItems.map((item) => (
+                                          <div key={item.label} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${item.ok && !item.neutral ? "bg-emerald-50 text-emerald-700" : item.warn ? "bg-amber-50 text-amber-700" : item.neutral ? "bg-zinc-50 text-zinc-500" : "bg-red-50 text-red-600"}`}>
+                                            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.ok && !item.neutral ? "bg-emerald-500" : item.warn ? "bg-amber-400" : item.neutral ? "bg-zinc-300" : "bg-red-400"}`} />
+                                            <div>
+                                              <div className="font-medium">{item.label}</div>
+                                              <div className="opacity-80">{item.detail}</div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Rooming + Grupos del viaje (compartidos por todos los cursos) */}
+                              <div className="flex flex-wrap gap-2 border-t border-zinc-100 bg-zinc-50/60 px-4 py-2.5">
+                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.rooming?.length ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                                  <div className={`h-1.5 w-1.5 rounded-full ${st.rooming?.length ? "bg-emerald-500" : "bg-red-400"}`} />
+                                  {st.rooming?.length ? `Rooming ✓ (${st.rooming.length} habitaciones)` : "Rooming pendiente"}
+                                </div>
+                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.activity_groups?.length ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                                  <div className={`h-1.5 w-1.5 rounded-full ${st.activity_groups?.length ? "bg-emerald-500" : "bg-red-400"}`} />
+                                  {st.activity_groups?.length ? `Grupos ✓ (${st.activity_groups.length} grupos)` : "Grupos pendientes"}
+                                </div>
+                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.checklist?.length ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-500"}`}>
+                                  <div className={`h-1.5 w-1.5 rounded-full ${st.checklist?.length ? "bg-emerald-500" : "bg-zinc-300"}`} />
+                                  {st.checklist?.length ? `Checklist ✓ (${st.checklist.length} ítems)` : "Sin checklist"}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Checklist tab */}
+      {tab === "checklist" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Checklist por viaje escolar</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Selecciona un viaje</option>
+              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                const sch = schools.find(s => s.id === st.school_id);
+                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+              })}
+            </select>
+          </div>
+          {(() => {
+            const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
+            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para gestionar su checklist.</div>;
+            const checklist = selectedST.checklist || [];
+            const school = schools.find(s => s.id === selectedST.school_id);
+            const updateChecklist = async (next) => {
+              const { error } = await supabase.from("school_trips").update({ checklist: next }).eq("id", filterTripId);
+              if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, checklist: next } : t));
+            };
+            return (
+              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-5 space-y-4">
+                  <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
+                  <ChecklistInput onAdd={(item) => updateChecklist([...checklist, item])} />
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {checklist.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-3">
+                        <span className="text-sm text-zinc-800">{item}</span>
+                        <button type="button" onClick={() => updateChecklist(checklist.filter((_, idx) => idx !== i))} className="text-xs text-zinc-400 hover:text-red-600 px-2">Quitar</button>
+                      </div>
+                    ))}
+                  </div>
+                  {checklist.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin elementos. Añade el primero arriba.</div>}
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Itinerario tab */}
+      {tab === "itinerary" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Itinerario por viaje escolar</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Selecciona un viaje</option>
+              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                const sch = schools.find(s => s.id === st.school_id);
+                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+              })}
+            </select>
+          </div>
+          {(() => {
+            const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
+            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su itinerario.</div>;
+            const itinerary = selectedST.itinerary || [];
+            const school = schools.find(s => s.id === selectedST.school_id);
+            const updateItinerary = async (next) => {
+              const { error } = await supabase.from("school_trips").update({ itinerary: next }).eq("id", filterTripId);
+              if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, itinerary: next } : t));
+            };
+            return (
+              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
+                    <Button className="rounded-2xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}
+                      onClick={() => updateItinerary([...itinerary, { day: `Día ${itinerary.length + 1}`, title: "Nuevo tramo", description: "", time: "10:00" }])}>
+                      <Plus className="mr-1.5 h-4 w-4" />Añadir tramo
+                    </Button>
+                  </div>
+                  <Reorder.Group axis="y" values={itinerary} onReorder={updateItinerary} className="space-y-3">
+                    {itinerary.map((item, index) => (
+                      <Reorder.Item key={`${item.day}-${item.title}-${index}`} value={item} whileDrag={{ scale: 1.015, zIndex: 30 }} className="list-none">
+                        <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-3 cursor-grab text-zinc-300"><GripVertical className="h-5 w-5" /></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                <Input value={item.day} placeholder="Día" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-xl text-sm" />
+                                <Input value={item.title} placeholder="Título" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl text-sm" />
+                                <Input value={item.time || ""} placeholder="Hora" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl text-sm" />
+                              </div>
+                              <Input value={item.description} placeholder="Descripción" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-xl text-sm" />
+                            </div>
+                            <button type="button" onClick={() => updateItinerary(itinerary.filter((_, i) => i !== index))} className="mt-2 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
+                  {itinerary.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin tramos. Añade el primero.</div>}
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Logística tab */}
+      {tab === "logistics" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Logística por viaje escolar</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Selecciona un viaje</option>
+              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                const sch = schools.find(s => s.id === st.school_id);
+                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+              })}
+            </select>
+          </div>
+          {(() => {
+            const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
+            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su logística.</div>;
+            const logistics = selectedST.logistics || [];
+            const school = schools.find(s => s.id === selectedST.school_id);
+            const updateLogistics = async (next) => {
+              const { error } = await supabase.from("school_trips").update({ logistics: next }).eq("id", filterTripId);
+              if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, logistics: next } : t));
+            };
+            return (
+              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
+                    <Button className="rounded-2xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}
+                      onClick={() => updateLogistics([...logistics, { title: "Nuevo punto", description: "" }])}>
+                      <Plus className="mr-1.5 h-4 w-4" />Añadir punto
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {logistics.map((item, index) => (
+                      <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-white p-4">
+                        <div className="flex-1 space-y-2">
+                          <Input value={item.title} placeholder="Título (ej: Punto de encuentro)" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl text-sm font-medium" />
+                          <Textarea value={item.description} placeholder="Descripción" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="min-h-[72px] rounded-xl text-sm" />
+                        </div>
+                        <button type="button" onClick={() => updateLogistics(logistics.filter((_, i) => i !== index))} className="mt-1 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {logistics.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin puntos logísticos. Añade el primero.</div>}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Viajes escolares tab */}
+      {tab === "school_viajes" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Viajes escolares</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).length === 0 ? (
+            <p className="text-sm text-zinc-400">No hay viajes escolares registrados.</p>
+          ) : (
+            <div className="space-y-4">
+              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                const school = schools.find((s) => s.id === st.school_id);
+                const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
+                const stStudents = allStudents.filter((s) => stCourses.map(c => c.id).includes(s.school_course_id));
+                return (
+                  <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm overflow-hidden">
+                    {st.trips?.hero_image && (
+                      <div className="relative h-40 w-full">
+                        <img src={st.trips.hero_image} alt={st.trips.name} className="h-full w-full object-cover" onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                        <div className="absolute bottom-3 left-4 text-white">
+                          <div className="text-lg font-bold">{st.trips?.name}</div>
+                          {st.trips?.departure_date && <div className="text-xs opacity-80">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
+                        </div>
+                      </div>
+                    )}
+                    <CardContent className="p-5">
+                      {!st.trips?.hero_image && (
+                        <div className="mb-3">
+                          <div className="font-semibold text-zinc-950">{st.trips?.name || st.trip_id}</div>
+                          {st.trips?.departure_date && <div className="text-xs text-zinc-500 mt-0.5">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-zinc-700">{school?.name || "Colegio"}</div>
+                          {school?.contact_name && <div className="text-xs text-zinc-500">{school.contact_name}</div>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {stCourses.map((c) => (
+                            <Badge key={c.id} variant="outline" className="rounded-xl text-xs">{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</Badge>
+                          ))}
+                          <Badge variant="outline" className="rounded-xl text-xs">{stStudents.length} alumnos</Badge>
+                        </div>
+                      </div>
+                      {st.trips?.description && <p className="mt-3 text-xs text-zinc-500 line-clamp-2">{st.trips.description}</p>}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4864,16 +5152,23 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "docs",        label: "Documentación",   icon: FileCheck2 },
     { key: "questions",   label: "Preguntas",       icon: MessageCircleQuestion },
     { key: "checklists",  label: "Checklists",      icon: ListChecks },
+    { key: "itinerario",  label: "Itinerario",      icon: CalendarDays },
+    { key: "logistica",   label: "Logística",       icon: MapPinned },
     { key: "trips",       label: "Viajes",          icon: Map },
   ];
   const colegiosItems = [
-    { key: "school_colegios",   label: "Colegios",       icon: Users },
-    { key: "school_alumnos",    label: "Alumnos",        icon: BarChart2 },
-    { key: "school_alergias",   label: "Alergias",       icon: AlertCircle },
-    { key: "school_docs",       label: "Documentación",  icon: FileCheck2 },
-    { key: "school_preguntas",  label: "Preguntas",      icon: MessageCircleQuestion },
-    { key: "school_rooming",    label: "Rooming",        icon: LayoutGrid },
-    { key: "school_grupos",     label: "Grupos",         icon: ListChecks },
+    { key: "school_colegios",    label: "Colegios",       icon: Users },
+    { key: "school_alumnos",     label: "Alumnos",        icon: BarChart2 },
+    { key: "school_alergias",    label: "Alergias",       icon: AlertCircle },
+    { key: "school_docs",        label: "Documentación",  icon: FileCheck2 },
+    { key: "school_preguntas",   label: "Preguntas",      icon: MessageCircleQuestion },
+    { key: "school_rooming",     label: "Rooming",        icon: LayoutGrid },
+    { key: "school_grupos",      label: "Grupos",         icon: ListChecks },
+    { key: "school_seguimiento", label: "Seguimiento",    icon: BarChart2 },
+    { key: "school_checklist",   label: "Checklist",      icon: CheckCircle2 },
+    { key: "school_itinerario",  label: "Itinerario",     icon: CalendarDays },
+    { key: "school_logistica",   label: "Logística",      icon: MapPinned },
+    { key: "school_viajes",      label: "Viajes",         icon: Map },
   ];
   const navItems = [...campamentosItems, ...colegiosItems, { key: "calculadora", label: "Calculadora", icon: Calculator }];
 
@@ -5017,21 +5312,28 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          {activeSection === "clients"          && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
-          {activeSection === "tracking"         && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
-          {activeSection === "payments"         && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "docs"             && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
-          {activeSection === "questions"        && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "checklists"       && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "trips"            && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
-          {activeSection === "calculadora"      && <CalculadoraCampamento />}
-          {activeSection === "school_colegios"  && <AdminSchools trips={trips} notify={notify} section="colegios" />}
-          {activeSection === "school_alumnos"   && <AdminSchools trips={trips} notify={notify} section="alumnos" />}
-          {activeSection === "school_alergias"  && <AdminSchools trips={trips} notify={notify} section="alergias" />}
-          {activeSection === "school_docs"      && <AdminSchools trips={trips} notify={notify} section="docs" />}
-          {activeSection === "school_preguntas" && <AdminSchools trips={trips} notify={notify} section="preguntas" />}
-          {activeSection === "school_rooming"   && <AdminSchools trips={trips} notify={notify} section="rooming" />}
-          {activeSection === "school_grupos"    && <AdminSchools trips={trips} notify={notify} section="grupos" />}
+          {activeSection === "clients"             && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
+          {activeSection === "tracking"            && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
+          {activeSection === "payments"            && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "docs"                && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
+          {activeSection === "questions"           && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "checklists"          && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "itinerario"          && <AdminItinerary trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "logistica"           && <AdminLogistica trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "trips"               && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "calculadora"         && <CalculadoraCampamento />}
+          {activeSection === "school_colegios"     && <AdminSchools trips={trips} notify={notify} section="colegios" />}
+          {activeSection === "school_alumnos"      && <AdminSchools trips={trips} notify={notify} section="alumnos" />}
+          {activeSection === "school_alergias"     && <AdminSchools trips={trips} notify={notify} section="alergias" />}
+          {activeSection === "school_docs"         && <AdminSchools trips={trips} notify={notify} section="docs" />}
+          {activeSection === "school_preguntas"    && <AdminSchools trips={trips} notify={notify} section="preguntas" />}
+          {activeSection === "school_rooming"      && <AdminSchools trips={trips} notify={notify} section="rooming" />}
+          {activeSection === "school_grupos"       && <AdminSchools trips={trips} notify={notify} section="grupos" />}
+          {activeSection === "school_seguimiento"  && <AdminSchools trips={trips} notify={notify} section="seguimiento" />}
+          {activeSection === "school_checklist"    && <AdminSchools trips={trips} notify={notify} section="checklist" />}
+          {activeSection === "school_itinerario"   && <AdminSchools trips={trips} notify={notify} section="itinerario" />}
+          {activeSection === "school_logistica"    && <AdminSchools trips={trips} notify={notify} section="logistica" />}
+          {activeSection === "school_viajes"       && <AdminSchools trips={trips} notify={notify} section="viajes" />}
         </main>
       </div>
     </div>
