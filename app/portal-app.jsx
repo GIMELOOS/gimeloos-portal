@@ -1007,45 +1007,31 @@ function ClientPayments({ user, trip, onUploadProof }) {
   );
 }
 
-const INFO_ICONS = [Clock, MapPinned, Luggage, CalendarDays, Info, AlertCircle, Bus, Sun];
-
 function ClientItinerary({ trip }) {
   const items = trip.itinerary || [];
   if (items.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-400">
-        El equipo de GIMELOOS publicará pronto la información logística de tu experiencia.
+      <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-zinc-400">
+        El equipo de GIMELOOS publicará pronto la información de tu experiencia.
       </div>
     );
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {items.map((item, index) => {
-        const Icon = INFO_ICONS[index % INFO_ICONS.length];
-        return (
-          <div
-            key={`${item.day}-${item.title}`}
-            className="flex gap-4 rounded-3xl border border-stone-200 bg-stone-50 p-5"
-          >
-            <div className="mt-0.5 shrink-0 rounded-2xl p-2.5 text-white shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-zinc-900 text-sm">{item.title}</div>
-              {item.time && (
-                <div className="mt-0.5 text-xs font-medium" style={{ color: CORPORATE_RED }}>{item.time}</div>
-              )}
-              {item.description && (
-                <div className="mt-1.5 text-sm text-zinc-600 leading-relaxed">{item.description}</div>
-              )}
-              {item.day && (
-                <div className="mt-2 inline-block rounded-full bg-zinc-200 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600">{item.day}</div>
-              )}
-            </div>
+    <ul className="space-y-2">
+      {items.map((item, index) => (
+        <li key={`${item.day}-${item.title}-${index}`} className="flex gap-3 items-start py-2 border-b border-stone-100 last:border-0">
+          <span className="mt-1 shrink-0 text-base font-bold leading-none" style={{ color: CORPORATE_RED }}>—</span>
+          <div className="min-w-0">
+            <span className="font-semibold text-zinc-900 text-sm">{item.title}</span>
+            {item.time && <span className="ml-2 text-xs font-medium text-zinc-400">{item.time}</span>}
+            {item.day && <span className="ml-2 text-[11px] text-zinc-400">{item.day}</span>}
+            {item.description && (
+              <p className="mt-0.5 text-sm text-zinc-600 leading-relaxed">{item.description}</p>
+            )}
           </div>
-        );
-      })}
-    </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1398,14 +1384,16 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               />
             </AccordionSection>
 
-            <AccordionSection
-              title="Lo que no puedes olvidar"
-              subtitle="Horarios, lugar de encuentro y todo lo importante para el primer día."
-              icon={MapPinned}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} puntos clave</Badge>}
-            >
-              <ClientItinerary trip={trip} />
-            </AccordionSection>
+            {trip.showItinerary !== false && (
+              <AccordionSection
+                title="Lo que no puedes olvidar"
+                subtitle="Horarios, lugar de encuentro y todo lo importante para el primer día."
+                icon={MapPinned}
+                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} puntos clave</Badge>}
+              >
+                <ClientItinerary trip={trip} />
+              </AccordionSection>
+            )}
 
             <AccordionSection
               title="Checklist de equipaje"
@@ -2605,7 +2593,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
     await supabase.from("trips").update({
       name: nextTrip.name, departure_date: nextTrip.departureDate || null, description: nextTrip.description || "",
       hero_image: nextTrip.heroImage || "", hero_images: nextTrip.heroImages || [],
-      transfer_info: nextTrip.transferInfo || {}, automation: nextTrip.automation || {},
+      transfer_info: nextTrip.transferInfo || {}, automation: { ...(nextTrip.automation || {}), showItinerary: nextTrip.showItinerary !== false },
       document_rules: nextTrip.documentRules || [], payment_schedule: nextTrip.paymentSchedule || {},
       itinerary: nextTrip.itinerary || [], checklist: nextTrip.checklist || [],
     }).eq("id", nextTrip.id);
@@ -2731,15 +2719,30 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
       {tripTab === "itinerario" && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="font-semibold text-zinc-950">Itinerario del viaje</div>
+                <div className="font-semibold text-zinc-950">Itinerario / Info logística</div>
                 <div className="text-sm text-zinc-500">Arrastra las filas para reordenar.</div>
               </div>
-              <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
-                onClick={() => syncItinerary([...localOrder, { day: `Día ${localOrder.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
-                <Plus className="mr-2 h-4 w-4" />Añadir tramo
-              </Button>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <div
+                    onClick={async () => {
+                      const next = { ...selectedTrip, showItinerary: selectedTrip.showItinerary === false ? true : false };
+                      syncTrip((t) => ({ ...t, showItinerary: selectedTrip.showItinerary === false ? true : false }));
+                      await persistTrip(next);
+                    }}
+                    className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showItinerary !== false ? "bg-green-500" : "bg-zinc-300"}`}
+                  >
+                    <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedTrip.showItinerary !== false ? "left-5" : "left-0.5"}`} />
+                  </div>
+                  <span className="text-sm text-zinc-700">Visible para clientes</span>
+                </label>
+                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                  onClick={() => syncItinerary([...localOrder, { day: `Día ${localOrder.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
+                  <Plus className="mr-2 h-4 w-4" />Añadir tramo
+                </Button>
+              </div>
             </div>
             <Reorder.Group axis="y" values={localOrder} onReorder={syncItinerary} className="space-y-3">
               {localOrder.map((item, index) => (
@@ -3230,6 +3233,7 @@ export default function GIMELOOSPortalApp() {
             heroImages: Array.isArray(t.hero_images) && t.hero_images.length ? t.hero_images : DEFAULT_HERO_IMAGES,
             transferInfo: t.transfer_info || { bank: "", accountHolder: "", iban: "", concept: "" },
             automation: t.automation || { autoReminderEnabled: false, reminderDaysBefore: 5 },
+            showItinerary: t.automation?.showItinerary !== false,
             documentRules: t.document_rules || [], paymentSchedule: t.payment_schedule || {},
             itinerary: t.itinerary || [], checklist: t.checklist || [],
           })));
