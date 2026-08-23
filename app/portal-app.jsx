@@ -650,7 +650,7 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
               <LogoMark dark />
               <div className="mt-4 max-w-xl">
                 <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">
-                  Área privada de familias
+                  Área privada de clientes
                 </Badge>
                 <h1 className="mt-4 whitespace-nowrap text-[1.35rem] font-semibold leading-tight tracking-tight text-white sm:text-[1.65rem] lg:text-[1.95rem] xl:text-[2.1rem]">
                   LA EXPERIENCIA QUE TE MERECES
@@ -3149,6 +3149,8 @@ export default function GIMELOOSPortalApp() {
   const [sessionBootstrapped, setSessionBootstrapped] = useState(false);
   // [MEDIO-2] Estado de error de carga expuesto al usuario
   const [loadError, setLoadError] = useState(null);
+  // Clave para forzar recarga de datos tras login (RLS requiere sesión activa)
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
   const currentUser = useMemo(
     () => users.find((u) => u.id === auth.userId) || null,
@@ -3255,8 +3257,9 @@ export default function GIMELOOSPortalApp() {
         setIsBootstrapping(false);
       }
     };
+    setIsBootstrapping(true);
     loadSupabaseData();
-  }, []);
+  }, [dataRefreshKey]);
 
   // Persistir userId en localStorage
   useEffect(() => {
@@ -3269,14 +3272,16 @@ export default function GIMELOOSPortalApp() {
     }
   }, [auth.userId, sessionBootstrapped]);
 
-  // Limpiar sesión si el usuario ya no existe
+  // Limpiar sesión si el usuario ya no existe (solo cuando los datos están completamente cargados)
   useEffect(() => {
     if (!sessionBootstrapped || isBootstrapping || !auth.userId) return;
+    // No limpiar si hay una recarga en curso (dataRefreshKey acaba de cambiar)
+    if (dataRefreshKey > 0 && users === initialUsers) return;
     if (!users.some((u) => u.id === auth.userId)) {
       setAuth({ userId: null, error: "", isLoading: false });
       try { window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY); } catch (e) { console.error(e); }
     }
-  }, [users, auth.userId, sessionBootstrapped, isBootstrapping]);
+  }, [users, auth.userId, sessionBootstrapped, isBootstrapping, dataRefreshKey]);
 
   // [CRÍTICO-1/2/3] Login vía Supabase Auth — la comparación de contraseña ocurre en el servidor
   const handleLogin = async (username, password) => {
@@ -3306,6 +3311,7 @@ export default function GIMELOOSPortalApp() {
       const resolvedId = participantId ?? session.user.id;
 
       setAuth({ userId: resolvedId, error: "", isLoading: false });
+      setDataRefreshKey((k) => k + 1); // Recargar datos con sesión activa (RLS)
       notify("Acceso correcto.");
     } catch (err) {
       console.error(err);
