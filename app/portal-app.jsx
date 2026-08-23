@@ -4027,19 +4027,22 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Colegios tab */}
       {tab === "schools" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 justify-between">
-            <h2 className="text-base font-semibold text-zinc-950">Colegios ({schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).length})</h2>
-            <div className="flex gap-2 flex-wrap">
-              <Input placeholder="Buscar colegio..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="h-9 w-48 rounded-xl text-sm" />
-              <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
-                <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
-              </Button>
-            </div>
-          </div>
+        <div className="space-y-5">
+          <SectionTitle icon={Users} title="Colegios" subtitle="Gestiona los centros escolares y asigna viajes." />
+
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-center gap-3 justify-between">
+                <Input placeholder="Buscar colegio..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="h-9 w-48 rounded-xl text-sm" />
+                <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
+                  <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {showNewSchool && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5">
                 <div className="mb-3 text-sm font-medium text-zinc-700">Nuevo colegio</div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -4061,7 +4064,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           <div className="space-y-3">
             {schools.length === 0 && <p className="text-sm text-zinc-400">No hay colegios registrados.</p>}
             {schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).map((school) => (
-              <Card key={school.id} className="rounded-2xl border-zinc-200 shadow-sm">
+              <Card key={school.id} className="rounded-3xl border-zinc-200 shadow-sm">
                 <CardContent className="p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -4114,13 +4117,12 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Alumnos tab */}
       {tab === "students" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Alumnos por colegio</h2>
+        <div className="space-y-5">
+          <SectionTitle icon={Users} title="Alumnos" subtitle="Listado de alumnos por colegio, viaje y curso." extra={
             <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddStudent(!showAddStudent)}>
               <Plus className="mr-1.5 h-4 w-4" />Añadir alumno
             </Button>
-          </div>
+          } />
 
           {/* Filtros colegio + viaje */}
           <div className="flex flex-wrap gap-3">
@@ -4158,7 +4160,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           {/* Formulario añadir alumno manualmente */}
           {showAddStudent && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5 space-y-3">
                 <div className="text-sm font-medium text-zinc-700">Nuevo alumno{filterCourseId !== "all" ? ` — ${visibleCourses.find(c => c.id === filterCourseId)?.course_name || ""}` : ""}</div>
                 {filterSchoolId && visibleCourses.length > 1 && filterCourseId === "all" && (
@@ -4189,7 +4191,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           {filteredStudents.length === 0 ? (
             <p className="text-sm text-zinc-400">No hay alumnos en la selección actual.</p>
           ) : (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="text-sm font-medium text-zinc-700">{filteredStudents.length} alumnos</div>
@@ -4230,13 +4232,12 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Rooming tab */}
       {tab === "rooming" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Rooming por colegio</h2>
+        <div className="space-y-5">
+          <SectionTitle icon={LayoutGrid} title="Rooming" subtitle="Distribución de habitaciones por colegio y viaje." extra={
             <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddRoom(!showAddRoom)}>
               <Plus className="mr-1.5 h-4 w-4" />Añadir habitación
             </Button>
-          </div>
+          } />
 
           {/* Filtro colegio */}
           <div className="flex flex-wrap gap-3">
@@ -4272,7 +4273,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           {/* Formulario nueva habitación */}
           {showAddRoom && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5 space-y-3">
                 <div className="text-sm font-medium text-zinc-700">Nueva habitación</div>
                 <select
@@ -4307,7 +4308,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
             return stList.map((st) => {
               const school = schools.find((s) => s.id === st.school_id);
               return (
-                <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
                   <CardContent className="p-5">
                     <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
                     <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id} · {st.rooming.length} habitaciones</div>
@@ -4330,13 +4331,12 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Groups tab */}
       {tab === "groups" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades por colegio</h2>
+        <div className="space-y-5">
+          <SectionTitle icon={ListChecks} title="Grupos de actividades" subtitle="Grupos y monitores por colegio y viaje." extra={
             <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddGroup(!showAddGroup)}>
               <Plus className="mr-1.5 h-4 w-4" />Añadir grupo
             </Button>
-          </div>
+          } />
 
           {/* Filtro colegio */}
           <div className="flex flex-wrap gap-3">
@@ -4372,7 +4372,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           {/* Formulario nuevo grupo */}
           {showAddGroup && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5 space-y-3">
                 <div className="text-sm font-medium text-zinc-700">Nuevo grupo de actividades</div>
                 <select
@@ -4408,7 +4408,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
             return stList.map((st) => {
               const school = schools.find((s) => s.id === st.school_id);
               return (
-                <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
                   <CardContent className="p-5">
                     <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
                     <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id} · {st.activity_groups.length} grupos</div>
@@ -4432,10 +4432,8 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Alergias tab */}
       {tab === "allergies" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
-          </div>
+        <div className="space-y-5">
+          <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Control de necesidades alimentarias por alumno y curso." />
 
           {/* Filtros colegio + viaje */}
           <div className="flex flex-wrap gap-3">
@@ -4473,7 +4471,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
             const withIssues = filteredStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
             if (withIssues.length === 0) return <p className="text-sm text-zinc-400">No hay alergias o intolerancias en la selección actual.</p>;
             return (
-              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
                 <CardContent className="p-4">
                   <div className="mb-2 text-sm font-medium text-zinc-700">{withIssues.length} alumnos con necesidades especiales</div>
                   <div className="overflow-x-auto">
@@ -4512,13 +4510,12 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Documentación tab */}
       {tab === "docs" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Documentación por colegio</h2>
+        <div className="space-y-5">
+          <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Documentos requeridos por colegio y curso." extra={
             <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddDoc(!showAddDoc)}>
               <Plus className="mr-1.5 h-4 w-4" />Añadir documento
             </Button>
-          </div>
+          } />
 
           {/* Filtros colegio + viaje */}
           <div className="flex flex-wrap gap-3">
@@ -4554,7 +4551,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           {/* Formulario nuevo documento */}
           {showAddDoc && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5 space-y-3">
                 <div className="text-sm font-medium text-zinc-700">Nuevo documento requerido{filterCourseId !== "all" ? ` — ${visibleCourses.find(c => c.id === filterCourseId)?.course_name || ""}` : ""}</div>
                 {filterSchoolId && visibleCourses.length > 1 && filterCourseId === "all" && (
@@ -4589,7 +4586,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
             });
             if (filteredDocs.length === 0) return <p className="text-sm text-zinc-400">No hay documentos en la selección actual.</p>;
             return (
-              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
                 <CardContent className="p-4">
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -4629,26 +4626,29 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Preguntas tab */}
       {tab === "questions" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Preguntas de colegios</h2>
-            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddQuestion(!showAddQuestion)}>
-              <Plus className="mr-1.5 h-4 w-4" />Nueva pregunta
-            </Button>
-          </div>
+        <div className="space-y-5">
+          <SectionTitle icon={MessageCircleQuestion} title="Preguntas" subtitle="Consultas enviadas por los coordinadores de colegios." />
 
-          {/* Filtro colegio */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 space-y-1 min-w-[200px]">
+                  <Label>Filtrar por colegio</Label>
+                  <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <Button className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddQuestion(!showAddQuestion)}>
+                  <Plus className="mr-2 h-4 w-4" />Nueva pregunta
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Formulario nueva pregunta */}
           {showAddQuestion && (
-            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5 space-y-3">
                 <div className="text-sm font-medium text-zinc-700">Nueva pregunta o anotación</div>
                 <select
@@ -4678,17 +4678,17 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           {(() => {
             const qs = allSchoolQuestions.filter((q) => !filterSchoolId || q.school_id === filterSchoolId);
             if (qs.length === 0) return (
-              <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">
-                No hay preguntas de colegios todavía. Las preguntas que envíen los coordinadores desde su portal aparecerán aquí.
-              </div>
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+                <CardContent className="p-8 text-center text-sm text-zinc-400">
+                  Aún no hay preguntas de colegios.
+                </CardContent>
+              </Card>
             );
             return (
               <div className="space-y-3">
                 {qs.map((q) => {
                   const school = schools.find((s) => s.id === q.school_id);
-                  return (
-                    <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />
-                  );
+                  return <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />;
                 })}
               </div>
             );
@@ -4698,295 +4698,262 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Seguimiento tab */}
       {tab === "tracking" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Seguimiento por colegio y curso</h2>
-            <p className="text-xs text-zinc-400">Estado completo de cada colegio: alumnos, alergias, documentación, rooming y grupos por curso.</p>
-          </div>
+        <div className="space-y-5">
+          <SectionTitle icon={BarChart2} title="Seguimiento" subtitle="Estado completo por colegio, viaje y curso." />
 
-          {/* Filtro colegio */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="space-y-2">
+                <Label>Filtrar por colegio</Label>
+                <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+                  className="mt-2 h-11 min-w-[280px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  <option value="">Todos los colegios</option>
+                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </CardContent>
+          </Card>
 
-          {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).length === 0 ? (
-            <p className="text-sm text-zinc-400">No hay colegios registrados.</p>
-          ) : (
-            <div className="space-y-5">
-              {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).map((school) => {
-                const stList = allSchoolTrips.filter((st) => st.school_id === school.id);
-                if (stList.length === 0) return (
-                  <Card key={school.id} className="rounded-2xl border-zinc-200 shadow-sm">
-                    <CardContent className="p-5">
-                      <div className="font-semibold text-zinc-950">{school.name}</div>
-                      <p className="mt-2 text-xs text-zinc-400">Sin viajes asignados.</p>
-                    </CardContent>
-                  </Card>
-                );
+          <div className="space-y-4">
+            {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).length === 0 && (
+              <p className="text-sm text-zinc-400">No hay colegios registrados.</p>
+            )}
+            {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).map((school) => {
+              const stList = allSchoolTrips.filter((st) => st.school_id === school.id);
+              const allSchoolCourseIds = allCourses.filter((c) => stList.map(t => t.id).includes(c.school_trip_id)).map(c => c.id);
+              const totalStudents = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id)).length;
+              const totalDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id)).length;
+              const uploadedDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id) && d.status !== "pending").length;
+              const missingDocs = totalDocs - uploadedDocs;
+              const tripsWithoutRooming = stList.filter((st) => !st.rooming?.length).length;
+              const tripsWithoutGroups = stList.filter((st) => !st.activity_groups?.length).length;
+              const allOk = totalStudents > 0 && missingDocs === 0 && tripsWithoutRooming === 0 && tripsWithoutGroups === 0;
 
-                // Cálculos globales del colegio
-                const allSchoolCourseIds = allCourses.filter((c) => stList.map(t => t.id).includes(c.school_trip_id)).map(c => c.id);
-                const totalStudents = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id)).length;
-                const totalDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id)).length;
-                const uploadedDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id) && d.status !== "pending").length;
-                const missingDocs = totalDocs - uploadedDocs;
-                const coursesWithoutRooming = stList.filter((st) => !st.rooming?.length).length;
-                const coursesWithoutGroups = stList.filter((st) => !st.activity_groups?.length).length;
+              const getSummaryTone = (ok, warn) => ok ? "bg-emerald-100 text-emerald-700" : warn ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
 
-                // Semáforo global: rojo si algo falta, amarillo si parcial, verde si todo OK
-                const globalOk = totalStudents > 0 && missingDocs === 0 && coursesWithoutRooming === 0 && coursesWithoutGroups === 0;
-                const globalWarning = !globalOk && (totalStudents > 0 || uploadedDocs > 0);
-                const globalColor = globalOk ? "border-emerald-300 bg-emerald-50" : globalWarning ? "border-amber-300 bg-amber-50/40" : "border-zinc-200 bg-white";
-
-                return (
-                  <Card key={school.id} className={`rounded-2xl border shadow-sm ${globalColor}`}>
-                    <CardContent className="p-5 space-y-4">
-                      {/* Cabecera colegio */}
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="font-bold text-zinc-950 text-base">{school.name}</div>
-                          {school.contact_name && <div className="text-xs text-zinc-500 mt-0.5">{school.contact_name}{school.email ? ` · ${school.email}` : ""}</div>}
-                        </div>
-                        <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold ${globalOk ? "bg-emerald-100 text-emerald-700" : globalWarning ? "bg-amber-100 text-amber-700" : "bg-zinc-100 text-zinc-500"}`}>
-                          <div className={`h-2 w-2 rounded-full ${globalOk ? "bg-emerald-500" : globalWarning ? "bg-amber-400" : "bg-zinc-300"}`} />
-                          {globalOk ? "Todo completado" : globalWarning ? "Pendiente de completar" : "Sin datos"}
-                        </div>
+              return (
+                <AccordionSection
+                  key={school.id}
+                  title={school.name}
+                  subtitle={school.contact_name ? `Coordinador: ${school.contact_name}${school.email ? ` · ${school.email}` : ""}` : ""}
+                  icon={Users}
+                  meta={
+                    <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+                      <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(totalStudents > 0, false)}`}>
+                        {totalStudents > 0 ? `${totalStudents} alumnos` : "Sin alumnos"}
                       </div>
-
-                      {/* Resumen rápido en chips */}
-                      <div className="flex flex-wrap gap-2">
-                        <div className={`rounded-xl px-3 py-1.5 text-xs font-medium ${totalStudents > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                          {totalStudents > 0 ? `✓ ${totalStudents} alumnos` : "⚠ Sin listado de alumnos"}
-                        </div>
-                        {totalDocs > 0 ? (
-                          <div className={`rounded-xl px-3 py-1.5 text-xs font-medium ${missingDocs === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                            {missingDocs === 0 ? `✓ Docs completos (${totalDocs})` : `⚠ Faltan ${missingDocs} docs de ${totalDocs}`}
-                          </div>
-                        ) : (
-                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-zinc-100 text-zinc-500">Sin documentos requeridos</div>
-                        )}
-                        {coursesWithoutRooming > 0 && (
-                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-red-100 text-red-600">
-                            ⚠ Rooming pendiente en {coursesWithoutRooming} {coursesWithoutRooming === 1 ? "viaje" : "viajes"}
-                          </div>
-                        )}
-                        {coursesWithoutRooming === 0 && stList.length > 0 && (
-                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700">✓ Rooming completo</div>
-                        )}
-                        {coursesWithoutGroups > 0 && (
-                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-red-100 text-red-600">
-                            ⚠ Grupos pendientes en {coursesWithoutGroups} {coursesWithoutGroups === 1 ? "viaje" : "viajes"}
-                          </div>
-                        )}
-                        {coursesWithoutGroups === 0 && stList.length > 0 && (
-                          <div className="rounded-xl px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700">✓ Grupos completos</div>
-                        )}
+                      <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(missingDocs === 0 && totalDocs > 0, uploadedDocs > 0)}`}>
+                        Docs {uploadedDocs}/{totalDocs}
                       </div>
-
-                      {/* Detalle por viaje y curso */}
-                      <div className="space-y-3">
-                        {stList.map((st) => {
-                          const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
-                          return (
-                            <div key={st.id} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
-                              {/* Cabecera viaje */}
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-2.5">
-                                <div className="text-sm font-semibold text-zinc-900">{st.trips?.name || st.trip_id}</div>
-                                {st.trips?.departure_date && (
-                                  <div className="text-xs text-zinc-400">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</div>
-                                )}
-                              </div>
-
-                              {/* Detalle por curso */}
-                              <div className="divide-y divide-zinc-50">
-                                {stCourses.length === 0 ? (
-                                  <div className="px-4 py-3 text-xs text-zinc-400">Sin cursos asignados a este viaje.</div>
-                                ) : stCourses.map((course) => {
-                                  const cStudents = allStudents.filter((s) => s.school_course_id === course.id);
-                                  const cWithAllergies = cStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
-                                  const cDocs = allSchoolDocs.filter((d) => d.school_course_id === course.id);
-                                  const cDocsUploaded = cDocs.filter((d) => d.status !== "pending");
-                                  const cMissingDocs = cDocs.length - cDocsUploaded.length;
-
-                                  // El rooming y grupos son por school_trip, no por curso
-                                  // Se muestran en la cabecera del viaje (no por curso)
-                                  const courseItems = [
-                                    {
-                                      label: "Listado alumnos",
-                                      ok: cStudents.length > 0,
-                                      detail: cStudents.length > 0 ? `${cStudents.length} alumnos` : "Sin listado",
-                                    },
-                                    {
-                                      label: "Alergias revisadas",
-                                      ok: cWithAllergies.length > 0 || cStudents.length > 0,
-                                      neutral: cWithAllergies.length === 0,
-                                      detail: cWithAllergies.length > 0 ? `${cWithAllergies.length} con alergia/intolerancia` : cStudents.length > 0 ? "Sin alergias registradas ✓" : "Sin datos",
-                                    },
-                                    {
-                                      label: "Documentación",
-                                      ok: cDocs.length > 0 && cMissingDocs === 0,
-                                      warn: cDocs.length > 0 && cMissingDocs > 0,
-                                      detail: cDocs.length === 0 ? "Sin docs requeridos" : cMissingDocs === 0 ? `Completa (${cDocs.length})` : `Faltan ${cMissingDocs} de ${cDocs.length}`,
-                                    },
-                                  ];
-
-                                  return (
-                                    <div key={course.id} className="px-4 py-3">
-                                      <div className="mb-2 flex items-center gap-2">
-                                        <span className="text-xs font-semibold text-zinc-700">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</span>
-                                      </div>
-                                      <div className="grid gap-1.5 sm:grid-cols-3">
-                                        {courseItems.map((item) => (
-                                          <div key={item.label} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${item.ok && !item.neutral ? "bg-emerald-50 text-emerald-700" : item.warn ? "bg-amber-50 text-amber-700" : item.neutral ? "bg-zinc-50 text-zinc-500" : "bg-red-50 text-red-600"}`}>
-                                            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.ok && !item.neutral ? "bg-emerald-500" : item.warn ? "bg-amber-400" : item.neutral ? "bg-zinc-300" : "bg-red-400"}`} />
-                                            <div>
-                                              <div className="font-medium">{item.label}</div>
-                                              <div className="opacity-80">{item.detail}</div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Rooming + Grupos del viaje (compartidos por todos los cursos) */}
-                              <div className="flex flex-wrap gap-2 border-t border-zinc-100 bg-zinc-50/60 px-4 py-2.5">
-                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.rooming?.length ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                                  <div className={`h-1.5 w-1.5 rounded-full ${st.rooming?.length ? "bg-emerald-500" : "bg-red-400"}`} />
-                                  {st.rooming?.length ? `Rooming ✓ (${st.rooming.length} habitaciones)` : "Rooming pendiente"}
-                                </div>
-                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.activity_groups?.length ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                                  <div className={`h-1.5 w-1.5 rounded-full ${st.activity_groups?.length ? "bg-emerald-500" : "bg-red-400"}`} />
-                                  {st.activity_groups?.length ? `Grupos ✓ (${st.activity_groups.length} grupos)` : "Grupos pendientes"}
-                                </div>
-                                <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ${st.checklist?.length ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-500"}`}>
-                                  <div className={`h-1.5 w-1.5 rounded-full ${st.checklist?.length ? "bg-emerald-500" : "bg-zinc-300"}`} />
-                                  {st.checklist?.length ? `Checklist ✓ (${st.checklist.length} ítems)` : "Sin checklist"}
-                                </div>
-                              </div>
+                      <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(tripsWithoutRooming === 0 && stList.length > 0, false)}`}>
+                        {tripsWithoutRooming === 0 && stList.length > 0 ? "Rooming ✓" : `Rooming: ${stList.length - tripsWithoutRooming}/${stList.length}`}
+                      </div>
+                      <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(tripsWithoutGroups === 0 && stList.length > 0, false)}`}>
+                        {tripsWithoutGroups === 0 && stList.length > 0 ? "Grupos ✓" : `Grupos: ${stList.length - tripsWithoutGroups}/${stList.length}`}
+                      </div>
+                    </div>
+                  }
+                >
+                  {stList.length === 0 ? (
+                    <p className="text-sm text-zinc-400">Sin viajes asignados.</p>
+                  ) : stList.map((st) => {
+                    const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
+                    return (
+                      <div key={st.id} className="mb-4 last:mb-0">
+                        <div className="mb-2 text-sm font-semibold text-zinc-700">{st.trips?.name || st.trip_id}</div>
+                        <div className="mb-3 grid gap-3 lg:grid-cols-4">
+                          {[
+                            ["Alumnos", totalStudents],
+                            ["Docs subidos", `${uploadedDocs}/${totalDocs}`],
+                            ["Rooming", st.rooming?.length ? `✓ ${st.rooming.length} hab.` : "Pendiente"],
+                            ["Grupos", st.activity_groups?.length ? `✓ ${st.activity_groups.length} grupos` : "Pendiente"],
+                          ].map(([label, val]) => (
+                            <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-white p-4">
+                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+                              <div className="mt-2 text-lg font-semibold text-zinc-950">{val}</div>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
+                        {stCourses.length > 0 && (
+                          <div className="space-y-2">
+                            {stCourses.map((course) => {
+                              const cStudents = allStudents.filter((s) => s.school_course_id === course.id);
+                              const cWithAllergies = cStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
+                              const cDocs = allSchoolDocs.filter((d) => d.school_course_id === course.id);
+                              const cDocsUploaded = cDocs.filter((d) => d.status !== "pending").length;
+                              return (
+                                <div key={course.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/60 p-4">
+                                  <div className="mb-2 text-xs font-semibold text-zinc-700">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>
+                                  <div className="grid gap-1.5 sm:grid-cols-3">
+                                    {[
+                                      { label: "Listado alumnos", ok: cStudents.length > 0, detail: cStudents.length > 0 ? `${cStudents.length} alumnos` : "Sin listado" },
+                                      { label: "Alergias", ok: cWithAllergies.length > 0 || cStudents.length > 0, neutral: cWithAllergies.length === 0 && cStudents.length > 0, detail: cWithAllergies.length > 0 ? `${cWithAllergies.length} con alergia` : cStudents.length > 0 ? "Sin alergias ✓" : "Sin datos" },
+                                      { label: "Documentación", ok: cDocs.length > 0 && cDocsUploaded === cDocs.length, warn: cDocs.length > 0 && cDocsUploaded < cDocs.length, detail: cDocs.length === 0 ? "Sin docs requeridos" : cDocsUploaded === cDocs.length ? `Completa (${cDocs.length})` : `Faltan ${cDocs.length - cDocsUploaded} de ${cDocs.length}` },
+                                    ].map((item) => (
+                                      <div key={item.label} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${item.ok && !item.neutral ? "bg-emerald-50 text-emerald-700" : item.warn ? "bg-amber-50 text-amber-700" : item.neutral ? "bg-zinc-50 text-zinc-500" : "bg-red-50 text-red-600"}`}>
+                                        <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.ok && !item.neutral ? "bg-emerald-500" : item.warn ? "bg-amber-400" : item.neutral ? "bg-zinc-300" : "bg-red-400"}`} />
+                                        <div>
+                                          <div className="font-medium">{item.label}</div>
+                                          <div className="opacity-80">{item.detail}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                    );
+                  })}
+                </AccordionSection>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* Checklist tab */}
       {tab === "checklist" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Checklist por viaje escolar</h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Selecciona un viaje</option>
-              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
-                const sch = schools.find(s => s.id === st.school_id);
-                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
-              })}
-            </select>
-          </div>
-          {(() => {
-            const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
-            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para gestionar su checklist.</div>;
-            const checklist = selectedST.checklist || [];
-            const school = schools.find(s => s.id === selectedST.school_id);
-            const updateChecklist = async (next) => {
-              const { error } = await supabase.from("school_trips").update({ checklist: next }).eq("id", filterTripId);
-              if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, checklist: next } : t));
-            };
-            return (
-              <Card className="rounded-2xl border-zinc-200 shadow-sm">
-                <CardContent className="p-5 space-y-4">
-                  <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
-                  <ChecklistInput onAdd={(item) => updateChecklist([...checklist, item])} />
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {checklist.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-3">
-                        <span className="text-sm text-zinc-800">{item}</span>
-                        <button type="button" onClick={() => updateChecklist(checklist.filter((_, idx) => idx !== i))} className="text-xs text-zinc-400 hover:text-red-600 px-2">Quitar</button>
+        <div className="space-y-5">
+          <SectionTitle icon={CheckCircle2} title="Checklist" subtitle="Crea y gestiona checklists por viaje escolar." />
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="space-y-4 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                <div className="flex-1 space-y-2">
+                  <Label>Viaje escolar</Label>
+                  <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Selecciona un viaje</option>
+                    {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                      const sch = schools.find(s => s.id === st.school_id);
+                      return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+                    })}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+                    className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  {filterTripId && (
+                    <Button variant="outline" className="h-11 rounded-2xl" onClick={() => {
+                      const st = allSchoolTrips.find(t => t.id === filterTripId);
+                      const existing = st?.checklist || [];
+                      if (!existing.length) { notify("No hay ítems que duplicar."); return; }
+                      notify("Checklist copiado al portapapeles. Selecciona otro viaje y añade los ítems.");
+                    }}>
+                      <Copy className="mr-2 h-4 w-4" />Duplicar checklist
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {filterTripId && (() => {
+                const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
+                if (!selectedST) return null;
+                const checklist = selectedST.checklist || [];
+                const updateChecklist = async (next) => {
+                  const { error } = await supabase.from("school_trips").update({ checklist: next }).eq("id", filterTripId);
+                  if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, checklist: next } : t));
+                  else notify("Error guardando checklist.", { variant: "destructive" });
+                };
+                return (
+                  <>
+                    <div className="flex flex-col gap-3 lg:flex-row">
+                      <ChecklistInput onAdd={(item) => updateChecklist([...checklist, item])} />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {checklist.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
+                          <span className="text-sm text-zinc-800">{item}</span>
+                          <Button variant="ghost" size="sm" onClick={() => updateChecklist(checklist.filter((_, idx) => idx !== i))}>Quitar</Button>
+                        </div>
+                      ))}
+                    </div>
+                    {checklist.length === 0 && (
+                      <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">
+                        Sin elementos. Escribe arriba y pulsa Enter o el botón.
                       </div>
-                    ))}
-                  </div>
-                  {checklist.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin elementos. Añade el primero arriba.</div>}
-                </CardContent>
-              </Card>
-            );
-          })()}
+                    )}
+                  </>
+                );
+              })()}
+              {!filterTripId && (
+                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">
+                  Selecciona un viaje escolar para gestionar su checklist.
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
       {/* Itinerario tab */}
       {tab === "itinerary" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Itinerario por viaje escolar</h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Selecciona un viaje</option>
-              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
-                const sch = schools.find(s => s.id === st.school_id);
-                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
-              })}
-            </select>
-          </div>
-          {(() => {
+        <div className="space-y-5">
+          <SectionTitle icon={CalendarDays} title="Itinerario" subtitle="Programa día a día de cada viaje escolar." />
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 space-y-1 min-w-[200px]">
+                  <Label>Colegio</Label>
+                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 space-y-1 min-w-[200px]">
+                  <Label>Viaje</Label>
+                  <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Selecciona un viaje</option>
+                    {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                      const sch = schools.find(s => s.id === st.school_id);
+                      return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {filterTripId && (() => {
             const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
-            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su itinerario.</div>;
+            if (!selectedST) return null;
             const itinerary = selectedST.itinerary || [];
-            const school = schools.find(s => s.id === selectedST.school_id);
             const updateItinerary = async (next) => {
               const { error } = await supabase.from("school_trips").update({ itinerary: next }).eq("id", filterTripId);
               if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, itinerary: next } : t));
+              else notify("Error guardando itinerario.", { variant: "destructive" });
             };
             return (
-              <Card className="rounded-2xl border-zinc-200 shadow-sm">
-                <CardContent className="p-5 space-y-4">
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+                <CardContent className="space-y-4 p-6">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
-                    <Button className="rounded-2xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}
-                      onClick={() => updateItinerary([...itinerary, { day: `Día ${itinerary.length + 1}`, title: "Nuevo tramo", description: "", time: "10:00" }])}>
-                      <Plus className="mr-1.5 h-4 w-4" />Añadir tramo
+                    <div>
+                      <div className="font-semibold text-zinc-950">Itinerario día a día</div>
+                      <div className="text-sm text-zinc-500">Arrastra las filas para reordenar.</div>
+                    </div>
+                    <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                      onClick={() => updateItinerary([...itinerary, { day: `Día ${itinerary.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
+                      <Plus className="mr-2 h-4 w-4" />Añadir tramo
                     </Button>
                   </div>
                   <Reorder.Group axis="y" values={itinerary} onReorder={updateItinerary} className="space-y-3">
                     {itinerary.map((item, index) => (
-                      <Reorder.Item key={`${item.day}-${item.title}-${index}`} value={item} whileDrag={{ scale: 1.015, zIndex: 30 }} className="list-none">
-                        <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                      <Reorder.Item key={`${item.day}-${item.title}-${index}`} value={item} whileDrag={{ scale: 1.015, boxShadow: "0 28px 60px rgba(0,0,0,0.18)", zIndex: 30 }} className="list-none">
+                        <div className="rounded-2xl border border-zinc-200 bg-white p-4 transition hover:border-zinc-300">
                           <div className="flex items-start gap-3">
-                            <div className="mt-3 cursor-grab text-zinc-300"><GripVertical className="h-5 w-5" /></div>
+                            <div className="mt-3 cursor-grab text-zinc-300 active:cursor-grabbing"><GripVertical className="h-5 w-5" /></div>
                             <div className="flex-1 space-y-2">
                               <div className="grid gap-2 sm:grid-cols-3">
-                                <Input value={item.day} placeholder="Día" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-xl text-sm" />
-                                <Input value={item.title} placeholder="Título" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl text-sm" />
-                                <Input value={item.time || ""} placeholder="Hora" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl text-sm" />
+                                <Input value={item.day} placeholder="Día" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, day: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
+                                <Input value={item.title} placeholder="Título" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
+                                <Input value={item.time || ""} placeholder="Hora" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, time: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                               </div>
-                              <Input value={item.description} placeholder="Descripción" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-xl text-sm" />
+                              <Input value={item.description} placeholder="Descripción" onChange={(e) => updateItinerary(itinerary.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="rounded-xl bg-white text-sm" />
                             </div>
                             <button type="button" onClick={() => updateItinerary(itinerary.filter((_, i) => i !== index))} className="mt-2 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
                               <X className="h-4 w-4" />
@@ -4996,90 +4963,124 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                       </Reorder.Item>
                     ))}
                   </Reorder.Group>
-                  {itinerary.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin tramos. Añade el primero.</div>}
+                  {itinerary.length === 0 && (
+                    <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+                      Sin tramos. Pulsa "Añadir tramo" para empezar.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           })()}
+          {!filterTripId && (
+            <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su itinerario.</div>
+          )}
         </div>
       )}
 
       {/* Logística tab */}
       {tab === "logistics" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Logística por viaje escolar</h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Selecciona un viaje</option>
-              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
-                const sch = schools.find(s => s.id === st.school_id);
-                return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
-              })}
-            </select>
-          </div>
-          {(() => {
+        <div className="space-y-5">
+          <SectionTitle icon={MapPinned} title="Logística" subtitle="Datos clave previos al viaje escolar." />
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 space-y-1 min-w-[200px]">
+                  <Label>Colegio</Label>
+                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 space-y-1 min-w-[200px]">
+                  <Label>Viaje</Label>
+                  <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Selecciona un viaje</option>
+                    {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                      const sch = schools.find(s => s.id === st.school_id);
+                      return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {filterTripId && (() => {
             const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
-            if (!filterTripId || !selectedST) return <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su logística.</div>;
+            if (!selectedST) return null;
             const logistics = selectedST.logistics || [];
-            const school = schools.find(s => s.id === selectedST.school_id);
             const updateLogistics = async (next) => {
               const { error } = await supabase.from("school_trips").update({ logistics: next }).eq("id", filterTripId);
               if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, logistics: next } : t));
+              else notify("Error guardando logística.", { variant: "destructive" });
             };
             return (
-              <Card className="rounded-2xl border-zinc-200 shadow-sm">
-                <CardContent className="p-5 space-y-4">
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+                <CardContent className="space-y-4 p-6">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="text-sm font-medium text-zinc-700">{school?.name} — {selectedST.trips?.name || selectedST.trip_id}</div>
-                    <Button className="rounded-2xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}
+                    <div>
+                      <div className="font-semibold text-zinc-950">Puntos logísticos</div>
+                      <div className="text-sm text-zinc-500">Punto de encuentro, hora de salida, qué traer, contacto de emergencia...</div>
+                    </div>
+                    <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
                       onClick={() => updateLogistics([...logistics, { title: "Nuevo punto", description: "" }])}>
-                      <Plus className="mr-1.5 h-4 w-4" />Añadir punto
+                      <Plus className="mr-2 h-4 w-4" />Añadir punto
                     </Button>
                   </div>
                   <div className="space-y-3">
                     {logistics.map((item, index) => (
                       <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-white p-4">
                         <div className="flex-1 space-y-2">
-                          <Input value={item.title} placeholder="Título (ej: Punto de encuentro)" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl text-sm font-medium" />
-                          <Textarea value={item.description} placeholder="Descripción" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="min-h-[72px] rounded-xl text-sm" />
+                          <Input value={item.title} placeholder="Título (ej: Punto de encuentro)" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, title: e.target.value } : l))} className="rounded-xl bg-white text-sm font-medium" />
+                          <Textarea value={item.description} placeholder="Descripción (ej: Parking del instituto a las 8:00)" onChange={(e) => updateLogistics(logistics.map((l, i) => i === index ? { ...l, description: e.target.value } : l))} className="min-h-[72px] rounded-xl bg-white text-sm" />
                         </div>
                         <button type="button" onClick={() => updateLogistics(logistics.filter((_, i) => i !== index))} className="mt-1 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
-                    {logistics.length === 0 && <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Sin puntos logísticos. Añade el primero.</div>}
+                    {logistics.length === 0 && (
+                      <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+                        Sin puntos logísticos. Pulsa "Añadir punto" para empezar.
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             );
           })()}
+          {!filterTripId && (
+            <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">Selecciona un viaje escolar para editar su logística.</div>
+          )}
         </div>
       )}
 
       {/* Viajes escolares tab */}
       {tab === "school_viajes" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-zinc-950">Viajes escolares</h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+        <div className="space-y-5">
+          <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información de cada viaje escolar asignado a un colegio." />
+
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex-1 space-y-1">
+                  <Label>Filtrar por colegio</Label>
+                  <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).length === 0 ? (
-            <p className="text-sm text-zinc-400">No hay viajes escolares registrados.</p>
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados.</CardContent>
+            </Card>
           ) : (
             <div className="space-y-4">
               {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
@@ -5087,25 +5088,25 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                 const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
                 const stStudents = allStudents.filter((s) => stCourses.map(c => c.id).includes(s.school_course_id));
                 return (
-                  <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm overflow-hidden">
+                  <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm overflow-hidden">
                     {st.trips?.hero_image && (
-                      <div className="relative h-40 w-full">
+                      <div className="relative h-48 w-full">
                         <img src={st.trips.hero_image} alt={st.trips.name} className="h-full w-full object-cover" onError={(e) => { e.target.parentElement.style.display = "none"; }} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                        <div className="absolute bottom-3 left-4 text-white">
-                          <div className="text-lg font-bold">{st.trips?.name}</div>
-                          {st.trips?.departure_date && <div className="text-xs opacity-80">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-4 left-5 text-white">
+                          <div className="text-xl font-bold">{st.trips?.name}</div>
+                          {st.trips?.departure_date && <div className="text-sm opacity-80">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
                         </div>
                       </div>
                     )}
-                    <CardContent className="p-5">
+                    <CardContent className="p-5 space-y-3">
                       {!st.trips?.hero_image && (
-                        <div className="mb-3">
+                        <div>
                           <div className="font-semibold text-zinc-950">{st.trips?.name || st.trip_id}</div>
                           {st.trips?.departure_date && <div className="text-xs text-zinc-500 mt-0.5">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
                         </div>
                       )}
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-zinc-700">{school?.name || "Colegio"}</div>
                           {school?.contact_name && <div className="text-xs text-zinc-500">{school.contact_name}</div>}
@@ -5117,7 +5118,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                           <Badge variant="outline" className="rounded-xl text-xs">{stStudents.length} alumnos</Badge>
                         </div>
                       </div>
-                      {st.trips?.description && <p className="mt-3 text-xs text-zinc-500 line-clamp-2">{st.trips.description}</p>}
+                      {st.trips?.description && <p className="text-xs text-zinc-500">{st.trips.description}</p>}
                     </CardContent>
                   </Card>
                 );
@@ -5157,18 +5158,18 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "trips",       label: "Viajes",          icon: Map },
   ];
   const colegiosItems = [
-    { key: "school_colegios",    label: "Colegios",       icon: Users },
-    { key: "school_alumnos",     label: "Alumnos",        icon: BarChart2 },
-    { key: "school_alergias",    label: "Alergias",       icon: AlertCircle },
-    { key: "school_docs",        label: "Documentación",  icon: FileCheck2 },
-    { key: "school_preguntas",   label: "Preguntas",      icon: MessageCircleQuestion },
-    { key: "school_rooming",     label: "Rooming",        icon: LayoutGrid },
-    { key: "school_grupos",      label: "Grupos",         icon: ListChecks },
-    { key: "school_seguimiento", label: "Seguimiento",    icon: BarChart2 },
-    { key: "school_checklist",   label: "Checklist",      icon: CheckCircle2 },
-    { key: "school_itinerario",  label: "Itinerario",     icon: CalendarDays },
-    { key: "school_logistica",   label: "Logística",      icon: MapPinned },
-    { key: "school_viajes",      label: "Viajes",         icon: Map },
+    { key: "school_colegios",    label: "Colegios",      icon: Users },
+    { key: "school_seguimiento", label: "Seguimiento",   icon: BarChart2 },
+    { key: "school_alumnos",     label: "Alumnos",       icon: Users },
+    { key: "school_alergias",    label: "Alergias",      icon: AlertCircle },
+    { key: "school_docs",        label: "Documentación", icon: FileCheck2 },
+    { key: "school_preguntas",   label: "Preguntas",     icon: MessageCircleQuestion },
+    { key: "school_rooming",     label: "Rooming",       icon: LayoutGrid },
+    { key: "school_grupos",      label: "Grupos",        icon: ListChecks },
+    { key: "school_checklist",   label: "Checklist",     icon: CheckCircle2 },
+    { key: "school_itinerario",  label: "Itinerario",    icon: CalendarDays },
+    { key: "school_logistica",   label: "Logística",     icon: MapPinned },
+    { key: "school_viajes",      label: "Viajes",        icon: Map },
   ];
   const navItems = [...campamentosItems, ...colegiosItems, { key: "calculadora", label: "Calculadora", icon: Calculator }];
 
