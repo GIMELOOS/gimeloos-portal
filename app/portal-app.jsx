@@ -3903,12 +3903,14 @@ function SchoolPortal({ user, onLogout, notify }) {
 
 // ─── Admin Schools ────────────────────────────────────────────────────────────
 
-function AdminSchools({ trips, notify }) {
-  const [tab, setTab] = useState("schools");
+function AdminSchools({ trips, notify, section = "colegios" }) {
+  const tab = section === "colegios" ? "schools" : section === "alumnos" ? "students" : section === "alergias" ? "allergies" : section === "docs" ? "docs" : section === "preguntas" ? "questions" : section === "rooming" ? "rooming" : "groups";
   const [schools, setSchools] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [allCourses, setAllCourses] = useState([]);
   const [allSchoolTrips, setAllSchoolTrips] = useState([]);
+  const [allSchoolDocs, setAllSchoolDocs] = useState([]);
+  const [allSchoolQuestions, setAllSchoolQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   // New school form
   const [showNewSchool, setShowNewSchool] = useState(false);
@@ -3928,16 +3930,19 @@ function AdminSchools({ trips, notify }) {
     const load = async () => {
       setLoading(true);
       try {
-        const [schoolsRes, schoolTripsRes, coursesRes, studentsRes] = await Promise.all([
+        const [schoolsRes, schoolTripsRes, coursesRes, studentsRes, docsRes] = await Promise.all([
           supabase.from("schools").select("*").order("name"),
           supabase.from("school_trips").select("*, trips(name, departure_date)").order("created_at"),
           supabase.from("school_courses").select("*").order("course_name"),
           supabase.from("students").select("*").order("name"),
+          supabase.from("school_documents").select("*").order("created_at"),
         ]);
         setSchools(schoolsRes.data || []);
         setAllSchoolTrips(schoolTripsRes.data || []);
         setAllCourses(coursesRes.data || []);
         setAllStudents(studentsRes.data || []);
+        setAllSchoolDocs(docsRes.data || []);
+        setAllSchoolQuestions([]);
       } catch (err) {
         console.error(err);
         notify("Error cargando datos de colegios.", { variant: "destructive" });
@@ -3990,13 +3995,6 @@ function AdminSchools({ trips, notify }) {
 
   const getSchoolTripCount = (schoolId) => allSchoolTrips.filter((st) => st.school_id === schoolId).length;
 
-  const adminTabs = [
-    { key: "schools",  label: "Colegios",  icon: Users },
-    { key: "students", label: "Alumnos",   icon: FileCheck2 },
-    { key: "rooming",  label: "Rooming",   icon: LayoutGrid },
-    { key: "groups",   label: "Grupos",    icon: ListChecks },
-  ];
-
   const filteredStudents = (() => {
     if (!filterSchoolId) return allStudents;
     const tripIds = allSchoolTrips.filter((st) => st.school_id === filterSchoolId && (!filterTripId || st.id === filterTripId)).map((st) => st.id);
@@ -4010,19 +4008,6 @@ function AdminSchools({ trips, notify }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        {adminTabs.map(({ key, label, icon: Icon }) => {
-          const active = tab === key;
-          return (
-            <button key={key} type="button" onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"}`}
-              style={active ? { backgroundColor: CORPORATE_RED } : {}}
-            >
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          );
-        })}
-      </div>
 
       {/* Colegios tab */}
       {tab === "schools" && (
@@ -4229,6 +4214,141 @@ function AdminSchools({ trips, notify }) {
           )}
         </div>
       )}
+
+      {/* Alergias tab */}
+      {tab === "allergies" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {(() => {
+            const withIssues = filteredStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
+            if (withIssues.length === 0) return <p className="text-sm text-zinc-400">No hay alergias o intolerancias registradas.</p>;
+            return (
+              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="mb-2 text-sm font-medium text-zinc-700">{withIssues.length} alumnos con necesidades especiales</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-100">
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Dieta / Notas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withIssues.map((s) => (
+                          <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                            <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name} {s.surname}</td>
+                            <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
+                            <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
+                            <td className="px-2 py-1.5 text-zinc-600">{s.diet_notes || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Documentación tab */}
+      {tab === "docs" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Documentación por colegio</h2>
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {allSchoolDocs.length === 0 ? (
+            <p className="text-sm text-zinc-400">No hay documentos registrados todavía.</p>
+          ) : (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Documento</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Estado</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Subido por</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSchoolDocs.filter((d) => !filterSchoolId || (() => {
+                        const course = allCourses.find((c) => c.id === d.school_course_id);
+                        const st = allSchoolTrips.find((t) => t.id === course?.school_trip_id);
+                        return st?.school_id === filterSchoolId;
+                      })()).map((d) => {
+                        const course = allCourses.find((c) => c.id === d.school_course_id);
+                        return (
+                          <tr key={d.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                            <td className="px-2 py-1.5 font-medium text-zinc-900">{d.name}</td>
+                            <td className="px-2 py-1.5 text-zinc-600">{course ? `${course.course_name} ${course.group_name}` : "—"}</td>
+                            <td className="px-2 py-1.5">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
+                                {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 text-zinc-500">{d.uploaded_by || "colegio"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Preguntas tab */}
+      {tab === "questions" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Preguntas de colegios</h2>
+          <p className="text-sm text-zinc-400">Las preguntas que los coordinadores de colegios envíen desde su portal aparecerán aquí.</p>
+          {allSchoolQuestions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">No hay preguntas de colegios todavía.</div>
+          ) : (
+            <div className="space-y-3">
+              {allSchoolQuestions.map((q) => {
+                const school = schools.find((s) => s.id === q.school_id);
+                return (
+                  <Card key={q.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-zinc-500">{school?.name || "Colegio desconocido"}</div>
+                          <p className="mt-1 text-sm text-zinc-900">{q.message}</p>
+                          {q.reply && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600">↳ {q.reply}</p>}
+                        </div>
+                        <Badge variant="outline" className={`shrink-0 rounded-xl text-xs ${q.reply ? "border-green-200 text-green-700" : "border-amber-200 text-amber-700"}`}>
+                          {q.reply ? "Respondida" : "Pendiente"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4245,7 +4365,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
   usePaymentReminders(users, trips);
 
-  const navItems = [
+  const campamentosItems = [
     { key: "clients",     label: "Clientes",       icon: Users },
     { key: "tracking",    label: "Seguimiento",     icon: BarChart2 },
     { key: "payments",    label: "Pagos",           icon: CreditCard },
@@ -4255,6 +4375,16 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "trips",       label: "Viajes",          icon: Map },
     { key: "calculadora", label: "Calculadora",     icon: Calculator },
   ];
+  const colegiosItems = [
+    { key: "school_colegios",   label: "Colegios",       icon: Users },
+    { key: "school_alumnos",    label: "Alumnos",        icon: BarChart2 },
+    { key: "school_alergias",   label: "Alergias",       icon: AlertCircle },
+    { key: "school_docs",       label: "Documentación",  icon: FileCheck2 },
+    { key: "school_preguntas",  label: "Preguntas",      icon: MessageCircleQuestion },
+    { key: "school_rooming",    label: "Rooming",        icon: LayoutGrid },
+    { key: "school_grupos",     label: "Grupos",         icon: ListChecks },
+  ];
+  const navItems = [...campamentosItems, ...colegiosItems];
 
   return (
     <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
@@ -4284,42 +4414,29 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
             <nav className="space-y-1">
-              {navItems.map(({ key, label, icon: Icon }) => {
+              <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Campamentos</div>
+              {campamentosItems.map(({ key, label, icon: Icon }) => {
                 const active = activeSection === key;
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setActiveSection(key)}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${
-                      active
-                        ? "text-white shadow-sm"
-                        : "text-zinc-600 hover:bg-white hover:text-zinc-950"
-                    }`}
+                  <button key={key} type="button" onClick={() => setActiveSection(key)}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"}`}
                     style={active ? { backgroundColor: CORPORATE_RED } : {}}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {label}
+                    <Icon className="h-4 w-4 shrink-0" />{label}
                     {active && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
                   </button>
                 );
               })}
               <div className="mt-4 border-t border-zinc-200 pt-4">
                 <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Colegios</div>
-                {[{ key: "colegios", label: "Colegios", icon: Users }].map(({ key, label, icon: Icon }) => {
+                {colegiosItems.map(({ key, label, icon: Icon }) => {
                   const active = activeSection === key;
                   return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setActiveSection(key)}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${
-                        active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"
-                      }`}
+                    <button key={key} type="button" onClick={() => setActiveSection(key)}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"}`}
                       style={active ? { backgroundColor: CORPORATE_RED } : {}}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {label}
+                      <Icon className="h-4 w-4 shrink-0" />{label}
                       {active && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
                     </button>
                   );
@@ -4351,15 +4468,21 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          {activeSection === "clients"     && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
-          {activeSection === "tracking"    && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
-          {activeSection === "payments"    && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "docs"        && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
-          {activeSection === "questions"   && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "checklists"  && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "trips"       && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
-          {activeSection === "calculadora" && <CalculadoraCampamento />}
-          {activeSection === "colegios"    && <AdminSchools trips={trips} notify={notify} />}
+          {activeSection === "clients"          && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
+          {activeSection === "tracking"         && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
+          {activeSection === "payments"         && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "docs"             && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
+          {activeSection === "questions"        && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
+          {activeSection === "checklists"       && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "trips"            && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
+          {activeSection === "calculadora"      && <CalculadoraCampamento />}
+          {activeSection === "school_colegios"  && <AdminSchools trips={trips} notify={notify} section="colegios" />}
+          {activeSection === "school_alumnos"   && <AdminSchools trips={trips} notify={notify} section="alumnos" />}
+          {activeSection === "school_alergias"  && <AdminSchools trips={trips} notify={notify} section="alergias" />}
+          {activeSection === "school_docs"      && <AdminSchools trips={trips} notify={notify} section="docs" />}
+          {activeSection === "school_preguntas" && <AdminSchools trips={trips} notify={notify} section="preguntas" />}
+          {activeSection === "school_rooming"   && <AdminSchools trips={trips} notify={notify} section="rooming" />}
+          {activeSection === "school_grupos"    && <AdminSchools trips={trips} notify={notify} section="grupos" />}
         </main>
       </div>
     </div>
