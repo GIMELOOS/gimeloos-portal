@@ -3903,6 +3903,58 @@ function SchoolPortal({ user, onLogout, notify }) {
 
 // ─── Admin Schools ────────────────────────────────────────────────────────────
 
+function SchoolQuestionCard({ q, schoolName, onReply }) {
+  const [replyText, setReplyText] = useState(q.reply || "");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const handleSave = async () => {
+    setSaving(true);
+    await onReply(q.id, replyText);
+    setSaving(false);
+    setEditing(false);
+  };
+  return (
+    <Card className="rounded-2xl border-zinc-200 shadow-sm">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-medium text-zinc-500">{schoolName || "Colegio desconocido"}{q.source === "admin" ? " · añadida por admin" : ""}</div>
+            <p className="mt-1 text-sm text-zinc-900">{q.message}</p>
+            {q.reply && !editing && (
+              <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600">↳ {q.reply}</p>
+            )}
+          </div>
+          <Badge variant="outline" className={`shrink-0 rounded-xl text-xs ${q.reply ? "border-green-200 text-green-700" : "border-amber-200 text-amber-700"}`}>
+            {q.reply ? "Respondida" : "Pendiente"}
+          </Badge>
+        </div>
+        {editing ? (
+          <div className="space-y-2">
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={2}
+              placeholder="Escribe la respuesta..."
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none resize-none"
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={saving} className="h-7 rounded-xl text-xs text-white px-3" style={{ backgroundColor: CORPORATE_RED }}>
+                {saving ? "Guardando..." : "Guardar respuesta"}
+              </Button>
+              <Button variant="outline" className="h-7 rounded-xl text-xs px-3" onClick={() => setEditing(false)}>Cancelar</Button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setEditing(true)}
+            className="text-xs text-zinc-400 hover:text-zinc-600 underline underline-offset-2 transition">
+            {q.reply ? "Editar respuesta" : "Responder"}
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AdminSchools({ trips, notify, section = "colegios" }) {
   const tab = section === "colegios" ? "schools" : section === "alumnos" ? "students" : section === "alergias" ? "allergies" : section === "docs" ? "docs" : section === "preguntas" ? "questions" : section === "rooming" ? "rooming" : "groups";
   const [schools, setSchools] = useState([]);
@@ -3925,6 +3977,30 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
   // Filter for students tab
   const [filterSchoolId, setFilterSchoolId] = useState("");
   const [filterTripId, setFilterTripId] = useState("");
+  const [filterCourseId, setFilterCourseId] = useState("all");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  // Manual student entry
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [newStudent, setNewStudent] = useState({ name: "", surname: "", allergies: "", intolerances: "", diet_notes: "", notes: "" });
+  const [savingStudent, setSavingStudent] = useState(false);
+  // Manual doc entry
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [newDoc, setNewDoc] = useState({ name: "", description: "", required: true });
+  const [savingDoc, setSavingDoc] = useState(false);
+  // Manual question entry
+  const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [newQuestion, setNewQuestion] = useState({ message: "", school_id: "" });
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  // Rooming manual entry
+  const [showAddRoom, setShowAddRoom] = useState(false);
+  const [newRoom, setNewRoom] = useState({ room: "", students: "" });
+  const [savingRoom, setSavingRoom] = useState(false);
+  const [roomingTripId, setRoomingTripId] = useState("");
+  // Groups manual entry
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [newGroup, setNewGroup] = useState({ group: "", monitor: "", students: "" });
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [groupTripId, setGroupTripId] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -3995,14 +4071,97 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
   const getSchoolTripCount = (schoolId) => allSchoolTrips.filter((st) => st.school_id === schoolId).length;
 
+  const filteredSchoolTrips = filterSchoolId ? allSchoolTrips.filter((st) => st.school_id === filterSchoolId) : allSchoolTrips;
+
+  const visibleCourses = (() => {
+    const tripIds = filteredSchoolTrips.map((st) => st.id);
+    return allCourses.filter((c) => tripIds.includes(c.school_trip_id));
+  })();
+
   const filteredStudents = (() => {
-    if (!filterSchoolId) return allStudents;
-    const tripIds = allSchoolTrips.filter((st) => st.school_id === filterSchoolId && (!filterTripId || st.id === filterTripId)).map((st) => st.id);
-    const courseIds = allCourses.filter((c) => tripIds.includes(c.school_trip_id)).map((c) => c.id);
+    let courseIds;
+    if (filterCourseId && filterCourseId !== "all") {
+      courseIds = [filterCourseId];
+    } else if (filterSchoolId) {
+      const tripIds = filteredSchoolTrips.map((st) => st.id);
+      courseIds = allCourses.filter((c) => tripIds.includes(c.school_trip_id)).map((c) => c.id);
+    } else {
+      return allStudents;
+    }
     return allStudents.filter((s) => courseIds.includes(s.school_course_id));
   })();
 
-  const filteredSchoolTrips = filterSchoolId ? allSchoolTrips.filter((st) => st.school_id === filterSchoolId) : allSchoolTrips;
+  const handleSaveStudent = async () => {
+    if (!newStudent.name.trim()) { notify("El nombre del alumno es obligatorio."); return; }
+    const targetCourseId = filterCourseId !== "all" ? filterCourseId : visibleCourses[0]?.id;
+    if (!targetCourseId) { notify("Selecciona primero un colegio y curso."); return; }
+    setSavingStudent(true);
+    const { data, error } = await supabase.from("students").insert([{ ...newStudent, school_course_id: targetCourseId }]).select().maybeSingle();
+    if (error) { notify("Error añadiendo alumno: " + error.message, { variant: "destructive" }); }
+    else {
+      setAllStudents((prev) => [...prev, data]);
+      setNewStudent({ name: "", surname: "", allergies: "", intolerances: "", diet_notes: "", notes: "" });
+      setShowAddStudent(false);
+      notify("Alumno añadido.");
+    }
+    setSavingStudent(false);
+  };
+
+  const handleSaveDoc = async () => {
+    if (!newDoc.name.trim()) { notify("El nombre del documento es obligatorio."); return; }
+    const targetCourseId = filterCourseId !== "all" ? filterCourseId : visibleCourses[0]?.id;
+    if (!targetCourseId) { notify("Selecciona un colegio y curso primero."); return; }
+    setSavingDoc(true);
+    const { data, error } = await supabase.from("school_documents").insert([{ ...newDoc, school_course_id: targetCourseId, status: "pending" }]).select().maybeSingle();
+    if (error) notify("Error añadiendo documento: " + error.message, { variant: "destructive" });
+    else { setAllSchoolDocs((prev) => [...prev, data]); setNewDoc({ name: "", description: "", required: true }); setShowAddDoc(false); notify("Documento añadido."); }
+    setSavingDoc(false);
+  };
+
+  const handleSaveQuestion = async () => {
+    if (!newQuestion.message.trim()) { notify("La pregunta no puede estar vacía."); return; }
+    const schoolId = newQuestion.school_id || filterSchoolId || schools[0]?.id;
+    if (!schoolId) { notify("Selecciona un colegio."); return; }
+    setSavingQuestion(true);
+    const { data, error } = await supabase.from("school_questions").insert([{ message: newQuestion.message, school_id: schoolId, source: "admin" }]).select().maybeSingle();
+    if (error) notify("Error añadiendo pregunta: " + error.message, { variant: "destructive" });
+    else { setAllSchoolQuestions((prev) => [...prev, data]); setNewQuestion({ message: "", school_id: "" }); setShowAddQuestion(false); notify("Pregunta añadida."); }
+    setSavingQuestion(false);
+  };
+
+  const handleReplyQuestion = async (qId, reply) => {
+    const { error } = await supabase.from("school_questions").update({ reply }).eq("id", qId);
+    if (error) notify("Error guardando respuesta.", { variant: "destructive" });
+    else { setAllSchoolQuestions((prev) => prev.map((q) => q.id === qId ? { ...q, reply } : q)); notify("Respuesta guardada."); }
+  };
+
+  const handleSaveRoom = async () => {
+    if (!newRoom.room.trim()) { notify("El nombre de la habitación es obligatorio."); return; }
+    const stId = roomingTripId || filteredSchoolTrips[0]?.id;
+    if (!stId) { notify("Selecciona un viaje primero."); return; }
+    setSavingRoom(true);
+    const st = allSchoolTrips.find((t) => t.id === stId);
+    const existing = st?.rooming || [];
+    const updated = [...existing, { room: newRoom.room, students: newRoom.students.split(",").map((s) => s.trim()).filter(Boolean) }];
+    const { error } = await supabase.from("school_trips").update({ rooming: updated }).eq("id", stId);
+    if (error) notify("Error añadiendo habitación: " + error.message, { variant: "destructive" });
+    else { setAllSchoolTrips((prev) => prev.map((t) => t.id === stId ? { ...t, rooming: updated } : t)); setNewRoom({ room: "", students: "" }); setShowAddRoom(false); notify("Habitación añadida."); }
+    setSavingRoom(false);
+  };
+
+  const handleSaveGroup = async () => {
+    if (!newGroup.group.trim()) { notify("El nombre del grupo es obligatorio."); return; }
+    const stId = groupTripId || filteredSchoolTrips[0]?.id;
+    if (!stId) { notify("Selecciona un viaje primero."); return; }
+    setSavingGroup(true);
+    const st = allSchoolTrips.find((t) => t.id === stId);
+    const existing = st?.activity_groups || [];
+    const updated = [...existing, { group: newGroup.group, monitor: newGroup.monitor, students: newGroup.students.split(",").map((s) => s.trim()).filter(Boolean) }];
+    const { error } = await supabase.from("school_trips").update({ activity_groups: updated }).eq("id", stId);
+    if (error) notify("Error añadiendo grupo: " + error.message, { variant: "destructive" });
+    else { setAllSchoolTrips((prev) => prev.map((t) => t.id === stId ? { ...t, activity_groups: updated } : t)); setNewGroup({ group: "", monitor: "", students: "" }); setShowAddGroup(false); notify("Grupo añadido."); }
+    setSavingGroup(false);
+  };
 
   if (loading) return <div className="py-16 text-center text-sm text-zinc-400">Cargando colegios...</div>;
 
@@ -4012,11 +4171,14 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Colegios tab */}
       {tab === "schools" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-zinc-950">Colegios ({schools.length})</h2>
-            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
-              <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
-            </Button>
+          <div className="flex flex-wrap items-center gap-3 justify-between">
+            <h2 className="text-base font-semibold text-zinc-950">Colegios ({schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).length})</h2>
+            <div className="flex gap-2 flex-wrap">
+              <Input placeholder="Buscar colegio..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="h-9 w-48 rounded-xl text-sm" />
+              <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
+                <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
+              </Button>
+            </div>
           </div>
 
           {showNewSchool && (
@@ -4041,7 +4203,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           <div className="space-y-3">
             {schools.length === 0 && <p className="text-sm text-zinc-400">No hay colegios registrados.</p>}
-            {schools.map((school) => (
+            {schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).map((school) => (
               <Card key={school.id} className="rounded-2xl border-zinc-200 shadow-sm">
                 <CardContent className="p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -4096,27 +4258,77 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Alumnos tab */}
       {tab === "students" && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Alumnos por colegio</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Alumnos por colegio</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddStudent(!showAddStudent)}>
+              <Plus className="mr-1.5 h-4 w-4" />Añadir alumno
+            </Button>
+          </div>
+
+          {/* Filtros colegio + viaje */}
           <div className="flex flex-wrap gap-3">
-            <select
-              value={filterSchoolId}
-              onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
-            >
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             {filterSchoolId && (
-              <select
-                value={filterTripId}
-                onChange={(e) => setFilterTripId(e.target.value)}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
-              >
+              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
                 <option value="">Todos los viajes</option>
                 {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
               </select>
             )}
           </div>
+
+          {/* Tabs de curso */}
+          {visibleCourses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFilterCourseId("all")}
+                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>
+                Todos
+              </button>
+              {visibleCourses.map((c) => (
+                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formulario añadir alumno manualmente */}
+          {showAddStudent && (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-5 space-y-3">
+                <div className="text-sm font-medium text-zinc-700">Nuevo alumno{filterCourseId !== "all" ? ` — ${visibleCourses.find(c => c.id === filterCourseId)?.course_name || ""}` : ""}</div>
+                {filterSchoolId && visibleCourses.length > 1 && filterCourseId === "all" && (
+                  <select value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
+                    <option value="all">Selecciona un curso *</option>
+                    {visibleCourses.map((c) => <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>)}
+                  </select>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input placeholder="Nombre *" value={newStudent.name} onChange={(e) => setNewStudent(p => ({ ...p, name: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Apellidos" value={newStudent.surname} onChange={(e) => setNewStudent(p => ({ ...p, surname: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Alergias" value={newStudent.allergies} onChange={(e) => setNewStudent(p => ({ ...p, allergies: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Intolerancias" value={newStudent.intolerances} onChange={(e) => setNewStudent(p => ({ ...p, intolerances: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Dieta especial" value={newStudent.diet_notes} onChange={(e) => setNewStudent(p => ({ ...p, diet_notes: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Notas" value={newStudent.notes} onChange={(e) => setNewStudent(p => ({ ...p, notes: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveStudent} disabled={savingStudent || !newStudent.name.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingStudent ? "Guardando..." : "Guardar alumno"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddStudent(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {filteredStudents.length === 0 ? (
             <p className="text-sm text-zinc-400">No hay alumnos en la selección actual.</p>
           ) : (
@@ -4132,19 +4344,24 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                       <tr className="border-b border-zinc-100">
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Apellidos</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredStudents.map((s) => (
-                        <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                          <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name}</td>
-                          <td className="px-2 py-1.5 text-zinc-700">{s.surname}</td>
-                          <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
-                          <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
-                        </tr>
-                      ))}
+                      {filteredStudents.map((s) => {
+                        const course = allCourses.find((c) => c.id === s.school_course_id);
+                        return (
+                          <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                            <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name}</td>
+                            <td className="px-2 py-1.5 text-zinc-700">{s.surname}</td>
+                            <td className="px-2 py-1.5 text-zinc-500">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+                            <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
+                            <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4157,78 +4374,247 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Rooming tab */}
       {tab === "rooming" && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Rooming por colegio</h2>
-          {allSchoolTrips.filter((st) => st.rooming?.length).length === 0 ? (
-            <p className="text-sm text-zinc-400">Ningún colegio ha subido rooming todavía.</p>
-          ) : (
-            allSchoolTrips.filter((st) => st.rooming?.length).map((st) => {
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Rooming por colegio</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddRoom(!showAddRoom)}>
+              <Plus className="mr-1.5 h-4 w-4" />Añadir habitación
+            </Button>
+          </div>
+
+          {/* Filtro colegio */}
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setRoomingTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {filterSchoolId && (
+              <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+                <option value="">Todos los viajes</option>
+                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+              </select>
+            )}
+          </div>
+
+          {/* Tabs de curso */}
+          {visibleCourses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFilterCourseId("all")}
+                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+              {visibleCourses.map((c) => (
+                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formulario nueva habitación */}
+          {showAddRoom && (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-5 space-y-3">
+                <div className="text-sm font-medium text-zinc-700">Nueva habitación</div>
+                <select
+                  value={roomingTripId || filteredSchoolTrips[0]?.id || ""}
+                  onChange={(e) => setRoomingTripId(e.target.value)}
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
+                  <option value="">Selecciona viaje *</option>
+                  {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                    const sch = schools.find((s) => s.id === st.school_id);
+                    return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+                  })}
+                </select>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input placeholder="Nombre habitación *" value={newRoom.room} onChange={(e) => setNewRoom(p => ({ ...p, room: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Alumnos (separados por coma)" value={newRoom.students} onChange={(e) => setNewRoom(p => ({ ...p, students: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveRoom} disabled={savingRoom || !newRoom.room.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingRoom ? "Guardando..." : "Guardar habitación"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddRoom(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(() => {
+            const stList = (filterSchoolId ? filteredSchoolTrips : allSchoolTrips).filter((st) =>
+              (!filterTripId || st.id === filterTripId) && st.rooming?.length
+            );
+            if (stList.length === 0) return <p className="text-sm text-zinc-400">No hay rooming en la selección actual. Añade habitaciones manualmente o pide al colegio que suba su listado.</p>;
+            return stList.map((st) => {
               const school = schools.find((s) => s.id === st.school_id);
               return (
                 <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
                   <CardContent className="p-5">
                     <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
-                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id}</div>
+                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id} · {st.rooming.length} habitaciones</div>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {st.rooming.map((r, i) => (
-                        <div key={i} className="rounded-xl border border-zinc-100 p-3">
-                          <div className="mb-1 text-xs font-medium text-zinc-900">{r.room}</div>
-                          {r.students.map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                        <div key={i} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3">
+                          <div className="mb-1.5 text-xs font-semibold text-zinc-900">{r.room}</div>
+                          {(r.students || []).map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                          {(!r.students || r.students.length === 0) && <div className="text-xs text-zinc-400">Sin alumnos asignados</div>}
                         </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
               );
-            })
-          )}
+            });
+          })()}
         </div>
       )}
 
       {/* Groups tab */}
       {tab === "groups" && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades por colegio</h2>
-          {allSchoolTrips.filter((st) => st.activity_groups?.length).length === 0 ? (
-            <p className="text-sm text-zinc-400">Ningún colegio ha subido grupos todavía.</p>
-          ) : (
-            allSchoolTrips.filter((st) => st.activity_groups?.length).map((st) => {
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades por colegio</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddGroup(!showAddGroup)}>
+              <Plus className="mr-1.5 h-4 w-4" />Añadir grupo
+            </Button>
+          </div>
+
+          {/* Filtro colegio */}
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setGroupTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {filterSchoolId && (
+              <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+                <option value="">Todos los viajes</option>
+                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+              </select>
+            )}
+          </div>
+
+          {/* Tabs de curso */}
+          {visibleCourses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFilterCourseId("all")}
+                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+              {visibleCourses.map((c) => (
+                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formulario nuevo grupo */}
+          {showAddGroup && (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-5 space-y-3">
+                <div className="text-sm font-medium text-zinc-700">Nuevo grupo de actividades</div>
+                <select
+                  value={groupTripId || filteredSchoolTrips[0]?.id || ""}
+                  onChange={(e) => setGroupTripId(e.target.value)}
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
+                  <option value="">Selecciona viaje *</option>
+                  {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                    const sch = schools.find((s) => s.id === st.school_id);
+                    return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
+                  })}
+                </select>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <Input placeholder="Nombre del grupo *" value={newGroup.group} onChange={(e) => setNewGroup(p => ({ ...p, group: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Monitor / responsable" value={newGroup.monitor} onChange={(e) => setNewGroup(p => ({ ...p, monitor: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Alumnos (separados por coma)" value={newGroup.students} onChange={(e) => setNewGroup(p => ({ ...p, students: e.target.value }))} className="rounded-xl lg:col-span-3 sm:col-span-2" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveGroup} disabled={savingGroup || !newGroup.group.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingGroup ? "Guardando..." : "Guardar grupo"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddGroup(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(() => {
+            const stList = (filterSchoolId ? filteredSchoolTrips : allSchoolTrips).filter((st) =>
+              (!filterTripId || st.id === filterTripId) && st.activity_groups?.length
+            );
+            if (stList.length === 0) return <p className="text-sm text-zinc-400">No hay grupos en la selección actual. Añade grupos manualmente o pide al colegio que suba su distribución.</p>;
+            return stList.map((st) => {
               const school = schools.find((s) => s.id === st.school_id);
               return (
                 <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
                   <CardContent className="p-5">
                     <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
-                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id}</div>
+                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id} · {st.activity_groups.length} grupos</div>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {st.activity_groups.map((g, i) => (
-                        <div key={i} className="rounded-xl border border-zinc-100 p-3">
-                          <div className="mb-0.5 text-xs font-medium text-zinc-900">{g.group}</div>
+                        <div key={i} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3">
+                          <div className="mb-0.5 text-xs font-semibold text-zinc-900">{g.group}</div>
                           {g.monitor && <div className="mb-1 text-xs text-zinc-400">Monitor: {g.monitor}</div>}
-                          {g.students.map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                          {(g.students || []).map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                          {(!g.students || g.students.length === 0) && <div className="text-xs text-zinc-400">Sin alumnos asignados</div>}
                         </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
               );
-            })
-          )}
+            });
+          })()}
         </div>
       )}
 
       {/* Alergias tab */}
       {tab === "allergies" && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
+          </div>
+
+          {/* Filtros colegio + viaje */}
           <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+            {filterSchoolId && (
+              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+                <option value="">Todos los viajes</option>
+                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+              </select>
+            )}
           </div>
+
+          {/* Tabs de curso */}
+          {visibleCourses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFilterCourseId("all")}
+                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+              {visibleCourses.map((c) => (
+                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
           {(() => {
             const withIssues = filteredStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
-            if (withIssues.length === 0) return <p className="text-sm text-zinc-400">No hay alergias o intolerancias registradas.</p>;
+            if (withIssues.length === 0) return <p className="text-sm text-zinc-400">No hay alergias o intolerancias en la selección actual.</p>;
             return (
               <Card className="rounded-2xl border-zinc-200 shadow-sm">
                 <CardContent className="p-4">
@@ -4238,20 +4624,25 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                       <thead>
                         <tr className="border-b border-zinc-100">
                           <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
                           <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
                           <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
                           <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Dieta / Notas</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {withIssues.map((s) => (
-                          <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                            <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name} {s.surname}</td>
-                            <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
-                            <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
-                            <td className="px-2 py-1.5 text-zinc-600">{s.diet_notes || "—"}</td>
-                          </tr>
-                        ))}
+                        {withIssues.map((s) => {
+                          const course = allCourses.find((c) => c.id === s.school_course_id);
+                          return (
+                            <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                              <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name} {s.surname}</td>
+                              <td className="px-2 py-1.5 text-zinc-500">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+                              <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
+                              <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
+                              <td className="px-2 py-1.5 text-zinc-600">{s.diet_notes || "—"}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -4265,7 +4656,131 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Documentación tab */}
       {tab === "docs" && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Documentación por colegio</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Documentación por colegio</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddDoc(!showAddDoc)}>
+              <Plus className="mr-1.5 h-4 w-4" />Añadir documento
+            </Button>
+          </div>
+
+          {/* Filtros colegio + viaje */}
+          <div className="flex flex-wrap gap-3">
+            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {filterSchoolId && (
+              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
+                <option value="">Todos los viajes</option>
+                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+              </select>
+            )}
+          </div>
+
+          {/* Tabs de curso */}
+          {visibleCourses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setFilterCourseId("all")}
+                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+              {visibleCourses.map((c) => (
+                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formulario nuevo documento */}
+          {showAddDoc && (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-5 space-y-3">
+                <div className="text-sm font-medium text-zinc-700">Nuevo documento requerido{filterCourseId !== "all" ? ` — ${visibleCourses.find(c => c.id === filterCourseId)?.course_name || ""}` : ""}</div>
+                {filterSchoolId && visibleCourses.length > 1 && filterCourseId === "all" && (
+                  <select value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
+                    <option value="all">Selecciona un curso *</option>
+                    {visibleCourses.map((c) => <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>)}
+                  </select>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input placeholder="Nombre del documento *" value={newDoc.name} onChange={(e) => setNewDoc(p => ({ ...p, name: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Descripción / instrucciones" value={newDoc.description} onChange={(e) => setNewDoc(p => ({ ...p, description: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveDoc} disabled={savingDoc || !newDoc.name.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingDoc ? "Guardando..." : "Guardar documento"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddDoc(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(() => {
+            const filteredDocs = allSchoolDocs.filter((d) => {
+              if (filterCourseId !== "all") return d.school_course_id === filterCourseId;
+              if (filterSchoolId) {
+                const courseIds = visibleCourses.map((c) => c.id);
+                return courseIds.includes(d.school_course_id);
+              }
+              return true;
+            });
+            if (filteredDocs.length === 0) return <p className="text-sm text-zinc-400">No hay documentos en la selección actual.</p>;
+            return (
+              <Card className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-100">
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Documento</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Estado</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Subido por</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredDocs.map((d) => {
+                          const course = allCourses.find((c) => c.id === d.school_course_id);
+                          return (
+                            <tr key={d.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                              <td className="px-2 py-1.5 font-medium text-zinc-900">{d.name}</td>
+                              <td className="px-2 py-1.5 text-zinc-600">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+                              <td className="px-2 py-1.5">
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
+                                  {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 text-zinc-500">{d.uploaded_by || "colegio"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Preguntas tab */}
+      {tab === "questions" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">Preguntas de colegios</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddQuestion(!showAddQuestion)}>
+              <Plus className="mr-1.5 h-4 w-4" />Nueva pregunta
+            </Button>
+          </div>
+
+          {/* Filtro colegio */}
           <div className="flex flex-wrap gap-3">
             <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
@@ -4273,80 +4788,54 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
-          {allSchoolDocs.length === 0 ? (
-            <p className="text-sm text-zinc-400">No hay documentos registrados todavía.</p>
-          ) : (
+
+          {/* Formulario nueva pregunta */}
+          {showAddQuestion && (
             <Card className="rounded-2xl border-zinc-200 shadow-sm">
-              <CardContent className="p-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-100">
-                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Documento</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Estado</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Subido por</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allSchoolDocs.filter((d) => !filterSchoolId || (() => {
-                        const course = allCourses.find((c) => c.id === d.school_course_id);
-                        const st = allSchoolTrips.find((t) => t.id === course?.school_trip_id);
-                        return st?.school_id === filterSchoolId;
-                      })()).map((d) => {
-                        const course = allCourses.find((c) => c.id === d.school_course_id);
-                        return (
-                          <tr key={d.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                            <td className="px-2 py-1.5 font-medium text-zinc-900">{d.name}</td>
-                            <td className="px-2 py-1.5 text-zinc-600">{course ? `${course.course_name} ${course.group_name}` : "—"}</td>
-                            <td className="px-2 py-1.5">
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
-                                {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
-                              </span>
-                            </td>
-                            <td className="px-2 py-1.5 text-zinc-500">{d.uploaded_by || "colegio"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <CardContent className="p-5 space-y-3">
+                <div className="text-sm font-medium text-zinc-700">Nueva pregunta o anotación</div>
+                <select
+                  value={newQuestion.school_id || filterSchoolId}
+                  onChange={(e) => setNewQuestion(p => ({ ...p, school_id: e.target.value }))}
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
+                  <option value="">Selecciona un colegio *</option>
+                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <textarea
+                  placeholder="Pregunta o anotación *"
+                  value={newQuestion.message}
+                  onChange={(e) => setNewQuestion(p => ({ ...p, message: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none resize-none"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveQuestion} disabled={savingQuestion || !newQuestion.message.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingQuestion ? "Guardando..." : "Guardar"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddQuestion(false)}>Cancelar</Button>
                 </div>
               </CardContent>
             </Card>
           )}
-        </div>
-      )}
 
-      {/* Preguntas tab */}
-      {tab === "questions" && (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-zinc-950">Preguntas de colegios</h2>
-          <p className="text-sm text-zinc-400">Las preguntas que los coordinadores de colegios envíen desde su portal aparecerán aquí.</p>
-          {allSchoolQuestions.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">No hay preguntas de colegios todavía.</div>
-          ) : (
-            <div className="space-y-3">
-              {allSchoolQuestions.map((q) => {
-                const school = schools.find((s) => s.id === q.school_id);
-                return (
-                  <Card key={q.id} className="rounded-2xl border-zinc-200 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-zinc-500">{school?.name || "Colegio desconocido"}</div>
-                          <p className="mt-1 text-sm text-zinc-900">{q.message}</p>
-                          {q.reply && <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600">↳ {q.reply}</p>}
-                        </div>
-                        <Badge variant="outline" className={`shrink-0 rounded-xl text-xs ${q.reply ? "border-green-200 text-green-700" : "border-amber-200 text-amber-700"}`}>
-                          {q.reply ? "Respondida" : "Pendiente"}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          {(() => {
+            const qs = allSchoolQuestions.filter((q) => !filterSchoolId || q.school_id === filterSchoolId);
+            if (qs.length === 0) return (
+              <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-400">
+                No hay preguntas de colegios todavía. Las preguntas que envíen los coordinadores desde su portal aparecerán aquí.
+              </div>
+            );
+            return (
+              <div className="space-y-3">
+                {qs.map((q) => {
+                  const school = schools.find((s) => s.id === q.school_id);
+                  return (
+                    <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -4365,6 +4854,9 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
   usePaymentReminders(users, trips);
 
+  const [campExpanded, setCampExpanded] = useState(true);
+  const [colExpanded, setColExpanded] = useState(true);
+
   const campamentosItems = [
     { key: "clients",     label: "Clientes",       icon: Users },
     { key: "tracking",    label: "Seguimiento",     icon: BarChart2 },
@@ -4373,7 +4865,6 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "questions",   label: "Preguntas",       icon: MessageCircleQuestion },
     { key: "checklists",  label: "Checklists",      icon: ListChecks },
     { key: "trips",       label: "Viajes",          icon: Map },
-    { key: "calculadora", label: "Calculadora",     icon: Calculator },
   ];
   const colegiosItems = [
     { key: "school_colegios",   label: "Colegios",       icon: Users },
@@ -4384,7 +4875,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "school_rooming",    label: "Rooming",        icon: LayoutGrid },
     { key: "school_grupos",     label: "Grupos",         icon: ListChecks },
   ];
-  const navItems = [...campamentosItems, ...colegiosItems];
+  const navItems = [...campamentosItems, ...colegiosItems, { key: "calculadora", label: "Calculadora", icon: Calculator }];
 
   return (
     <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
@@ -4414,12 +4905,17 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
             <nav className="space-y-1">
-              <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Campamentos</div>
-              {campamentosItems.map(({ key, label, icon: Icon }) => {
+              {/* CAMPAMENTOS colapsable */}
+              <button type="button" onClick={() => setCampExpanded(!campExpanded)}
+                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-zinc-500 hover:bg-zinc-50 transition">
+                <span>Campamentos</span>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${campExpanded ? "rotate-180" : ""}`} />
+              </button>
+              {campExpanded && campamentosItems.map(({ key, label, icon: Icon }) => {
                 const active = activeSection === key;
                 return (
                   <button key={key} type="button" onClick={() => setActiveSection(key)}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"}`}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
                     style={active ? { backgroundColor: CORPORATE_RED } : {}}
                   >
                     <Icon className="h-4 w-4 shrink-0" />{label}
@@ -4427,13 +4923,19 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                   </button>
                 );
               })}
-              <div className="mt-4 border-t border-zinc-200 pt-4">
-                <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Colegios</div>
-                {colegiosItems.map(({ key, label, icon: Icon }) => {
+
+              {/* COLEGIOS colapsable */}
+              <div className="pt-1">
+                <button type="button" onClick={() => setColExpanded(!colExpanded)}
+                  className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-zinc-500 hover:bg-zinc-50 transition">
+                  <span>Colegios</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${colExpanded ? "rotate-180" : ""}`} />
+                </button>
+                {colExpanded && colegiosItems.map(({ key, label, icon: Icon }) => {
                   const active = activeSection === key;
                   return (
                     <button key={key} type="button" onClick={() => setActiveSection(key)}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"}`}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
                       style={active ? { backgroundColor: CORPORATE_RED } : {}}
                     >
                       <Icon className="h-4 w-4 shrink-0" />{label}
@@ -4441,6 +4943,17 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Calculadora separada al fondo */}
+              <div className="border-t border-zinc-200 pt-2 mt-2">
+                <button type="button" onClick={() => setActiveSection("calculadora")}
+                  className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${activeSection === "calculadora" ? "text-white shadow-sm" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
+                  style={activeSection === "calculadora" ? { backgroundColor: CORPORATE_RED } : {}}
+                >
+                  <Calculator className="h-4 w-4 shrink-0" />Calculadora
+                  {activeSection === "calculadora" && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
+                </button>
               </div>
             </nav>
           </div>
