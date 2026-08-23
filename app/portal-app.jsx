@@ -1007,24 +1007,22 @@ function ClientPayments({ user, trip, onUploadProof }) {
   );
 }
 
-function ClientItinerary({ trip }) {
-  const items = trip.itinerary || [];
+function ClientLogistics({ trip }) {
+  const items = trip.logistics || [];
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-zinc-400">
-        El equipo de GIMELOOS publicará pronto la información de tu experiencia.
+        El equipo de GIMELOOS publicará pronto la información logística de tu experiencia.
       </div>
     );
   }
   return (
     <ul className="space-y-2">
       {items.map((item, index) => (
-        <li key={`${item.day}-${item.title}-${index}`} className="flex gap-3 items-start py-2 border-b border-stone-100 last:border-0">
+        <li key={`log-${index}`} className="flex gap-3 items-start py-2 border-b border-stone-100 last:border-0">
           <span className="mt-1 shrink-0 text-base font-bold leading-none" style={{ color: CORPORATE_RED }}>—</span>
           <div className="min-w-0">
             <span className="font-semibold text-zinc-900 text-sm">{item.title}</span>
-            {item.time && <span className="ml-2 text-xs font-medium text-zinc-400">{item.time}</span>}
-            {item.day && <span className="ml-2 text-[11px] text-zinc-400">{item.day}</span>}
             {item.description && (
               <p className="mt-0.5 text-sm text-zinc-600 leading-relaxed">{item.description}</p>
             )}
@@ -1032,6 +1030,37 @@ function ClientItinerary({ trip }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function ClientItinerary({ trip }) {
+  const items = trip.itinerary || [];
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-zinc-400">
+        El equipo de GIMELOOS publicará el itinerario próximamente.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div key={`itin-${index}`} className="flex gap-4 items-start rounded-2xl border border-stone-100 bg-stone-50 p-4">
+          <div className="shrink-0 min-w-[56px] rounded-xl px-2 py-1.5 text-center text-white text-xs font-semibold" style={{ backgroundColor: CORPORATE_RED }}>
+            {item.day || `Día ${index + 1}`}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-zinc-900 text-sm">{item.title}</span>
+              {item.time && <span className="text-xs text-zinc-400">{item.time}</span>}
+            </div>
+            {item.description && (
+              <p className="mt-1 text-sm text-zinc-600 leading-relaxed">{item.description}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1384,12 +1413,23 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               />
             </AccordionSection>
 
-            {trip.showItinerary !== false && (
+            {trip.showLogistics !== false && (
               <AccordionSection
                 title="Lo que no puedes olvidar"
-                subtitle="Horarios, lugar de encuentro y todo lo importante para el primer día."
+                subtitle="Información clave antes del viaje: punto de encuentro, horarios y qué llevar."
                 icon={MapPinned}
-                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} puntos clave</Badge>}
+                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{(trip.logistics || []).length} puntos</Badge>}
+              >
+                <ClientLogistics trip={trip} />
+              </AccordionSection>
+            )}
+
+            {trip.showItinerary !== false && (
+              <AccordionSection
+                title="Itinerario del viaje"
+                subtitle="Qué ocurrirá cada día durante la experiencia."
+                icon={CalendarDays}
+                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} días</Badge>}
               >
                 <ClientItinerary trip={trip} />
               </AccordionSection>
@@ -2593,9 +2633,9 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
     await supabase.from("trips").update({
       name: nextTrip.name, departure_date: nextTrip.departureDate || null, description: nextTrip.description || "",
       hero_image: nextTrip.heroImage || "", hero_images: nextTrip.heroImages || [],
-      transfer_info: nextTrip.transferInfo || {}, automation: { ...(nextTrip.automation || {}), showItinerary: nextTrip.showItinerary !== false },
+      transfer_info: nextTrip.transferInfo || {}, automation: { ...(nextTrip.automation || {}), showItinerary: nextTrip.showItinerary !== false, showLogistics: nextTrip.showLogistics !== false },
       document_rules: nextTrip.documentRules || [], payment_schedule: nextTrip.paymentSchedule || {},
-      itinerary: nextTrip.itinerary || [], checklist: nextTrip.checklist || [],
+      itinerary: nextTrip.itinerary || [], logistics: nextTrip.logistics || [], checklist: nextTrip.checklist || [],
     }).eq("id", nextTrip.id);
   };
 
@@ -2640,7 +2680,8 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
 
   const tripTabs = [
     { key: "datos",       label: "Datos básicos",    icon: Settings },
-    { key: "itinerario",  label: "Itinerario",       icon: Map },
+    { key: "logistica",   label: "Logística",        icon: MapPinned },
+    { key: "itinerario",  label: "Itinerario",       icon: CalendarDays },
     { key: "documentos",  label: "Documentos",       icon: FileCheck2 },
     { key: "pagos",       label: "Pagos",            icon: CreditCard },
   ];
@@ -2715,13 +2756,98 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
         </Card>
       )}
 
+      {/* ── Pestaña: Logística ── */}
+      {tripTab === "logistica" && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="font-semibold text-zinc-950">Información logística</div>
+                <div className="text-sm text-zinc-500">Datos clave previos al viaje: horarios, lugar de encuentro, qué llevar...</div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <div
+                    onClick={async () => {
+                      const next = { ...selectedTrip, showLogistics: selectedTrip.showLogistics === false ? true : false };
+                      syncTrip((t) => ({ ...t, showLogistics: selectedTrip.showLogistics === false ? true : false }));
+                      await persistTrip(next);
+                    }}
+                    className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showLogistics !== false ? "bg-green-500" : "bg-zinc-300"}`}
+                  >
+                    <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedTrip.showLogistics !== false ? "left-5" : "left-0.5"}`} />
+                  </div>
+                  <span className="text-sm text-zinc-700">Visible para clientes</span>
+                </label>
+                <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                  onClick={async () => {
+                    const nextLogistics = [...(selectedTrip.logistics || []), { title: "Nuevo punto", description: "" }];
+                    const next = { ...selectedTrip, logistics: nextLogistics };
+                    syncTrip((t) => ({ ...t, logistics: nextLogistics }));
+                    await persistTrip(next);
+                  }}>
+                  <Plus className="mr-2 h-4 w-4" />Añadir punto
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {(selectedTrip.logistics || []).map((item, index) => (
+                <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      value={item.title}
+                      placeholder="Título (ej: Punto de encuentro)"
+                      onChange={async (e) => {
+                        const nextLogistics = (selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, title: e.target.value } : l);
+                        const next = { ...selectedTrip, logistics: nextLogistics };
+                        syncTrip((t) => ({ ...t, logistics: nextLogistics }));
+                        await persistTrip(next);
+                      }}
+                      className="rounded-xl bg-white text-sm font-medium"
+                    />
+                    <Textarea
+                      value={item.description}
+                      placeholder="Descripción (ej: Parking del instituto a las 8:00)"
+                      onChange={async (e) => {
+                        const nextLogistics = (selectedTrip.logistics || []).map((l, i) => i === index ? { ...l, description: e.target.value } : l);
+                        const next = { ...selectedTrip, logistics: nextLogistics };
+                        syncTrip((t) => ({ ...t, logistics: nextLogistics }));
+                        await persistTrip(next);
+                      }}
+                      className="min-h-[72px] rounded-xl bg-white text-sm"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const nextLogistics = (selectedTrip.logistics || []).filter((_, i) => i !== index);
+                      const next = { ...selectedTrip, logistics: nextLogistics };
+                      syncTrip((t) => ({ ...t, logistics: nextLogistics }));
+                      await persistTrip(next);
+                    }}
+                    className="mt-1 rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {(selectedTrip.logistics || []).length === 0 && (
+                <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+                  Sin puntos logísticos. Pulsa "Añadir punto" para empezar.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Pestaña: Itinerario ── */}
       {tripTab === "itinerario" && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="font-semibold text-zinc-950">Itinerario / Info logística</div>
+                <div className="font-semibold text-zinc-950">Itinerario día a día</div>
                 <div className="text-sm text-zinc-500">Arrastra las filas para reordenar.</div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -3234,8 +3360,11 @@ export default function GIMELOOSPortalApp() {
             transferInfo: t.transfer_info || { bank: "", accountHolder: "", iban: "", concept: "" },
             automation: t.automation || { autoReminderEnabled: false, reminderDaysBefore: 5 },
             showItinerary: t.automation?.showItinerary !== false,
+            showLogistics: t.automation?.showLogistics !== false,
             documentRules: t.document_rules || [], paymentSchedule: t.payment_schedule || {},
-            itinerary: t.itinerary || [], checklist: t.checklist || [],
+            itinerary: t.itinerary || [],
+            logistics: Array.isArray(t.logistics) ? t.logistics : [],
+            checklist: t.checklist || [],
           })));
         }
 
