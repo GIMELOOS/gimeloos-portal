@@ -113,6 +113,12 @@ import {
   Map,
   ListChecks,
   Plus,
+  Luggage,
+  Info,
+  AlertCircle,
+  Bus,
+  Sun,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -631,7 +637,7 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
   const [password, setPassword] = useState("");
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center p-4 sm:p-6 lg:p-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -741,8 +747,11 @@ function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
           <div>
             <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">Experiencia contratada</Badge>
             <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">{trip.name?.toUpperCase()}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-200 sm:text-base sm:leading-7">
-              Hola, {user.participantName}. Aquí tienes toda la información de tu experiencia.
+            <p className="mt-3 max-w-2xl text-base leading-7 text-white font-medium sm:text-lg">
+              Hola, familia de <span className="text-white font-bold">{user.participantName}</span> 👋
+            </p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-300">
+              Aquí tienes toda la información de la experiencia.
             </p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3 text-sm text-white">
@@ -758,7 +767,7 @@ function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
           <div className="w-full rounded-[26px] border border-white/10 bg-black/35 p-5 text-white shadow-2xl backdrop-blur-xl">
             <div className="text-xs uppercase tracking-[0.24em] text-zinc-300">Cuenta atrás</div>
             <div className="mt-3 text-5xl font-semibold leading-none sm:text-6xl">{remaining}</div>
-            <div className="mt-2 text-zinc-200">días para empezar</div>
+            <div className="mt-2 text-zinc-200">días para tu experiencia</div>
             <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-zinc-200">
               <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Salida</div>
               <div className="mt-2 font-medium text-white">
@@ -998,24 +1007,44 @@ function ClientPayments({ user, trip, onUploadProof }) {
   );
 }
 
+const INFO_ICONS = [Clock, MapPinned, Luggage, CalendarDays, Info, AlertCircle, Bus, Sun];
+
 function ClientItinerary({ trip }) {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4">
-        {trip.itinerary.map((item, index) => (
-          // [MENOR-3] Key: day + title es suficientemente único en el itinerario
-          <Card key={`${item.day}-${item.title}`} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="grid gap-4 p-5 lg:grid-cols-[110px_1fr_120px] lg:items-center">
-              <div className="text-sm font-medium text-zinc-500">{item.day}</div>
-              <div>
-                <div className="font-medium text-zinc-950">{item.title}</div>
-                <div className="mt-1 text-sm text-zinc-600">{item.description}</div>
-              </div>
-              <div className="text-sm font-medium text-zinc-950">{item.time}</div>
-            </CardContent>
-          </Card>
-        ))}
+  const items = trip.itinerary || [];
+  if (items.length === 0) {
+    return (
+      <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-400">
+        El equipo de GIMELOOS publicará pronto la información logística de tu experiencia.
       </div>
+    );
+  }
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {items.map((item, index) => {
+        const Icon = INFO_ICONS[index % INFO_ICONS.length];
+        return (
+          <div
+            key={`${item.day}-${item.title}`}
+            className="flex gap-4 rounded-3xl border border-stone-200 bg-stone-50 p-5"
+          >
+            <div className="mt-0.5 shrink-0 rounded-2xl p-2.5 text-white shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-zinc-900 text-sm">{item.title}</div>
+              {item.time && (
+                <div className="mt-0.5 text-xs font-medium" style={{ color: CORPORATE_RED }}>{item.time}</div>
+              )}
+              {item.description && (
+                <div className="mt-1.5 text-sm text-zinc-600 leading-relaxed">{item.description}</div>
+              )}
+              {item.day && (
+                <div className="mt-2 inline-block rounded-full bg-zinc-200 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600">{item.day}</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1139,8 +1168,8 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
   }, [forceOpen]);
 
   return (
-    <Card id={sectionId} className={`overflow-hidden rounded-[28px] border bg-white shadow-sm transition-all ${open ? "border-zinc-200 shadow-md" : "border-zinc-200"}`}>
-      <div className={`flex w-full items-center justify-between gap-4 px-5 py-4 transition ${open ? "bg-white" : "hover:bg-zinc-50/70"}`}>
+    <Card id={sectionId} className={`overflow-hidden rounded-[28px] border shadow-sm transition-all ${open ? "border-stone-200 bg-[#FFFCFA] shadow-md" : "border-stone-200 bg-[#FFFCFA]"}`}>
+      <div className={`flex w-full items-center justify-between gap-4 px-5 py-4 transition ${open ? "bg-[#FFFCFA]" : "hover:bg-stone-50/70"}`}>
         <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 text-left">
           <div className="relative shrink-0 rounded-2xl p-2.5 shadow-sm transition" style={{ backgroundColor: open ? CORPORATE_RED : "#f4f4f5" }}>
             <Icon className={`h-5 w-5 transition ${open ? "text-white" : "text-zinc-700"}`} />
@@ -1224,9 +1253,9 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
       <div className="mx-auto max-w-7xl p-6 lg:p-8">
-        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200/80 bg-white/85 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-stone-200/80 bg-[#FFFCFA]/90 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
           <LogoMark />
           <div className="flex items-center gap-3">
             <div className="hidden rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600 sm:block">
@@ -1370,10 +1399,10 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
             </AccordionSection>
 
             <AccordionSection
-              title="Itinerario del viaje"
-              subtitle="Plan previsto asignado a esta experiencia."
+              title="Lo que no puedes olvidar"
+              subtitle="Horarios, lugar de encuentro y todo lo importante para el primer día."
               icon={MapPinned}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} bloques</Badge>}
+              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} puntos clave</Badge>}
             >
               <ClientItinerary trip={trip} />
             </AccordionSection>
@@ -3335,7 +3364,7 @@ export default function GIMELOOSPortalApp() {
     return (
       <div style={{ fontFamily: "Arial, sans-serif" }}>
         <ActionToast notifications={notifications} removeNotification={removeNotification} />
-        <div className="min-h-screen bg-[linear-gradient(180deg,#fafafa_0%,#f4f4f5_100%)] text-zinc-950">
+        <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
           <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-4 p-6">
             {loadError ? (
               <div className="flex flex-col items-center gap-4 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
