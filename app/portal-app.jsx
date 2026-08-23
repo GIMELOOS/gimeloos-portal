@@ -594,7 +594,7 @@ function ActionToast({ notifications, removeNotification }) {
                   <button
                     type="button"
                     onClick={() => { item.onAction(); removeNotification(item.id); }}
-                    className="mt-3 rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+                    className="mt-3 rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-white"
                   >
                     {item.actionLabel}
                   </button>
@@ -637,7 +637,7 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
   const [password, setPassword] = useState("");
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
+    <div className="min-h-screen bg-white text-zinc-950">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center p-4 sm:p-6 lg:p-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -964,7 +964,7 @@ function ClientPayments({ user, trip, onUploadProof }) {
                 ["Segunda cuota", Number(secondInstallment.amount || 0)],
               ].map(([label, value]) => (
                 // [MENOR-3] Key única: label es único en este array
-                <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
                   <div className="mt-2 text-xl font-semibold text-zinc-950">{formatCurrency(value)}</div>
                 </div>
@@ -990,11 +990,11 @@ function ClientPayments({ user, trip, onUploadProof }) {
             <div>
               <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Resumen</div>
               <div className="mt-3 space-y-3">
-                <div className="rounded-2xl bg-zinc-50 p-4">
+                <div className="rounded-2xl bg-white p-4">
                   <div className="text-sm text-zinc-500">Importe ya enviado/abonado</div>
                   <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(paidAmount)}</div>
                 </div>
-                <div className="rounded-2xl bg-zinc-50 p-4">
+                <div className="rounded-2xl bg-white p-4">
                   <div className="text-sm text-zinc-500">Importe residual pendiente</div>
                   <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(calculatedOutstanding)}</div>
                 </div>
@@ -1120,7 +1120,7 @@ function ClientQuestions({ questions = [], onSendQuestion }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+      <div className="rounded-3xl border border-zinc-200 bg-white p-5">
         <div className="text-lg font-semibold text-zinc-950">¿Tienes alguna duda?</div>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           Escríbenos aquí cualquier duda sobre el viaje, la documentación, los pagos o el equipaje y te responderemos lo antes posible.
@@ -1152,7 +1152,7 @@ function ClientQuestions({ questions = [], onSendQuestion }) {
                 <span className="shrink-0 text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>
               </div>
               {q.reply ? (
-                <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+                <div className="rounded-2xl bg-white px-4 py-3">
                   <div className="mb-1 text-xs font-medium text-zinc-500">Respuesta del equipo GIMELOOS</div>
                   <p className="text-sm text-zinc-800">{q.reply}</p>
                 </div>
@@ -1183,8 +1183,8 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
   }, [forceOpen]);
 
   return (
-    <Card id={sectionId} className={`overflow-hidden rounded-[28px] border shadow-sm transition-all ${open ? "border-stone-200 bg-[#FFFCFA] shadow-md" : "border-stone-200 bg-[#FFFCFA]"}`}>
-      <div className={`flex w-full items-center justify-between gap-4 px-5 py-4 transition ${open ? "bg-[#FFFCFA]" : "hover:bg-stone-50/70"}`}>
+    <Card id={sectionId} className={`overflow-hidden rounded-[28px] border shadow-sm transition-all ${open ? "border-zinc-200 bg-white shadow-md" : "border-zinc-200 bg-white"}`}>
+      <div className={`flex w-full items-center justify-between gap-4 px-5 py-4 transition ${open ? "bg-white" : "hover:bg-white/70"}`}>
         <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 text-left">
           <div className="relative shrink-0 rounded-2xl p-2.5 shadow-sm transition" style={{ backgroundColor: open ? CORPORATE_RED : "#f4f4f5" }}>
             <Icon className={`h-5 w-5 transition ${open ? "text-white" : "text-zinc-700"}`} />
@@ -1199,7 +1199,7 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
         </button>
         <div className="flex items-center gap-2">
           {meta}
-          <button type="button" onClick={() => setOpen(!open)} className={`rounded-full border p-2 transition ${open ? "border-zinc-200 bg-zinc-50" : "border-zinc-200 bg-white"}`}>
+          <button type="button" onClick={() => setOpen(!open)} className={`rounded-full border p-2 transition ${open ? "border-zinc-200 bg-white" : "border-zinc-200 bg-white"}`}>
             <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
           </button>
         </div>
@@ -1268,12 +1268,12 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
+    <div className="min-h-screen bg-white text-zinc-950">
       <div className="mx-auto max-w-7xl p-6 lg:p-8">
-        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-stone-200/80 bg-[#FFFCFA]/90 px-6 py-5 shadow-sm backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200 bg-white px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <LogoMark />
           <div className="flex items-center gap-3">
-            <div className="hidden rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600 sm:block">
+            <div className="hidden rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 sm:block">
               Participante: <span className="font-medium text-zinc-950">{user.participantName}</span>
             </div>
             {/* Campana de notificaciones */}
@@ -2049,7 +2049,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           </div>
 
           {isImporting && (
-            <div className="mt-4 space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="mt-4 space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm font-medium text-zinc-800">{importMessage || "Importando..."}</span>
                 <span className="text-sm text-zinc-600">{importDone}/{importTotal} importados · {importProgress}%</span>
@@ -2091,7 +2091,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
             {visibleClients.map((client) => {
               const isSelected = selectedClientIds.includes(client.id);
               return (
-                <div key={client.id} className={`grid gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-zinc-50 shadow-sm" : "border-zinc-200 bg-white"}`}>
+                <div key={client.id} className={`grid gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-white shadow-sm" : "border-zinc-200 bg-white"}`}>
                   <div className="flex justify-center">
                     <Checkbox checked={isSelected} onCheckedChange={() => toggleClientSelection(client.id)} />
                   </div>
@@ -2193,7 +2193,7 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
             </select>
           </div>
           {selectedTripId !== "all" && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
               <span>Primer doc: <strong>{formatShortDate(calculateDueDateFromRule(trips.find((t) => t.id === selectedTripId)?.departureDate, trips.find((t) => t.id === selectedTripId)?.documentRules?.[0]))}</strong></span>
               <span>Último pago: <strong>{formatShortDate(getPaymentRuleDueDate(trips.find((t) => t.id === selectedTripId), "secondInstallment"))}</strong></span>
               <Button variant="outline" className="rounded-2xl" onClick={() => notify("Recordatorio masivo preparado.")}>
@@ -2232,7 +2232,7 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
             >
               <div className="mb-5 grid gap-3 lg:grid-cols-4">
                 {[["Docs confirmados", `${docsConfirmed}/${docsTotal}`], ["Docs por revisar", docsReview], ["Pagos confirmados", `${paysConfirmed}/${paysTotal}`], ["Pagos por revisar", paysReview]].map(([label, val]) => (
-                  <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-white p-4">
                     <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
                     <div className="mt-2 text-lg font-semibold text-zinc-950">{val}</div>
                   </div>
@@ -2246,7 +2246,7 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
                     const template = templates.find((t) => t.id === docItem.id);
                     const status = getStatusMeta(docItem.status);
                     return (
-                      <div key={docItem.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                      <div key={docItem.id} className="rounded-2xl border border-zinc-200 bg-white p-4">
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="truncate font-medium text-zinc-950">{template?.name || docItem.id}</div>
@@ -2305,7 +2305,7 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
                   {[["reservation", client.payments.reservation], ["firstInstallment", client.payments.firstInstallment], ["secondInstallment", client.payments.secondInstallment]].map(([paymentKey, payment]) => {
                     const status = getStatusMeta(payment.status);
                     return (
-                      <div key={String(paymentKey)} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                      <div key={String(paymentKey)} className="rounded-2xl border border-zinc-200 bg-white p-4">
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="truncate font-medium text-zinc-950">{payment.name || String(paymentKey)}</div>
@@ -2513,7 +2513,7 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
             <Separator />
             <div className="space-y-3">
               {templates.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-zinc-950">{t.name}</div>
                     <div className="text-sm text-zinc-500">{t.fileName}</div>
@@ -2603,7 +2603,7 @@ function AdminChecklists({ trips, setTrips, notify }) {
           <div className="grid gap-3 md:grid-cols-2">
             {selectedTrip?.checklist.map((item) => (
               // [MENOR-3] Key: item es string único en el checklist
-              <div key={item} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div key={item} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
                 <span className="text-sm text-zinc-800">{item}</span>
                 <Button variant="ghost" size="sm" onClick={async () => {
                   const next = selectedTrip.checklist.filter((l) => l !== item);
@@ -2701,7 +2701,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
               </select>
             </div>
             {selectedTrip?.departureDate && (
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-2 text-center">
+              <div className="rounded-2xl border border-zinc-100 bg-white px-4 py-2 text-center">
                 <div className="text-xs text-zinc-400">Fecha de salida</div>
                 <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
               </div>
@@ -2716,7 +2716,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
           const active = tripTab === key;
           return (
             <button key={key} type="button" onClick={() => setTripTab(key)}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-white"}`}
               style={active ? { backgroundColor: CORPORATE_RED } : {}}
             >
               <Icon className="h-4 w-4" />{label}
@@ -2792,7 +2792,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
             </div>
             <div className="space-y-3">
               {(selectedTrip.logistics || []).map((item, index) => (
-                <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div key={index} className="flex gap-3 items-start rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex-1 space-y-2">
                     <Input
                       value={item.title}
@@ -2873,7 +2873,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
             <Reorder.Group axis="y" values={localOrder} onReorder={syncItinerary} className="space-y-3">
               {localOrder.map((item, index) => (
                 <Reorder.Item key={`${item.day}-${item.title}-${index}`} value={item} whileDrag={{ scale: 1.015, boxShadow: "0 28px 60px rgba(0,0,0,0.18)", zIndex: 30 }} className="list-none">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 transition hover:border-zinc-300">
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-4 transition hover:border-zinc-300">
                     <div className="flex items-start gap-3">
                       <div className="mt-3 cursor-grab text-zinc-300 active:cursor-grabbing"><GripVertical className="h-5 w-5" /></div>
                       <div className="flex-1 space-y-2">
@@ -2926,7 +2926,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
               {(selectedTrip.documentRules || []).map((rule) => {
                 const tmpl = templates.find((t) => t.id === rule.templateId);
                 return (
-                  <div key={rule.templateId} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center">
+                  <div key={rule.templateId} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center">
                     <div className="flex-1">
                       <div className="font-medium text-zinc-950">{tmpl?.name || rule.templateId}</div>
                       <div className="text-xs text-zinc-400 mt-0.5">Vence: {formatShortDate(getDocumentRuleDueDate(selectedTrip, rule.templateId))}</div>
@@ -2965,7 +2965,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
               {[["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]].map(([paymentKey, paymentLabel]) => {
                 const rule = selectedTrip.paymentSchedule?.[paymentKey];
                 return (
-                  <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div key={paymentKey} className="rounded-2xl border border-zinc-200 bg-white p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="min-w-[140px]">
                         <div className="font-medium text-zinc-950">{rule?.name || paymentLabel}</div>
@@ -2988,7 +2988,7 @@ function AdminTrips({ trips, setTrips, notify, templates }) {
                 );
               })}
             </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-3">
               <div>
                 <div className="font-medium text-zinc-950">Recordatorios automáticos</div>
                 <div className="text-sm text-zinc-400">Avisos automáticos a los participantes antes de cada vencimiento.</div>
@@ -3024,7 +3024,7 @@ function QuestionCard({ q, replyText, onReplyChange, onSendReply, sending }) {
           {q.reply ? "Respondida" : "Pendiente"}
         </Badge>
       </div>
-      <p className="text-sm text-zinc-700 rounded-2xl bg-zinc-50 px-4 py-3">{q.message}</p>
+      <p className="text-sm text-zinc-700 rounded-2xl bg-white px-4 py-3">{q.message}</p>
       {q.reply ? (
         <div className="rounded-2xl bg-green-50 px-4 py-3">
           <div className="mb-1 text-xs font-medium text-green-700">Tu respuesta</div>
@@ -3185,6 +3185,1056 @@ function usePaymentReminders(users, trips) {
   }, [users, trips]);
 }
 
+// ─── School Portal ────────────────────────────────────────────────────────────
+
+function SchoolTrips({ schoolTrips }) {
+  if (!schoolTrips.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+        <CalendarDays className="mb-3 h-10 w-10 opacity-40" />
+        <p className="text-sm">No hay viajes asignados todavía.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <h2 className="text-base font-semibold text-zinc-950">Viajes del colegio</h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {schoolTrips.map((st) => (
+          <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-1 text-xs font-medium uppercase tracking-widest text-zinc-400">Viaje</div>
+              <div className="text-base font-bold text-zinc-950">{st.trips?.name || st.trip_id}</div>
+              {st.trips?.departure_date && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+              )}
+              {st.courses?.length > 0 && (
+                <div className="mt-3">
+                  <div className="mb-1 text-xs font-medium text-zinc-500">Cursos / grupos</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {st.courses.map((c) => (
+                      <Badge key={c.id} variant="outline" className="rounded-xl text-xs">{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SchoolStudents({ schoolTrips, courses, students, setStudents, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addSurname, setAddSurname] = useState("");
+  const [addAllergies, setAddAllergies] = useState("");
+  const [addIntolerances, setAddIntolerances] = useState("");
+  const [addNotes, setAddNotes] = useState("");
+  const [xlsxPreview, setXlsxPreview] = useState(null); // { rows, mapping, headers, file }
+  const [importing, setImporting] = useState(false);
+
+  const tripCourses = courses.filter((c) => c.school_trip_id === selectedTripId);
+  useEffect(() => { setSelectedCourseId(tripCourses[0]?.id || ""); }, [selectedTripId]);
+
+  const courseStudents = students.filter((s) => s.school_course_id === selectedCourseId);
+
+  const normalizeHeader = (h) => h.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+
+  const FIELD_SYNONYMS = {
+    nombre: ["nombre", "name", "alumno", "primer nombre", "first name", "nom"],
+    apellidos: ["apellidos", "apellido", "surname", "last name", "segundo nombre", "cognoms"],
+    alergias: ["alergias", "alergia", "allergies", "allergy", "al·lergies", "alergies"],
+    intolerancias: ["intolerancias", "intolerancia", "intolerances", "intolerance"],
+    notas: ["notas", "observaciones", "notes", "comments", "otros", "observacions"],
+  };
+
+  const detectMapping = (headers) => {
+    const mapping = {};
+    headers.forEach((h, i) => {
+      const norm = normalizeHeader(h);
+      Object.entries(FIELD_SYNONYMS).forEach(([field, synonyms]) => {
+        if (!mapping[field] && synonyms.some((s) => norm === s || norm.includes(s))) {
+          mapping[field] = i;
+        }
+      });
+    });
+    return mapping;
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const XLSX2 = await import("xlsx");
+      const wb = XLSX2.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX2.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (!raw.length) { notify("El archivo está vacío.", { variant: "destructive" }); return; }
+      const headers = raw[0].map(String);
+      const mapping = detectMapping(headers);
+      const rows = raw.slice(1).filter((r) => r.some((c) => String(c).trim()));
+      setXlsxPreview({ rows, mapping, headers, file });
+    } catch (err) {
+      console.error(err);
+      notify("No se pudo leer el archivo Excel.", { variant: "destructive" });
+    }
+    e.target.value = "";
+  };
+
+  const handleImport = async () => {
+    if (!xlsxPreview || !selectedCourseId) return;
+    setImporting(true);
+    const { rows, mapping } = xlsxPreview;
+    const toInsert = rows.map((r) => ({
+      school_course_id: selectedCourseId,
+      name: mapping.nombre !== undefined ? String(r[mapping.nombre] || "").trim() : "",
+      surname: mapping.apellidos !== undefined ? String(r[mapping.apellidos] || "").trim() : "",
+      allergies: mapping.alergias !== undefined ? String(r[mapping.alergias] || "").trim() : "",
+      intolerances: mapping.intolerancias !== undefined ? String(r[mapping.intolerancias] || "").trim() : "",
+      notes: mapping.notas !== undefined ? String(r[mapping.notas] || "").trim() : "",
+    })).filter((s) => s.name);
+    if (!toInsert.length) { notify("No se encontraron filas con nombre."); setImporting(false); return; }
+    const { data, error } = await supabase.from("students").insert(toInsert).select();
+    if (error) { notify("Error importando alumnos: " + error.message, { variant: "destructive" }); }
+    else {
+      setStudents((prev) => [...prev, ...(data || [])]);
+      notify(`${toInsert.length} alumnos importados.`);
+      setXlsxPreview(null);
+    }
+    setImporting(false);
+  };
+
+  const handleAddManual = async () => {
+    if (!addName.trim() || !selectedCourseId) return;
+    const row = { school_course_id: selectedCourseId, name: addName.trim(), surname: addSurname.trim(), allergies: addAllergies.trim(), intolerances: addIntolerances.trim(), notes: addNotes.trim() };
+    const { data, error } = await supabase.from("students").insert([row]).select().maybeSingle();
+    if (error) { notify("Error añadiendo alumno: " + error.message, { variant: "destructive" }); return; }
+    setStudents((prev) => [...prev, data]);
+    setAddName(""); setAddSurname(""); setAddAllergies(""); setAddIntolerances(""); setAddNotes("");
+    notify("Alumno añadido.");
+  };
+
+  const handleDelete = async (id) => {
+    const { error } = await supabase.from("students").delete().eq("id", id);
+    if (error) { notify("Error eliminando alumno.", { variant: "destructive" }); return; }
+    setStudents((prev) => prev.filter((s) => s.id !== id));
+    notify("Alumno eliminado.");
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-base font-semibold text-zinc-950">Alumnos</h2>
+      {/* Selectors */}
+      <div className="flex flex-wrap gap-3">
+        <select
+          value={selectedTripId}
+          onChange={(e) => setSelectedTripId(e.target.value)}
+          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+        >
+          {schoolTrips.map((st) => (
+            <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>
+          ))}
+        </select>
+        <select
+          value={selectedCourseId}
+          onChange={(e) => setSelectedCourseId(e.target.value)}
+          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+        >
+          {tripCourses.length === 0 && <option value="">Sin cursos</option>}
+          {tripCourses.map((c) => (
+            <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Manual add */}
+      {selectedCourseId && (
+        <Card className="rounded-2xl border-zinc-200 shadow-sm">
+          <CardContent className="p-4">
+            <div className="mb-3 text-sm font-medium text-zinc-700">Añadir alumno manualmente</div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Input placeholder="Nombre *" value={addName} onChange={(e) => setAddName(e.target.value)} className="rounded-xl" />
+              <Input placeholder="Apellidos" value={addSurname} onChange={(e) => setAddSurname(e.target.value)} className="rounded-xl" />
+              <Input placeholder="Alergias" value={addAllergies} onChange={(e) => setAddAllergies(e.target.value)} className="rounded-xl" />
+              <Input placeholder="Intolerancias" value={addIntolerances} onChange={(e) => setAddIntolerances(e.target.value)} className="rounded-xl" />
+              <Input placeholder="Notas" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} className="rounded-xl" />
+              <Button onClick={handleAddManual} disabled={!addName.trim()} className="rounded-xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />Añadir
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Excel import */}
+      {selectedCourseId && (
+        <Card className="rounded-2xl border-zinc-200 shadow-sm">
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-medium text-zinc-700">Importar desde Excel</div>
+              <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
+                <Upload className="h-3.5 w-3.5" />Seleccionar archivo
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
+              </label>
+            </div>
+            {xlsxPreview && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(FIELD_SYNONYMS).map(([field]) => {
+                    const found = xlsxPreview.mapping[field] !== undefined;
+                    return (
+                      <Badge key={field} variant="outline" className={`rounded-xl text-xs ${found ? "border-green-400 text-green-700" : "border-zinc-300 text-zinc-400"}`}>
+                        {found ? "✓" : "✗"} {field} {found ? `(col: ${xlsxPreview.headers[xlsxPreview.mapping[field]]})` : ""}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                {xlsxPreview.mapping.nombre === undefined && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                    <AlertCircle className="h-3.5 w-3.5" />No se detectó columna de nombre. Verifica los encabezados.
+                  </div>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        {xlsxPreview.headers.map((h, i) => <th key={i} className="px-2 py-1 text-left font-medium text-zinc-500">{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
+                        <tr key={ri} className="border-b border-zinc-50">
+                          {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-2 py-1 text-zinc-700">{String(r[ci] || "")}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {xlsxPreview.rows.length > 5 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.rows.length - 5} filas más</div>}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleImport}
+                    disabled={importing || xlsxPreview.mapping.nombre === undefined}
+                    className="rounded-xl text-white text-xs"
+                    style={{ backgroundColor: CORPORATE_RED }}
+                  >
+                    {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Student list */}
+      {selectedCourseId && (
+        <Card className="rounded-2xl border-zinc-200 shadow-sm">
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-medium text-zinc-700">Lista de alumnos</div>
+              <Badge variant="outline" className="rounded-xl text-xs">{courseStudents.length} alumnos</Badge>
+            </div>
+            {courseStudents.length === 0 ? (
+              <p className="text-xs text-zinc-400">No hay alumnos en este grupo todavía.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-100">
+                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Apellidos</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergias</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancias</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Notas</th>
+                      <th className="px-2 py-1.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {courseStudents.map((s) => (
+                      <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                        <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{s.surname}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{s.allergies || "—"}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{s.intolerances || "—"}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{s.notes || "—"}</td>
+                        <td className="px-2 py-1.5">
+                          <button onClick={() => handleDelete(s.id)} className="rounded-lg p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function SchoolAllergies({ courses, students }) {
+  const withAllergies = students.filter((s) => s.allergies?.trim() || s.intolerances?.trim());
+  const getCourse = (id) => courses.find((c) => c.id === id);
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
+      {withAllergies.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+          <CheckCircle2 className="mb-3 h-10 w-10 opacity-40" />
+          <p className="text-sm">Ningún alumno tiene alergias o intolerancias registradas.</p>
+        </div>
+      ) : (
+        <Card className="rounded-2xl border-zinc-200 shadow-sm">
+          <CardContent className="p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-100">
+                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre completo</th>
+                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso / grupo</th>
+                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
+                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
+                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {withAllergies.map((s) => {
+                    const course = getCourse(s.school_course_id);
+                    return (
+                      <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                        <td className="px-2 py-1.5 font-medium text-zinc-900">{[s.name, s.surname].filter(Boolean).join(" ")}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+                        <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
+                        <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
+                        <td className="px-2 py-1.5 text-zinc-700">{s.diet_notes || s.notes || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
+  const handleUpload = async (docId, file) => {
+    if (!file) return;
+    const path = `school-docs/${docId}/${file.name}`;
+    const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { upsert: true });
+    if (upErr) { notify("Error subiendo documento: " + upErr.message, { variant: "destructive" }); return; }
+    const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+    const { error: dbErr } = await supabase.from("school_documents").update({ file_url: urlData.publicUrl, status: "uploaded" }).eq("id", docId);
+    if (dbErr) { notify("Error actualizando estado del documento.", { variant: "destructive" }); return; }
+    setSchoolDocuments((prev) => prev.map((d) => d.id === docId ? { ...d, file_url: urlData.publicUrl, status: "uploaded" } : d));
+    notify("Documento subido correctamente.");
+  };
+
+  if (!courses.length) {
+    return <div className="py-16 text-center text-sm text-zinc-400">No hay cursos asignados.</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-base font-semibold text-zinc-950">Documentación requerida</h2>
+      {courses.map((course) => {
+        const courseDocs = schoolDocuments.filter((d) => d.school_course_id === course.id);
+        return (
+          <Card key={course.id} className="rounded-2xl border-zinc-200 shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-3 font-medium text-zinc-900">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>
+              {courseDocs.length === 0 ? (
+                <p className="text-xs text-zinc-400">Sin documentos requeridos.</p>
+              ) : (
+                <div className="space-y-2">
+                  {courseDocs.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between rounded-xl border border-zinc-100 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="h-4 w-4 shrink-0 text-zinc-400" />
+                        <div>
+                          <div className="text-xs font-medium text-zinc-900">{doc.name}</div>
+                          <div className="text-xs text-zinc-400">{doc.status === "uploaded" ? "Subido" : "Pendiente"}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {doc.file_url && (
+                          <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">Ver</a>
+                        )}
+                        <label className="flex cursor-pointer items-center gap-1 rounded-xl border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50">
+                          <Upload className="h-3 w-3" />Subir
+                          <input type="file" className="hidden" onChange={(e) => handleUpload(doc.id, e.target.files?.[0])} />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
+  const [importing, setImporting] = useState(false);
+
+  const selectedTrip = schoolTrips.find((st) => st.id === selectedTripId);
+  const rooming = selectedTrip?.rooming || [];
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTripId) return;
+    setImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const XLSX2 = await import("xlsx");
+      const wb = XLSX2.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX2.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const rooms = [];
+      raw.forEach((row) => {
+        if (!row[0]) return;
+        const roomName = String(row[0]).trim();
+        const studentNames = row.slice(1).map((c) => String(c).trim()).filter(Boolean);
+        if (roomName) rooms.push({ room: roomName, students: studentNames });
+      });
+      const { error } = await supabase.from("school_trips").update({ rooming: rooms }).eq("id", selectedTripId);
+      if (error) { notify("Error guardando rooming.", { variant: "destructive" }); }
+      else {
+        setSchoolTrips((prev) => prev.map((st) => st.id === selectedTripId ? { ...st, rooming: rooms } : st));
+        notify(`Rooming importado: ${rooms.length} habitaciones.`);
+      }
+    } catch (err) {
+      console.error(err);
+      notify("Error leyendo archivo.", { variant: "destructive" });
+    }
+    setImporting(false);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-base font-semibold text-zinc-950">Asignación de habitaciones</h2>
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={selectedTripId}
+          onChange={(e) => setSelectedTripId(e.target.value)}
+          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+        >
+          {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+        </select>
+        <label className={`flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
+          <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
+          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+        </label>
+      </div>
+      <div className="text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
+      {rooming.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {rooming.map((r, i) => (
+            <Card key={i} className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="mb-2 font-medium text-zinc-900">{r.room}</div>
+                <div className="space-y-1">
+                  {r.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{s}</div>)}
+                </div>
+                <Badge variant="outline" className="mt-2 rounded-xl text-xs">{r.students.length} alumnos</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+          <Users className="mb-3 h-10 w-10 opacity-40" />
+          <p className="text-sm">Importa un Excel para ver las habitaciones aquí.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
+  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
+  const [importing, setImporting] = useState(false);
+
+  const selectedTrip = schoolTrips.find((st) => st.id === selectedTripId);
+  const groups = selectedTrip?.activity_groups || [];
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTripId) return;
+    setImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const XLSX2 = await import("xlsx");
+      const wb = XLSX2.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX2.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const parsed = [];
+      raw.forEach((row) => {
+        if (!row[0]) return;
+        const group = String(row[0]).trim();
+        const monitor = String(row[1] || "").trim();
+        const students = row.slice(2).map((c) => String(c).trim()).filter(Boolean);
+        if (group) parsed.push({ group, monitor, students });
+      });
+      const { error } = await supabase.from("school_trips").update({ activity_groups: parsed }).eq("id", selectedTripId);
+      if (error) { notify("Error guardando grupos.", { variant: "destructive" }); }
+      else {
+        setSchoolTrips((prev) => prev.map((st) => st.id === selectedTripId ? { ...st, activity_groups: parsed } : st));
+        notify(`Grupos importados: ${parsed.length} grupos.`);
+      }
+    } catch (err) {
+      console.error(err);
+      notify("Error leyendo archivo.", { variant: "destructive" });
+    }
+    setImporting(false);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades</h2>
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={selectedTripId}
+          onChange={(e) => setSelectedTripId(e.target.value)}
+          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+        >
+          {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+        </select>
+        <label className={`flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
+          <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
+          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+        </label>
+      </div>
+      <div className="text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columna 2 = monitor, columnas siguientes = alumnos.</div>
+      {groups.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.map((g, i) => (
+            <Card key={i} className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="mb-1 font-medium text-zinc-900">{g.group}</div>
+                {g.monitor && <div className="mb-2 text-xs text-zinc-500">Monitor: {g.monitor}</div>}
+                <div className="space-y-1">
+                  {g.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{s}</div>)}
+                </div>
+                <Badge variant="outline" className="mt-2 rounded-xl text-xs">{g.students.length} alumnos</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+          <Users className="mb-3 h-10 w-10 opacity-40" />
+          <p className="text-sm">Importa un Excel para ver los grupos aquí.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SchoolPortal({ user, onLogout, notify }) {
+  const [activeTab, setActiveTab] = useState("trips");
+  const [school, setSchool] = useState(null);
+  const [schoolTrips, setSchoolTrips] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [schoolDocuments, setSchoolDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setLoadErr(null);
+      try {
+        // 1. Get school — linked via participants.auth_uid -> schools.auth_uid
+        const { data: schoolData, error: schoolErr } = await supabase
+          .from("schools")
+          .select("*")
+          .eq("auth_uid", user.authUid)
+          .maybeSingle();
+        if (schoolErr) throw new Error(schoolErr.message);
+        if (!schoolData) { setLoadErr("No se encontró un colegio asociado a este usuario."); setLoading(false); return; }
+        setSchool(schoolData);
+
+        // 2. School trips
+        const { data: tripsData, error: tripsErr } = await supabase
+          .from("school_trips")
+          .select("*, trips(name, departure_date)")
+          .eq("school_id", schoolData.id);
+        if (tripsErr) throw new Error(tripsErr.message);
+        const tripsArr = tripsData || [];
+        setSchoolTrips(tripsArr);
+
+        if (!tripsArr.length) { setLoading(false); return; }
+
+        // 3. Courses
+        const tripIds = tripsArr.map((t) => t.id);
+        const { data: coursesData, error: coursesErr } = await supabase
+          .from("school_courses")
+          .select("*")
+          .in("school_trip_id", tripIds);
+        if (coursesErr) throw new Error(coursesErr.message);
+        const coursesArr = coursesData || [];
+        setCourses(coursesArr);
+
+        if (!coursesArr.length) { setLoading(false); return; }
+
+        // 4. Students
+        const courseIds = coursesArr.map((c) => c.id);
+        const { data: studentsData, error: studentsErr } = await supabase
+          .from("students")
+          .select("*")
+          .in("school_course_id", courseIds);
+        if (studentsErr) throw new Error(studentsErr.message);
+        setStudents(studentsData || []);
+
+        // 5. Documents
+        const { data: docsData, error: docsErr } = await supabase
+          .from("school_documents")
+          .select("*")
+          .in("school_course_id", courseIds);
+        if (docsErr) throw new Error(docsErr.message);
+        setSchoolDocuments(docsData || []);
+
+        // Attach courses to trips for display
+        setSchoolTrips(tripsArr.map((st) => ({ ...st, courses: coursesArr.filter((c) => c.school_trip_id === st.id) })));
+      } catch (err) {
+        console.error("Error cargando datos del colegio:", err);
+        setLoadErr("Error cargando datos: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user?.authUid) load();
+    else { setLoadErr("No se pudo identificar el usuario del colegio."); setLoading(false); }
+  }, [user?.authUid]);
+
+  const tabs = [
+    { key: "trips",     label: "Mis viajes",    icon: CalendarDays },
+    { key: "students",  label: "Alumnos",       icon: Users },
+    { key: "allergies", label: "Alergias",      icon: AlertCircle },
+    { key: "docs",      label: "Documentación", icon: FileCheck2 },
+    { key: "rooming",   label: "Rooming",       icon: LayoutGrid },
+    { key: "groups",    label: "Grupos",        icon: ListChecks },
+  ];
+
+  return (
+    <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
+      {/* Navbar */}
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-widest text-zinc-400">PORTAL ESCOLAR</div>
+          <div className="text-lg font-bold text-zinc-950">{school?.name || "Colegio"}</div>
+        </div>
+        <Button variant="outline" className="rounded-2xl text-sm" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
+          <LogOut className="mr-2 h-4 w-4" />Salir
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">Cargando datos del colegio...</div>
+        </div>
+      ) : loadErr ? (
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+            <div className="text-sm text-zinc-700">{loadErr}</div>
+            <Button onClick={() => window.location.reload()} className="rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>Reintentar</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-auto max-w-[1200px] px-6 py-6">
+          {/* Tab nav */}
+          <div className="mb-6 flex flex-wrap gap-2">
+            {tabs.map(({ key, label, icon: Icon }) => {
+              const active = activeTab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTab(key)}
+                  className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
+                  style={active ? { backgroundColor: CORPORATE_RED } : {}}
+                >
+                  <Icon className="h-4 w-4" />{label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab content */}
+          {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} />}
+          {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} students={students} setStudents={setStudents} notify={notify} />}
+          {activeTab === "allergies" && <SchoolAllergies courses={courses} students={students} />}
+          {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} />}
+          {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
+          {activeTab === "groups"    && <SchoolGroups schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Schools ────────────────────────────────────────────────────────────
+
+function AdminSchools({ trips, notify }) {
+  const [tab, setTab] = useState("schools");
+  const [schools, setSchools] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
+  const [allCourses, setAllCourses] = useState([]);
+  const [allSchoolTrips, setAllSchoolTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // New school form
+  const [showNewSchool, setShowNewSchool] = useState(false);
+  const [newSchool, setNewSchool] = useState({ name: "", contact_name: "", email: "", phone: "" });
+  const [savingSchool, setSavingSchool] = useState(false);
+  // Assign trip form
+  const [assigningSchoolId, setAssigningSchoolId] = useState(null);
+  const [assignTripId, setAssignTripId] = useState(trips[0]?.id || "");
+  const [assignCourse, setAssignCourse] = useState("");
+  const [assignGroup, setAssignGroup] = useState("");
+  const [savingAssign, setSavingAssign] = useState(false);
+  // Filter for students tab
+  const [filterSchoolId, setFilterSchoolId] = useState("");
+  const [filterTripId, setFilterTripId] = useState("");
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [schoolsRes, schoolTripsRes, coursesRes, studentsRes] = await Promise.all([
+          supabase.from("schools").select("*").order("name"),
+          supabase.from("school_trips").select("*, trips(name, departure_date)").order("created_at"),
+          supabase.from("school_courses").select("*").order("course_name"),
+          supabase.from("students").select("*").order("name"),
+        ]);
+        setSchools(schoolsRes.data || []);
+        setAllSchoolTrips(schoolTripsRes.data || []);
+        setAllCourses(coursesRes.data || []);
+        setAllStudents(studentsRes.data || []);
+      } catch (err) {
+        console.error(err);
+        notify("Error cargando datos de colegios.", { variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSaveSchool = async () => {
+    if (!newSchool.name.trim()) { notify("El nombre del colegio es obligatorio."); return; }
+    setSavingSchool(true);
+    const { data, error } = await supabase.from("schools").insert([newSchool]).select().maybeSingle();
+    if (error) { notify("Error creando colegio: " + error.message, { variant: "destructive" }); }
+    else {
+      setSchools((prev) => [...prev, data]);
+      setNewSchool({ name: "", contact_name: "", email: "", phone: "" });
+      setShowNewSchool(false);
+      notify("Colegio creado.");
+    }
+    setSavingSchool(false);
+  };
+
+  const handleAssignTrip = async (schoolId) => {
+    if (!assignTripId || !assignCourse.trim()) { notify("Selecciona un viaje y escribe el nombre del curso."); return; }
+    setSavingAssign(true);
+    const { data: stData, error: stErr } = await supabase.from("school_trips").insert([{ school_id: schoolId, trip_id: assignTripId }]).select().maybeSingle();
+    if (stErr) { notify("Error asignando viaje: " + stErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
+    const { error: scErr } = await supabase.from("school_courses").insert([{ school_trip_id: stData.id, course_name: assignCourse.trim(), group_name: assignGroup.trim() }]);
+    if (scErr) { notify("Error creando curso: " + scErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
+    notify("Viaje asignado con curso.");
+    setAssigningSchoolId(null);
+    setAssignCourse(""); setAssignGroup("");
+    // Reload
+    const [stRes, scRes] = await Promise.all([
+      supabase.from("school_trips").select("*, trips(name, departure_date)").order("created_at"),
+      supabase.from("school_courses").select("*").order("course_name"),
+    ]);
+    setAllSchoolTrips(stRes.data || []);
+    setAllCourses(scRes.data || []);
+    setSavingAssign(false);
+  };
+
+  const getSchoolStudentCount = (schoolId) => {
+    const tripIds = allSchoolTrips.filter((st) => st.school_id === schoolId).map((st) => st.id);
+    const courseIds = allCourses.filter((c) => tripIds.includes(c.school_trip_id)).map((c) => c.id);
+    return allStudents.filter((s) => courseIds.includes(s.school_course_id)).length;
+  };
+
+  const getSchoolTripCount = (schoolId) => allSchoolTrips.filter((st) => st.school_id === schoolId).length;
+
+  const adminTabs = [
+    { key: "schools",  label: "Colegios",  icon: Users },
+    { key: "students", label: "Alumnos",   icon: FileCheck2 },
+    { key: "rooming",  label: "Rooming",   icon: LayoutGrid },
+    { key: "groups",   label: "Grupos",    icon: ListChecks },
+  ];
+
+  const filteredStudents = (() => {
+    if (!filterSchoolId) return allStudents;
+    const tripIds = allSchoolTrips.filter((st) => st.school_id === filterSchoolId && (!filterTripId || st.id === filterTripId)).map((st) => st.id);
+    const courseIds = allCourses.filter((c) => tripIds.includes(c.school_trip_id)).map((c) => c.id);
+    return allStudents.filter((s) => courseIds.includes(s.school_course_id));
+  })();
+
+  const filteredSchoolTrips = filterSchoolId ? allSchoolTrips.filter((st) => st.school_id === filterSchoolId) : allSchoolTrips;
+
+  if (loading) return <div className="py-16 text-center text-sm text-zinc-400">Cargando colegios...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {adminTabs.map(({ key, label, icon: Icon }) => {
+          const active = tab === key;
+          return (
+            <button key={key} type="button" onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"}`}
+              style={active ? { backgroundColor: CORPORATE_RED } : {}}
+            >
+              <Icon className="h-4 w-4" />{label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Colegios tab */}
+      {tab === "schools" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-950">Colegios ({schools.length})</h2>
+            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
+              <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
+            </Button>
+          </div>
+
+          {showNewSchool && (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-3 text-sm font-medium text-zinc-700">Nuevo colegio</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input placeholder="Nombre del colegio *" value={newSchool.name} onChange={(e) => setNewSchool((p) => ({ ...p, name: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Nombre del coordinador" value={newSchool.contact_name} onChange={(e) => setNewSchool((p) => ({ ...p, contact_name: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Email" type="email" value={newSchool.email} onChange={(e) => setNewSchool((p) => ({ ...p, email: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Teléfono" value={newSchool.phone} onChange={(e) => setNewSchool((p) => ({ ...p, phone: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button onClick={handleSaveSchool} disabled={savingSchool || !newSchool.name.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
+                    {savingSchool ? "Guardando..." : "Guardar colegio"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowNewSchool(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="space-y-3">
+            {schools.length === 0 && <p className="text-sm text-zinc-400">No hay colegios registrados.</p>}
+            {schools.map((school) => (
+              <Card key={school.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-zinc-950">{school.name}</div>
+                      {school.contact_name && <div className="mt-0.5 text-xs text-zinc-500">{school.contact_name}</div>}
+                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-400">
+                        {school.email && <span>{school.email}</span>}
+                        {school.phone && <span>{school.phone}</span>}
+                      </div>
+                      <div className="mt-2 flex gap-3">
+                        <Badge variant="outline" className="rounded-xl text-xs">{getSchoolTripCount(school.id)} viajes</Badge>
+                        <Badge variant="outline" className="rounded-xl text-xs">{getSchoolStudentCount(school.id)} alumnos</Badge>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl text-xs"
+                      onClick={() => setAssigningSchoolId(assigningSchoolId === school.id ? null : school.id)}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />Asignar viaje
+                    </Button>
+                  </div>
+
+                  {assigningSchoolId === school.id && (
+                    <div className="mt-4 border-t border-zinc-100 pt-4">
+                      <div className="mb-2 text-xs font-medium text-zinc-700">Asignar viaje + curso</div>
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          value={assignTripId}
+                          onChange={(e) => setAssignTripId(e.target.value)}
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
+                        >
+                          {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                        <Input placeholder="Curso (ej: 4ºA)" value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
+                        <Input placeholder="Grupo (opcional)" value={assignGroup} onChange={(e) => setAssignGroup(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
+                        <Button onClick={() => handleAssignTrip(school.id)} disabled={savingAssign} className="h-8 rounded-xl text-xs text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                          {savingAssign ? "Guardando..." : "Guardar"}
+                        </Button>
+                        <Button variant="outline" className="h-8 rounded-xl text-xs" onClick={() => setAssigningSchoolId(null)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Alumnos tab */}
+      {tab === "students" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Alumnos por colegio</h2>
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={filterSchoolId}
+              onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+            >
+              <option value="">Todos los colegios</option>
+              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {filterSchoolId && (
+              <select
+                value={filterTripId}
+                onChange={(e) => setFilterTripId(e.target.value)}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+              >
+                <option value="">Todos los viajes</option>
+                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+              </select>
+            )}
+          </div>
+          {filteredStudents.length === 0 ? (
+            <p className="text-sm text-zinc-400">No hay alumnos en la selección actual.</p>
+          ) : (
+            <Card className="rounded-2xl border-zinc-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-sm font-medium text-zinc-700">{filteredStudents.length} alumnos</div>
+                  <Badge variant="outline" className="rounded-xl text-xs">{filteredStudents.filter((s) => s.allergies?.trim() || s.intolerances?.trim()).length} con alergias</Badge>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Apellidos</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStudents.map((s) => (
+                        <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                          <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name}</td>
+                          <td className="px-2 py-1.5 text-zinc-700">{s.surname}</td>
+                          <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
+                          <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Rooming tab */}
+      {tab === "rooming" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Rooming por colegio</h2>
+          {allSchoolTrips.filter((st) => st.rooming?.length).length === 0 ? (
+            <p className="text-sm text-zinc-400">Ningún colegio ha subido rooming todavía.</p>
+          ) : (
+            allSchoolTrips.filter((st) => st.rooming?.length).map((st) => {
+              const school = schools.find((s) => s.id === st.school_id);
+              return (
+                <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
+                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id}</div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {st.rooming.map((r, i) => (
+                        <div key={i} className="rounded-xl border border-zinc-100 p-3">
+                          <div className="mb-1 text-xs font-medium text-zinc-900">{r.room}</div>
+                          {r.students.map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Groups tab */}
+      {tab === "groups" && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades por colegio</h2>
+          {allSchoolTrips.filter((st) => st.activity_groups?.length).length === 0 ? (
+            <p className="text-sm text-zinc-400">Ningún colegio ha subido grupos todavía.</p>
+          ) : (
+            allSchoolTrips.filter((st) => st.activity_groups?.length).map((st) => {
+              const school = schools.find((s) => s.id === st.school_id);
+              return (
+                <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="mb-1 font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
+                    <div className="mb-3 text-xs text-zinc-500">{st.trips?.name || st.trip_id}</div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {st.activity_groups.map((g, i) => (
+                        <div key={i} className="rounded-xl border border-zinc-100 p-3">
+                          <div className="mb-0.5 text-xs font-medium text-zinc-900">{g.group}</div>
+                          {g.monitor && <div className="mb-1 text-xs text-zinc-400">Monitor: {g.monitor}</div>}
+                          {g.students.map((s, j) => <div key={j} className="text-xs text-zinc-600">{s}</div>)}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Panel ──────────────────────────────────────────────────────────────
+
 function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates, onLogout, notify }) {
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === "undefined") return "clients";
@@ -3219,7 +4269,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
               <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel interno</div>
               <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
             </div>
-            <div className="ml-2 hidden rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 sm:block">
+            <div className="ml-2 hidden rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-500 sm:block">
               {totalParticipants} participantes
             </div>
           </div>
@@ -3244,7 +4294,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                     className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${
                       active
                         ? "text-white shadow-sm"
-                        : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                        : "text-zinc-600 hover:bg-white hover:text-zinc-950"
                     }`}
                     style={active ? { backgroundColor: CORPORATE_RED } : {}}
                   >
@@ -3254,13 +4304,34 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                   </button>
                 );
               })}
+              <div className="mt-4 border-t border-zinc-200 pt-4">
+                <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Colegios</div>
+                {[{ key: "colegios", label: "Colegios", icon: Users }].map(({ key, label, icon: Icon }) => {
+                  const active = activeSection === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setActiveSection(key)}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${
+                        active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950"
+                      }`}
+                      style={active ? { backgroundColor: CORPORATE_RED } : {}}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {label}
+                      {active && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
+                    </button>
+                  );
+                })}
+              </div>
             </nav>
           </div>
         </aside>
 
         {/* Mobile tabs */}
         <div className="mb-4 flex w-full flex-wrap gap-2 lg:hidden">
-          {navItems.map(({ key, label, icon: Icon }) => {
+          {[...navItems, { key: "colegios", label: "Colegios", icon: Users }].map(({ key, label, icon: Icon }) => {
             const active = activeSection === key;
             return (
               <button
@@ -3288,6 +4359,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
           {activeSection === "checklists"  && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
           {activeSection === "trips"       && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} templates={templates} />}
           {activeSection === "calculadora" && <CalculadoraCampamento />}
+          {activeSection === "colegios"    && <AdminSchools trips={trips} notify={notify} />}
         </main>
       </div>
     </div>
@@ -3388,6 +4460,7 @@ export default function GIMELOOSPortalApp() {
             const initialPrice = Number(pPricing?.initial_price || 0) || Number(pPricing?.final_price || 0) + Number(pPricing?.discount || 0);
             return {
               id: p.id, role: p.role || "client", username: p.username,
+              authUid: p.auth_uid || "",
               participantName: p.participant_name || "", motherName: p.mother_name || "",
               fatherName: p.father_name || "", parentName: p.parent_name || "",
               email: p.email || "", contactEmails: p.contact_emails || [],
@@ -3497,7 +4570,7 @@ export default function GIMELOOSPortalApp() {
     return (
       <div style={{ fontFamily: "Arial, sans-serif" }}>
         <ActionToast notifications={notifications} removeNotification={removeNotification} />
-        <div className="min-h-screen bg-[linear-gradient(180deg,#FBF8F5_0%,#F2EDE8_100%)] text-zinc-950">
+        <div className="min-h-screen bg-white text-zinc-950">
           <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-4 p-6">
             {loadError ? (
               <div className="flex flex-col items-center gap-4 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
@@ -3524,6 +4597,8 @@ export default function GIMELOOSPortalApp() {
         <LoginScreen onLogin={handleLogin} loginError={auth.error} isLoading={auth.isLoading} />
       ) : currentUser.role === "admin" ? (
         <AdminPanel users={users} setUsers={setUsers} trips={trips} setTrips={setTrips} templates={templates} setTemplates={setTemplates} onLogout={handleLogout} notify={notify} />
+      ) : currentUser.role === "school" ? (
+        <SchoolPortal user={currentUser} trips={trips} onLogout={handleLogout} notify={notify} />
       ) : (
         <ClientPortal user={currentUser} trips={trips} templates={templates} setUsers={setUsers} onLogout={handleLogout} notify={notify} />
       )}
