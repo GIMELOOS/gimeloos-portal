@@ -3610,7 +3610,7 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
   );
 }
 
-function SchoolPortal({ user, onLogout, notify }) {
+function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const [activeTab, setActiveTab] = useState("trips");
   const [school, setSchool] = useState(null);
   const [schoolTrips, setSchoolTrips] = useState([]);
@@ -3625,12 +3625,11 @@ function SchoolPortal({ user, onLogout, notify }) {
       setLoading(true);
       setLoadErr(null);
       try {
-        // 1. Get school — linked via participants.auth_uid -> schools.auth_uid
-        const { data: schoolData, error: schoolErr } = await supabase
-          .from("schools")
-          .select("*")
-          .eq("auth_uid", user.authUid)
-          .maybeSingle();
+        // 1. Get school — by auth_uid (normal) or by id (admin preview)
+        const query = supabase.from("schools").select("*");
+        const { data: schoolData, error: schoolErr } = previewSchoolId
+          ? await query.eq("id", previewSchoolId).maybeSingle()
+          : await query.eq("auth_uid", user.authUid).maybeSingle();
         if (schoolErr) throw new Error(schoolErr.message);
         if (!schoolData) { setLoadErr("No se encontró un colegio asociado a este usuario."); setLoading(false); return; }
         setSchool(schoolData);
@@ -3684,9 +3683,9 @@ function SchoolPortal({ user, onLogout, notify }) {
         setLoading(false);
       }
     };
-    if (user?.authUid) load();
+    if (previewSchoolId || user?.authUid) load();
     else { setLoadErr("No se pudo identificar el usuario del colegio."); setLoading(false); }
-  }, [user?.authUid]);
+  }, [user?.authUid, previewSchoolId]);
 
   const tabs = [
     { key: "trips",     label: "Mis viajes",    icon: CalendarDays },
@@ -5174,6 +5173,40 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
 
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 
+function AdminSchoolPreviewButton({ onPreview }) {
+  const [schools, setSchools] = useState([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (open && !schools.length) {
+      supabase.from("schools").select("id, name").order("name").then(({ data }) => { if (data) setSchools(data); });
+    }
+  }, [open]);
+
+  return (
+    <div className="border-t border-zinc-200 pt-2 mt-1">
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
+          <Eye className="h-4 w-4 shrink-0" />Vista previa colegio
+        </button>
+      ) : (
+        <div className="space-y-1 px-1">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un colegio</div>
+          {schools.map((s) => (
+            <button key={s.id} type="button" onClick={() => onPreview(s.id)}
+              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
+              <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{s.name}
+            </button>
+          ))}
+          {!schools.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin colegios registrados</div>}
+          <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates, onLogout, notify }) {
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === "undefined") return "clients";
@@ -5186,6 +5219,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
   const [campExpanded, setCampExpanded] = useState(true);
   const [colExpanded, setColExpanded] = useState(true);
+  const [previewSchoolId, setPreviewSchoolId] = useState(null);
 
   const campamentosItems = [
     { key: "clients",     label: "Clientes",       icon: Users },
@@ -5213,6 +5247,21 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
     { key: "school_viajes",      label: "Viajes",        icon: Map },
   ];
   const navItems = [...campamentosItems, ...colegiosItems, { key: "calculadora", label: "Calculadora", icon: Calculator }];
+
+  // ── Vista previa del portal de colegio (admin-only) ──────────────────────────
+  if (previewSchoolId) {
+    return (
+      <div className="relative">
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-3 bg-amber-50 border-b border-amber-200 px-5 py-2.5 text-sm">
+          <span className="font-medium text-amber-800">👁 Vista previa — Portal de coordinador de colegio</span>
+          <Button size="sm" variant="outline" className="rounded-xl border-amber-300 text-amber-800 hover:bg-amber-100" onClick={() => setPreviewSchoolId(null)}>
+            Volver al admin
+          </Button>
+        </div>
+        <SchoolPortal user={{ authUid: null }} onLogout={() => setPreviewSchoolId(null)} notify={notify} previewSchoolId={previewSchoolId} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
@@ -5281,6 +5330,9 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                   );
                 })}
               </div>
+
+              {/* Vista previa portal colegio */}
+              <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} />
 
               {/* Calculadora separada al fondo */}
               <div className="border-t border-zinc-200 pt-2 mt-2">
