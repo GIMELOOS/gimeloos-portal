@@ -3821,7 +3821,101 @@ function SchoolQuestionCard({ q, schoolName, onReply }) {
   );
 }
 
-function AdminSchools({ trips, notify, section = "colegios" }) {
+function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify }) {
+  const [selectedStId, setSelectedStId] = useState(allSchoolTrips[0]?.id || "");
+  const selectedSt = allSchoolTrips.find((st) => st.id === selectedStId) || allSchoolTrips[0];
+  const selectedTrip = trips.find((t) => t.id === selectedSt?.trip_id);
+  const school = schools.find((s) => s.id === selectedSt?.school_id);
+
+  const syncTripField = (field, value) => {
+    if (!setTrips) return;
+    setTrips((prev) => prev.map((t) => t.id === selectedTrip?.id ? { ...t, [field]: value } : t));
+  };
+  const saveTripField = async (dbField, value) => {
+    if (!selectedTrip) return;
+    const stateField = dbField === "hero_image" ? "heroImage" : dbField === "departure_date" ? "departureDate" : dbField;
+    syncTripField(stateField, value);
+    const { error } = await supabase.from("trips").update({ [dbField]: value }).eq("id", selectedTrip.id);
+    if (error) notify("Error guardando cambios: " + error.message);
+  };
+
+  if (!allSchoolTrips.length) return (
+    <div className="space-y-5">
+      <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados.</CardContent>
+      </Card>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1 space-y-1">
+              <Label>Viaje activo</Label>
+              <select value={selectedStId} onChange={(e) => setSelectedStId(e.target.value)}
+                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+                {allSchoolTrips.map((st) => {
+                  const sch = schools.find((s) => s.id === st.school_id);
+                  return <option key={st.id} value={st.id}>{sch ? `${sch.name} · ` : ""}{st.trips?.name || st.trip_id}</option>;
+                })}
+              </select>
+            </div>
+            {selectedTrip?.departureDate && (
+              <div className="rounded-2xl border border-zinc-100 bg-white px-4 py-2 text-center">
+                <div className="text-xs text-zinc-400">Fecha de salida</div>
+                <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      {selectedTrip && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="space-y-5 p-6">
+            {school && (
+              <div className="text-sm text-zinc-500">Colegio: <span className="font-medium text-zinc-800">{school.name}</span></div>
+            )}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Nombre del viaje</Label>
+                <Input value={selectedTrip.name} onChange={(e) => syncTripField("name", e.target.value)} onBlur={(e) => saveTripField("name", e.target.value)} className="rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha de salida</Label>
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)}
+                  onChange={async (e) => {
+                    syncTripField("departureDate", e.target.value);
+                    const { error } = await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTrip.id);
+                    if (error) notify("Error guardando fecha: " + error.message);
+                  }}
+                  className="rounded-2xl" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Foto de portada (URL)</Label>
+              <div className="flex gap-3">
+                <Input value={selectedTrip.heroImage || ""} onChange={(e) => syncTripField("heroImage", e.target.value)} onBlur={(e) => saveTripField("hero_image", e.target.value)} placeholder="https://..." className="rounded-2xl" />
+                {selectedTrip.heroImage && (
+                  <img src={selectedTrip.heroImage} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Descripción</Label>
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncTripField("description", e.target.value)} onBlur={(e) => saveTripField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
   const tab = {
     "colegios": "schools", "alumnos": "students", "alergias": "allergies",
     "docs": "docs", "preguntas": "questions", "rooming": "rooming", "grupos": "groups",
@@ -5032,73 +5126,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
       {/* Viajes escolares tab */}
       {tab === "school_viajes" && (
-        <div className="space-y-5">
-          <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información de cada viaje escolar asignado a un colegio." />
-
-          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1 space-y-1">
-                  <Label>Filtrar por colegio</Label>
-                  <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
-                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
-                    <option value="">Todos los colegios</option>
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).length === 0 ? (
-            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-              <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados.</CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
-                const school = schools.find((s) => s.id === st.school_id);
-                const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
-                const stStudents = allStudents.filter((s) => stCourses.map(c => c.id).includes(s.school_course_id));
-                return (
-                  <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm overflow-hidden">
-                    {st.trips?.hero_image && (
-                      <div className="relative h-48 w-full">
-                        <img src={st.trips.hero_image} alt={st.trips.name} className="h-full w-full object-cover" onError={(e) => { e.target.parentElement.style.display = "none"; }} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                        <div className="absolute bottom-4 left-5 text-white">
-                          <div className="text-xl font-bold">{st.trips?.name}</div>
-                          {st.trips?.departure_date && <div className="text-sm opacity-80">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
-                        </div>
-                      </div>
-                    )}
-                    <CardContent className="p-5 space-y-3">
-                      {!st.trips?.hero_image && (
-                        <div>
-                          <div className="font-semibold text-zinc-950">{st.trips?.name || st.trip_id}</div>
-                          {st.trips?.departure_date && <div className="text-xs text-zinc-500 mt-0.5">{new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-medium text-zinc-700">{school?.name || "Colegio"}</div>
-                          {school?.contact_name && <div className="text-xs text-zinc-500">{school.contact_name}</div>}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {stCourses.map((c) => (
-                            <Badge key={c.id} variant="outline" className="rounded-xl text-xs">{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</Badge>
-                          ))}
-                          <Badge variant="outline" className="rounded-xl text-xs">{stStudents.length} alumnos</Badge>
-                        </div>
-                      </div>
-                      {st.trips?.description && <p className="text-xs text-zinc-500">{st.trips.description}</p>}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <AdminSchoolViajes allSchoolTrips={allSchoolTrips} schools={schools} trips={trips} setTrips={setTrips} notify={notify} />
       )}
     </div>
   );
@@ -5307,7 +5335,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
           {activeSection === "school_checklist"    && <AdminSchools trips={trips} notify={notify} section="checklist" />}
           {activeSection === "school_itinerario"   && <AdminSchools trips={trips} notify={notify} section="itinerario" />}
           {activeSection === "school_logistica"    && <AdminSchools trips={trips} notify={notify} section="logistica" />}
-          {activeSection === "school_viajes"       && <AdminSchools trips={trips} notify={notify} section="viajes" />}
+          {activeSection === "school_viajes"       && <AdminSchools trips={trips} setTrips={setTrips} notify={notify} section="viajes" />}
         </main>
       </div>
     </div>
