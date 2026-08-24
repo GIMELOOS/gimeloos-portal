@@ -74,7 +74,7 @@
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import CalculadoraCampamento from "./ui/calculadora-campamento";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import * as XLSX from "xlsx";
@@ -119,6 +119,8 @@ import {
   Bus,
   Sun,
   Clock,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -2676,13 +2678,13 @@ function AdminTrips({ trips, setTrips, notify }) {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Foto de portada (URL)</Label>
-              <div className="flex gap-3">
-                <Input value={selectedTrip.heroImage || ""} onChange={(e) => syncField("heroImage", e.target.value)} onBlur={(e) => saveField("hero_image", e.target.value)} placeholder="https://..." className="rounded-2xl" />
-                {selectedTrip.heroImage && (
-                  <img src={selectedTrip.heroImage} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
-                )}
-              </div>
+              <Label>Foto de portada</Label>
+              <CoverImageInput
+                value={selectedTrip.heroImage || ""}
+                onChange={(v) => syncField("heroImage", v)}
+                onBlur={(v) => saveField("hero_image", v)}
+                tripId={selectedTripId}
+              />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
@@ -3757,6 +3759,44 @@ function SchoolPortal({ user, onLogout, notify }) {
 
 // ─── Admin Schools ────────────────────────────────────────────────────────────
 
+function CoverImageInput({ value, onChange, onBlur, tripId }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `covers/trip-${tripId || Date.now()}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+      onChange(urlData.publicUrl);
+      onBlur(urlData.publicUrl);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div className="flex gap-3">
+      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={(e) => onBlur(e.target.value)} placeholder="https://..." className="rounded-2xl" />
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <Button type="button" variant="outline" className="h-11 shrink-0 rounded-2xl" onClick={() => inputRef.current?.click()} disabled={uploading}>
+        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+      </Button>
+      {value && (
+        <img src={value} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
+      )}
+    </div>
+  );
+}
+
 function ChecklistInput({ onAdd }) {
   const [val, setVal] = useState("");
   return (
@@ -3896,13 +3936,13 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Foto de portada (URL)</Label>
-              <div className="flex gap-3">
-                <Input value={selectedTrip.heroImage || ""} onChange={(e) => syncTripField("heroImage", e.target.value)} onBlur={(e) => saveTripField("hero_image", e.target.value)} placeholder="https://..." className="rounded-2xl" />
-                {selectedTrip.heroImage && (
-                  <img src={selectedTrip.heroImage} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
-                )}
-              </div>
+              <Label>Foto de portada</Label>
+              <CoverImageInput
+                value={selectedTrip.heroImage || ""}
+                onChange={(v) => syncTripField("heroImage", v)}
+                onBlur={(v) => saveTripField("hero_image", v)}
+                tripId={selectedTrip.id}
+              />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
