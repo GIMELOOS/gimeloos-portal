@@ -3054,10 +3054,15 @@ function SchoolTrips({ schoolTrips }) {
   }
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold text-zinc-950">Viajes del colegio</h2>
+      <SectionTitle icon={CalendarDays} title="Mis viajes" subtitle="Viajes escolares asignados a tu colegio." />
       <div className="grid gap-4 sm:grid-cols-2">
         {schoolTrips.map((st) => (
-          <Card key={st.id} className="rounded-2xl border-zinc-200 shadow-sm">
+          <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm overflow-hidden">
+            {st.trips?.hero_image && (
+              <div className="h-32 w-full overflow-hidden">
+                <img src={st.trips.hero_image} alt={st.trips?.name} className="h-full w-full object-cover" />
+              </div>
+            )}
             <CardContent className="p-5">
               <div className="mb-1 text-xs font-medium uppercase tracking-widest text-zinc-400">Viaje</div>
               <div className="text-base font-bold text-zinc-950">{st.trips?.name || st.trip_id}</div>
@@ -3187,13 +3192,13 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
 
   return (
     <div className="space-y-6">
-      <h2 className="text-base font-semibold text-zinc-950">Alumnos</h2>
+      <SectionTitle icon={Users} title="Alumnos" subtitle="Gestiona los alumnos asignados a cada curso." />
       {/* Selectors */}
       <div className="flex flex-wrap gap-3">
         <select
           value={selectedTripId}
           onChange={(e) => setSelectedTripId(e.target.value)}
-          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+          className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
         >
           {schoolTrips.map((st) => (
             <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>
@@ -3202,7 +3207,7 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
         <select
           value={selectedCourseId}
           onChange={(e) => setSelectedCourseId(e.target.value)}
-          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
+          className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
         >
           {tripCourses.length === 0 && <option value="">Sin cursos</option>}
           {tripCourses.map((c) => (
@@ -3213,16 +3218,16 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
 
       {/* Manual add */}
       {selectedCourseId && (
-        <Card className="rounded-2xl border-zinc-200 shadow-sm">
-          <CardContent className="p-4">
-            <div className="mb-3 text-sm font-medium text-zinc-700">Añadir alumno manualmente</div>
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 text-sm font-semibold text-zinc-700">Añadir alumno manualmente</div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <Input placeholder="Nombre *" value={addName} onChange={(e) => setAddName(e.target.value)} className="rounded-xl" />
-              <Input placeholder="Apellidos" value={addSurname} onChange={(e) => setAddSurname(e.target.value)} className="rounded-xl" />
-              <Input placeholder="Alergias" value={addAllergies} onChange={(e) => setAddAllergies(e.target.value)} className="rounded-xl" />
-              <Input placeholder="Intolerancias" value={addIntolerances} onChange={(e) => setAddIntolerances(e.target.value)} className="rounded-xl" />
-              <Input placeholder="Notas" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} className="rounded-xl" />
-              <Button onClick={handleAddManual} disabled={!addName.trim()} className="rounded-xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <Input placeholder="Nombre *" value={addName} onChange={(e) => setAddName(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+              <Input placeholder="Apellidos" value={addSurname} onChange={(e) => setAddSurname(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+              <Input placeholder="Alergias" value={addAllergies} onChange={(e) => setAddAllergies(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+              <Input placeholder="Intolerancias" value={addIntolerances} onChange={(e) => setAddIntolerances(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+              <Input placeholder="Notas" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+              <Button onClick={handleAddManual} disabled={!addName.trim()} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />Añadir
               </Button>
             </div>
@@ -3232,11 +3237,11 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
 
       {/* Excel import */}
       {selectedCourseId && (
-        <Card className="rounded-2xl border-zinc-200 shadow-sm">
-          <CardContent className="p-4">
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-medium text-zinc-700">Importar desde Excel</div>
-              <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
+              <div className="text-sm font-semibold text-zinc-700">Importar desde Excel</div>
+              <label className="flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
                 <Upload className="h-3.5 w-3.5" />Seleccionar archivo
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
               </label>
@@ -3261,14 +3266,14 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-zinc-100">
-                        {xlsxPreview.headers.map((h, i) => <th key={i} className="px-2 py-1 text-left font-medium text-zinc-500">{h}</th>)}
+                      <tr className="border-b border-zinc-100 bg-zinc-50">
+                        {xlsxPreview.headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
                         <tr key={ri} className="border-b border-zinc-50">
-                          {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-2 py-1 text-zinc-700">{String(r[ci] || "")}</td>)}
+                          {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-3 py-2 text-zinc-700">{String(r[ci] || "")}</td>)}
                         </tr>
                       ))}
                     </tbody>
@@ -3279,12 +3284,12 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
                   <Button
                     onClick={handleImport}
                     disabled={importing || xlsxPreview.mapping.nombre === undefined}
-                    className="rounded-xl text-white text-xs"
+                    className="h-11 rounded-2xl text-white text-xs"
                     style={{ backgroundColor: CORPORATE_RED }}
                   >
                     {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
                   </Button>
-                  <Button variant="outline" className="rounded-xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
+                  <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
                 </div>
               </div>
             )}
@@ -3294,10 +3299,10 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
 
       {/* Student list */}
       {selectedCourseId && (
-        <Card className="rounded-2xl border-zinc-200 shadow-sm">
-          <CardContent className="p-4">
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-medium text-zinc-700">Lista de alumnos</div>
+              <div className="text-sm font-semibold text-zinc-700">Lista de alumnos</div>
               <Badge variant="outline" className="rounded-xl text-xs">{courseStudents.length} alumnos</Badge>
             </div>
             {courseStudents.length === 0 ? (
@@ -3306,27 +3311,27 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-zinc-100">
-                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre</th>
-                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Apellidos</th>
-                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergias</th>
-                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancias</th>
-                      <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Notas</th>
-                      <th className="px-2 py-1.5"></th>
+                    <tr className="border-b border-zinc-100 bg-zinc-50">
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nombre</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Apellidos</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alergias</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Intolerancias</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Notas</th>
+                      <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {courseStudents.map((s) => (
                       <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                        <td className="px-2 py-1.5 font-medium text-zinc-900">{s.name}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{s.surname}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{s.allergies || "—"}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{s.intolerances || "—"}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{s.notes || "—"}</td>
-                        <td className="px-2 py-1.5">
-                          <button onClick={() => handleDelete(s.id)} className="rounded-lg p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+                        <td className="px-3 py-2 font-medium text-zinc-900">{s.name}</td>
+                        <td className="px-3 py-2 text-zinc-700">{s.surname}</td>
+                        <td className="px-3 py-2 text-zinc-700">{s.allergies || "—"}</td>
+                        <td className="px-3 py-2 text-zinc-700">{s.intolerances || "—"}</td>
+                        <td className="px-3 py-2 text-zinc-700">{s.notes || "—"}</td>
+                        <td className="px-3 py-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)} className="h-7 w-7 text-zinc-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -3347,24 +3352,24 @@ function SchoolAllergies({ courses, students }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold text-zinc-950">Alergias e intolerancias</h2>
+      <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Alumnos con restricciones alimentarias." />
       {withAllergies.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
           <CheckCircle2 className="mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm">Ningún alumno tiene alergias o intolerancias registradas.</p>
         </div>
       ) : (
-        <Card className="rounded-2xl border-zinc-200 shadow-sm">
-          <CardContent className="p-4">
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-zinc-100">
-                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Nombre completo</th>
-                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso / grupo</th>
-                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Alergia</th>
-                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Intolerancia</th>
-                    <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Notas</th>
+                  <tr className="border-b border-zinc-100 bg-zinc-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nombre completo</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Curso / grupo</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alergia</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Intolerancia</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Notas</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3372,11 +3377,11 @@ function SchoolAllergies({ courses, students }) {
                     const course = getCourse(s.school_course_id);
                     return (
                       <tr key={s.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                        <td className="px-2 py-1.5 font-medium text-zinc-900">{[s.name, s.surname].filter(Boolean).join(" ")}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
-                        <td className="px-2 py-1.5 text-red-700">{s.allergies || "—"}</td>
-                        <td className="px-2 py-1.5 text-amber-700">{s.intolerances || "—"}</td>
-                        <td className="px-2 py-1.5 text-zinc-700">{s.diet_notes || s.notes || "—"}</td>
+                        <td className="px-4 py-3 font-medium text-zinc-900">{[s.name, s.surname].filter(Boolean).join(" ")}</td>
+                        <td className="px-4 py-3 text-zinc-700">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+                        <td className="px-4 py-3">{s.allergies ? <Badge className="bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-medium">{s.allergies}</Badge> : <span className="text-zinc-400">—</span>}</td>
+                        <td className="px-4 py-3">{s.intolerances ? <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">{s.intolerances}</Badge> : <span className="text-zinc-400">—</span>}</td>
+                        <td className="px-4 py-3 text-zinc-700">{s.diet_notes || s.notes || "—"}</td>
                       </tr>
                     );
                   })}
@@ -3409,31 +3414,40 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-base font-semibold text-zinc-950">Documentación requerida</h2>
+      <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Documentos requeridos por curso." />
       {courses.map((course) => {
         const courseDocs = schoolDocuments.filter((d) => d.school_course_id === course.id);
         return (
-          <Card key={course.id} className="rounded-2xl border-zinc-200 shadow-sm">
+          <Card key={course.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <div className="mb-3 font-medium text-zinc-900">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>
+              <div className="mb-4">
+                <Badge variant="outline" className="rounded-2xl border-zinc-200 px-3 py-1 text-sm font-semibold text-zinc-900">
+                  {course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}
+                </Badge>
+              </div>
               {courseDocs.length === 0 ? (
                 <p className="text-xs text-zinc-400">Sin documentos requeridos.</p>
               ) : (
                 <div className="space-y-2">
                   {courseDocs.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between rounded-xl border border-zinc-100 px-3 py-2">
+                    <div key={doc.id} className="flex items-center justify-between rounded-2xl border border-zinc-100 px-4 py-3">
                       <div className="flex items-center gap-2">
                         <FileCheck2 className="h-4 w-4 shrink-0 text-zinc-400" />
                         <div>
                           <div className="text-xs font-medium text-zinc-900">{doc.name}</div>
-                          <div className="text-xs text-zinc-400">{doc.status === "uploaded" ? "Subido" : "Pendiente"}</div>
+                          <div className="mt-0.5">
+                            {doc.status === "uploaded"
+                              ? <Badge className="bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-medium">Subido</Badge>
+                              : <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">Pendiente</Badge>
+                            }
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {doc.file_url && (
                           <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">Ver</a>
                         )}
-                        <label className="flex cursor-pointer items-center gap-1 rounded-xl border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50">
+                        <label className="flex cursor-pointer items-center gap-1 rounded-2xl border px-3 py-1.5 text-xs font-medium text-white hover:opacity-90" style={{ backgroundColor: CORPORATE_RED, borderColor: CORPORATE_RED }}>
                           <Upload className="h-3 w-3" />Subir
                           <input type="file" className="hidden" onChange={(e) => handleUpload(doc.id, e.target.files?.[0])} />
                         </label>
@@ -3490,38 +3504,42 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-base font-semibold text-zinc-950">Asignación de habitaciones</h2>
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={selectedTripId}
-          onChange={(e) => setSelectedTripId(e.target.value)}
-          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
-        >
-          {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-        </select>
-        <label className={`flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
-          <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
-          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
-        </label>
-      </div>
-      <div className="text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
+      <SectionTitle icon={LayoutGrid} title="Rooming" subtitle="Asignación de habitaciones. Importa desde Excel." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedTripId}
+              onChange={(e) => setSelectedTripId(e.target.value)}
+              className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
+            >
+              {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+            </select>
+            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
+              <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+            </label>
+          </div>
+          <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
+        </CardContent>
+      </Card>
       {rooming.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rooming.map((r, i) => (
-            <Card key={i} className="rounded-2xl border-zinc-200 shadow-sm">
-              <CardContent className="p-4">
-                <div className="mb-2 font-medium text-zinc-900">{r.room}</div>
+            <Card key={i} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-2 font-semibold text-zinc-900">{r.room}</div>
                 <div className="space-y-1">
                   {r.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{s}</div>)}
                 </div>
-                <Badge variant="outline" className="mt-2 rounded-xl text-xs">{r.students.length} alumnos</Badge>
+                <Badge variant="outline" className="mt-3 rounded-xl text-xs">{r.students.length} alumnos</Badge>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
-          <Users className="mb-3 h-10 w-10 opacity-40" />
+          <LayoutGrid className="mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm">Importa un Excel para ver las habitaciones aquí.</p>
         </div>
       )}
@@ -3570,39 +3588,43 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-base font-semibold text-zinc-950">Grupos de actividades</h2>
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={selectedTripId}
-          onChange={(e) => setSelectedTripId(e.target.value)}
-          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none"
-        >
-          {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-        </select>
-        <label className={`flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
-          <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
-          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
-        </label>
-      </div>
-      <div className="text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columna 2 = monitor, columnas siguientes = alumnos.</div>
+      <SectionTitle icon={ListChecks} title="Grupos de actividades" subtitle="Grupos y monitores. Importa desde Excel." />
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedTripId}
+              onChange={(e) => setSelectedTripId(e.target.value)}
+              className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
+            >
+              {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+            </select>
+            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
+              <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+            </label>
+          </div>
+          <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columna 2 = monitor, columnas siguientes = alumnos.</div>
+        </CardContent>
+      </Card>
       {groups.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g, i) => (
-            <Card key={i} className="rounded-2xl border-zinc-200 shadow-sm">
-              <CardContent className="p-4">
-                <div className="mb-1 font-medium text-zinc-900">{g.group}</div>
+            <Card key={i} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-1 font-semibold text-zinc-900">{g.group}</div>
                 {g.monitor && <div className="mb-2 text-xs text-zinc-500">Monitor: {g.monitor}</div>}
                 <div className="space-y-1">
                   {g.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{s}</div>)}
                 </div>
-                <Badge variant="outline" className="mt-2 rounded-xl text-xs">{g.students.length} alumnos</Badge>
+                <Badge variant="outline" className="mt-3 rounded-xl text-xs">{g.students.length} alumnos</Badge>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
-          <Users className="mb-3 h-10 w-10 opacity-40" />
+          <ListChecks className="mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm">Importa un Excel para ver los grupos aquí.</p>
         </div>
       )}
@@ -3697,61 +3719,75 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   ];
 
   return (
-    <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
-      {/* Navbar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-widest text-zinc-400">PORTAL ESCOLAR</div>
-          <div className="text-lg font-bold text-zinc-950">{school?.name || "Colegio"}</div>
+    <div className="min-h-screen bg-white text-zinc-950">
+      <div className="mx-auto max-w-5xl p-6 lg:p-8">
+        {/* Header card */}
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200 bg-white px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Portal Escolar</div>
+              <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {school?.name && (
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700">
+                {school.name}
+              </div>
+            )}
+            <Button variant="outline" className="h-11 rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
+              <LogOut className="mr-2 h-4 w-4" />Salir
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" className="rounded-2xl text-sm" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
-          <LogOut className="mr-2 h-4 w-4" />Salir
-        </Button>
+
+        {loading ? (
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">Cargando datos del colegio...</div>
+          </div>
+        ) : loadErr ? (
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <div className="text-sm text-zinc-700">{loadErr}</div>
+              <Button onClick={() => window.location.reload()} className="h-11 rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>Reintentar</Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tab nav */}
+            <div className="mb-6 flex flex-wrap gap-2">
+              {tabs.map(({ key, label, icon: Icon }) => {
+                const active = activeTab === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveTab(key)}
+                    className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                      active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                    }`}
+                    style={active ? { backgroundColor: CORPORATE_RED } : {}}
+                  >
+                    <Icon className="h-4 w-4" />{label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tab content */}
+            {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} />}
+            {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} students={students} setStudents={setStudents} notify={notify} />}
+            {activeTab === "allergies" && <SchoolAllergies courses={courses} students={students} />}
+            {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} />}
+            {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
+            {activeTab === "groups"    && <SchoolGroups schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
+          </>
+        )}
       </div>
-
-      {loading ? (
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">Cargando datos del colegio...</div>
-        </div>
-      ) : loadErr ? (
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <div className="text-sm text-zinc-700">{loadErr}</div>
-            <Button onClick={() => window.location.reload()} className="rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>Reintentar</Button>
-          </div>
-        </div>
-      ) : (
-        <div className="mx-auto max-w-[1200px] px-6 py-6">
-          {/* Tab nav */}
-          <div className="mb-6 flex flex-wrap gap-2">
-            {tabs.map(({ key, label, icon: Icon }) => {
-              const active = activeTab === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveTab(key)}
-                  className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                    active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                  }`}
-                  style={active ? { backgroundColor: CORPORATE_RED } : {}}
-                >
-                  <Icon className="h-4 w-4" />{label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tab content */}
-          {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} />}
-          {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} students={students} setStudents={setStudents} notify={notify} />}
-          {activeTab === "allergies" && <SchoolAllergies courses={courses} students={students} />}
-          {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} />}
-          {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
-          {activeTab === "groups"    && <SchoolGroups schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
-        </div>
-      )}
     </div>
   );
 }
