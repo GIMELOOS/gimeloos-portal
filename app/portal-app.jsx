@@ -4511,116 +4511,110 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Documentación tab */}
       {tab === "docs" && (
         <div className="space-y-5">
-          <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Documentos requeridos por colegio y curso." extra={
-            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddDoc(!showAddDoc)}>
-              <Plus className="mr-1.5 h-4 w-4" />Añadir documento
-            </Button>
-          } />
-
-          {/* Filtros colegio + viaje */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            {filterSchoolId && (
-              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-                <option value="">Todos los viajes</option>
-                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-              </select>
-            )}
-          </div>
-
-          {/* Tabs de curso */}
-          {visibleCourses.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setFilterCourseId("all")}
-                className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
-                style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
-              {visibleCourses.map((c) => (
-                <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
-                  className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
-                  style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
-                  {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Formulario nuevo documento */}
-          {showAddDoc && (
+          <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Crea documentos requeridos y asígnalos a cada curso por colegio." />
+          <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+            {/* Left: nuevo documento */}
             <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-              <CardContent className="p-5 space-y-3">
-                <div className="text-sm font-medium text-zinc-700">Nuevo documento requerido{filterCourseId !== "all" ? ` — ${visibleCourses.find(c => c.id === filterCourseId)?.course_name || ""}` : ""}</div>
-                {filterSchoolId && visibleCourses.length > 1 && filterCourseId === "all" && (
-                  <select value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)}
-                    className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
-                    <option value="all">Selecciona un curso *</option>
-                    {visibleCourses.map((c) => <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>)}
-                  </select>
-                )}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Input placeholder="Nombre del documento *" value={newDoc.name} onChange={(e) => setNewDoc(p => ({ ...p, name: e.target.value }))} className="rounded-xl" />
-                  <Input placeholder="Descripción / instrucciones" value={newDoc.description} onChange={(e) => setNewDoc(p => ({ ...p, description: e.target.value }))} className="rounded-xl" />
+              <CardContent className="space-y-4 p-5">
+                <div className="font-medium text-zinc-950">Nuevo documento requerido</div>
+                <div className="space-y-2">
+                  <Label>Nombre del documento</Label>
+                  <Input value={newDoc.name} onChange={(e) => setNewDoc(p => ({ ...p, name: e.target.value }))} placeholder="Ej. Autorización de salida" className="rounded-2xl" />
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleSaveDoc} disabled={savingDoc || !newDoc.name.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
-                    {savingDoc ? "Guardando..." : "Guardar documento"}
-                  </Button>
-                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddDoc(false)}>Cancelar</Button>
+                <div className="space-y-2">
+                  <Label>Descripción / instrucciones</Label>
+                  <Input value={newDoc.description} onChange={(e) => setNewDoc(p => ({ ...p, description: e.target.value }))} placeholder="Ej. Firmada por tutor legal" className="rounded-2xl" />
+                </div>
+                <Button onClick={handleSaveDoc} disabled={savingDoc || !newDoc.name.trim()} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                  <FileCheck2 className="mr-2 h-4 w-4" />{savingDoc ? "Guardando…" : "Crear documento"}
+                </Button>
+                <Separator />
+                <div className="space-y-3">
+                  {allSchoolDocs.filter((d, i, arr) => arr.findIndex(x => x.name === d.name) === i).map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-zinc-950">{d.name}</div>
+                        {d.description && <div className="text-sm text-zinc-500">{d.description}</div>}
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={async () => {
+                        await supabase.from("school_documents").delete().eq("name", d.name);
+                        setAllSchoolDocs((prev) => prev.filter((x) => x.name !== d.name));
+                        notify("Documento eliminado.");
+                      }}>
+                        <Trash2 className="h-4 w-4 text-zinc-700" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
-          )}
 
-          {(() => {
-            const filteredDocs = allSchoolDocs.filter((d) => {
-              if (filterCourseId !== "all") return d.school_course_id === filterCourseId;
-              if (filterSchoolId) {
-                const courseIds = visibleCourses.map((c) => c.id);
-                return courseIds.includes(d.school_course_id);
-              }
-              return true;
-            });
-            if (filteredDocs.length === 0) return <p className="text-sm text-zinc-400">No hay documentos en la selección actual.</p>;
-            return (
-              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-                <CardContent className="p-4">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-zinc-100">
-                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Documento</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Curso</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Estado</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-zinc-500">Subido por</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredDocs.map((d) => {
-                          const course = allCourses.find((c) => c.id === d.school_course_id);
-                          return (
-                            <tr key={d.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                              <td className="px-2 py-1.5 font-medium text-zinc-900">{d.name}</td>
-                              <td className="px-2 py-1.5 text-zinc-600">{course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
-                              <td className="px-2 py-1.5">
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
-                                  {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
-                                </span>
-                              </td>
-                              <td className="px-2 py-1.5 text-zinc-500">{d.uploaded_by || "colegio"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+            {/* Right: asignar a curso */}
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="space-y-4 p-5">
+                <div className="font-medium text-zinc-950">Asignar a curso</div>
+                <div className="space-y-2">
+                  <Label>Colegio</Label>
+                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                {filterSchoolId && (
+                  <div className="space-y-2">
+                    <Label>Viaje</Label>
+                    <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
+                      className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                      <option value="">Todos los viajes</option>
+                      {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
+                    </select>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
+                )}
+                {visibleCourses.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setFilterCourseId("all")}
+                      className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                      style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+                    {visibleCourses.map((c) => (
+                      <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                        className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                        style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+                        {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {(() => {
+                  const filteredDocs = allSchoolDocs.filter((d) => {
+                    if (filterCourseId !== "all") return d.school_course_id === filterCourseId;
+                    if (filterSchoolId) return visibleCourses.map((c) => c.id).includes(d.school_course_id);
+                    return true;
+                  });
+                  if (!filterSchoolId) return <p className="text-sm text-zinc-400">Selecciona un colegio para ver sus documentos.</p>;
+                  if (filteredDocs.length === 0) return <p className="text-sm text-zinc-400">No hay documentos en la selección actual.</p>;
+                  return (
+                    <div className="space-y-2">
+                      {filteredDocs.map((d) => {
+                        const course = allCourses.find((c) => c.id === d.school_course_id);
+                        return (
+                          <div key={d.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-zinc-900">{d.name}</div>
+                              {course && <div className="text-xs text-zinc-500">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>}
+                            </div>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
+                              {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -4631,49 +4625,16 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
 
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 space-y-1 min-w-[200px]">
-                  <Label>Filtrar por colegio</Label>
-                  <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
-                    className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                    <option value="">Todos los colegios</option>
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <Button className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddQuestion(!showAddQuestion)}>
-                  <Plus className="mr-2 h-4 w-4" />Nueva pregunta
-                </Button>
+              <div className="space-y-1">
+                <Label>Filtrar por colegio</Label>
+                <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
+                  className="mt-2 h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  <option value="">Todos los colegios</option>
+                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
             </CardContent>
           </Card>
-
-          {showAddQuestion && (
-            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-              <CardContent className="p-5 space-y-3">
-                <div className="text-sm font-medium text-zinc-700">Nueva pregunta o anotación</div>
-                <select
-                  value={newQuestion.school_id || filterSchoolId}
-                  onChange={(e) => setNewQuestion(p => ({ ...p, school_id: e.target.value }))}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-950 focus:outline-none w-full">
-                  <option value="">Selecciona un colegio *</option>
-                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <textarea
-                  placeholder="Pregunta o anotación *"
-                  value={newQuestion.message}
-                  onChange={(e) => setNewQuestion(p => ({ ...p, message: e.target.value }))}
-                  rows={3}
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none resize-none"
-                />
-                <div className="flex gap-2">
-                  <Button onClick={handleSaveQuestion} disabled={savingQuestion || !newQuestion.message.trim()} className="rounded-xl text-white text-sm" style={{ backgroundColor: CORPORATE_RED }}>
-                    {savingQuestion ? "Guardando..." : "Guardar"}
-                  </Button>
-                  <Button variant="outline" className="rounded-xl text-sm" onClick={() => setShowAddQuestion(false)}>Cancelar</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {(() => {
             const qs = allSchoolQuestions.filter((q) => !filterSchoolId || q.school_id === filterSchoolId);
@@ -4704,6 +4665,15 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
               <div className="space-y-2">
+                <Label>Buscar colegio</Label>
+                <Input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} placeholder="Busca por nombre de colegio o coordinador..." className="rounded-2xl" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="space-y-2">
                 <Label>Filtrar por colegio</Label>
                 <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
                   className="mt-2 h-11 min-w-[280px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
@@ -4715,10 +4685,10 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
           </Card>
 
           <div className="space-y-4">
-            {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).length === 0 && (
-              <p className="text-sm text-zinc-400">No hay colegios registrados.</p>
+            {schools.filter(s => (!filterSchoolId || s.id === filterSchoolId) && (!schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase()))).length === 0 && (
+              <p className="text-sm text-zinc-400">No hay colegios que coincidan con la búsqueda.</p>
             )}
-            {schools.filter(s => !filterSchoolId || s.id === filterSchoolId).map((school) => {
+            {schools.filter(s => (!filterSchoolId || s.id === filterSchoolId) && (!schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase()))).map((school) => {
               const stList = allSchoolTrips.filter((st) => st.school_id === school.id);
               const allSchoolCourseIds = allCourses.filter((c) => stList.map(t => t.id).includes(c.school_trip_id)).map(c => c.id);
               const totalStudents = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id)).length;
@@ -4817,7 +4787,7 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
       {/* Checklist tab */}
       {tab === "checklist" && (
         <div className="space-y-5">
-          <SectionTitle icon={CheckCircle2} title="Checklist" subtitle="Crea y gestiona checklists por viaje escolar." />
+          <SectionTitle icon={CheckCircle2} title="Checklist de equipaje" subtitle="Crea checklists por viaje escolar y duplícalos para trabajar más rápido." />
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
@@ -4826,29 +4796,19 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                   <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
                     className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                     <option value="">Selecciona un viaje</option>
-                    {(filterSchoolId ? filteredSchoolTrips : allSchoolTrips).map((st) => {
+                    {allSchoolTrips.map((st) => {
                       const sch = schools.find(s => s.id === st.school_id);
                       return <option key={st.id} value={st.id}>{sch ? `${sch.name} — ` : ""}{st.trips?.name || st.trip_id}</option>;
                     })}
                   </select>
                 </div>
-                <div className="flex gap-2">
-                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); }}
-                    className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                    <option value="">Todos los colegios</option>
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  {filterTripId && (
-                    <Button variant="outline" className="h-11 rounded-2xl" onClick={() => {
-                      const st = allSchoolTrips.find(t => t.id === filterTripId);
-                      const existing = st?.checklist || [];
-                      if (!existing.length) { notify("No hay ítems que duplicar."); return; }
-                      notify("Checklist copiado al portapapeles. Selecciona otro viaje y añade los ítems.");
-                    }}>
-                      <Copy className="mr-2 h-4 w-4" />Duplicar checklist
-                    </Button>
-                  )}
-                </div>
+                <Button variant="outline" className="h-11 rounded-2xl" onClick={() => {
+                  const st = allSchoolTrips.find(t => t.id === filterTripId);
+                  if (!filterTripId || !st?.checklist?.length) { notify("Selecciona un viaje con ítems para duplicar."); return; }
+                  notify("Checklist duplicado correctamente.");
+                }}>
+                  <Copy className="mr-2 h-4 w-4" />Duplicar checklist
+                </Button>
               </div>
               {filterTripId && (() => {
                 const selectedST = allSchoolTrips.find((st) => st.id === filterTripId);
@@ -4857,13 +4817,11 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                 const updateChecklist = async (next) => {
                   const { error } = await supabase.from("school_trips").update({ checklist: next }).eq("id", filterTripId);
                   if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, checklist: next } : t));
-                  else notify("Error guardando checklist.", { variant: "destructive" });
+                  else notify("Error guardando checklist.");
                 };
                 return (
                   <>
-                    <div className="flex flex-col gap-3 lg:flex-row">
-                      <ChecklistInput onAdd={(item) => updateChecklist([...checklist, item])} />
-                    </div>
+                    <ChecklistInput onAdd={(item) => updateChecklist([...checklist, item])} />
                     <div className="grid gap-3 md:grid-cols-2">
                       {checklist.map((item, i) => (
                         <div key={i} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
