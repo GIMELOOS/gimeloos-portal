@@ -1248,7 +1248,8 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
 
   const markAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    await supabase.from("notifications").update({ read: true }).eq("participant_id", user.id).eq("read", false);
+    const { error } = await supabase.from("notifications").update({ read: true }).eq("participant_id", user.id).eq("read", false);
+    if (error) notify("Error marcando notificaciones: " + error.message);
   };
 
   const unreadBySection = {
@@ -1537,7 +1538,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
     if (!targetIds.length) { notify("No hay clientes seleccionados."); return; }
     setUsers((prev) => prev.map((u) => targetIds.includes(u.id) ? { ...u, tripId: assignTargetTrip } : u));
     for (const clientId of targetIds) {
-      await supabase.from("participants").update({ trip_id: assignTargetTrip }).eq("id", clientId);
+      const { error } = await supabase.from("participants").update({ trip_id: assignTargetTrip }).eq("id", clientId);
+      if (error) { notify("Error asignando experiencia: " + error.message); return; }
     }
     notify("Experiencia aplicada correctamente.");
   };
@@ -2109,7 +2111,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                     onChange={async (e) => {
                       const value = e.target.value || null;
                       setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, tripId: value } : u));
-                      await supabase.from("participants").update({ trip_id: value }).eq("id", client.id);
+                      const { error } = await supabase.from("participants").update({ trip_id: value }).eq("id", client.id);
+                      if (error) notify("Error asignando viaje: " + error.message);
                     }}
                     className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm"
                   >
@@ -2401,10 +2404,11 @@ function AdminPayments({ users, setUsers, notify }) {
                           onChange={async (e) => {
                             const num = Number(e.target.value || 0);
                             setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: num } } : u));
-                            await supabase.from("participant_pricing").upsert(
+                            const { error } = await supabase.from("participant_pricing").upsert(
                               { participant_id: client.id, initial_price: key === "initialPrice" ? num : client.payments.initialPrice || 0, discount: key === "discount" ? num : client.payments.discount || 0, final_price: key === "finalPrice" ? num : client.payments.finalPrice || 0 },
                               { onConflict: "participant_id" }
                             );
+                            if (error) notify("Error guardando precio: " + error.message);
                           }}
                           className="rounded-2xl"
                         />
@@ -2413,7 +2417,8 @@ function AdminPayments({ users, setUsers, notify }) {
                           onChange={async (e) => {
                             const num = Number(e.target.value || 0);
                             setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: { ...u.payments[key], amount: num } } } : u));
-                            await supabase.from("participant_payments").update({ amount: num }).eq("participant_id", client.id).eq("payment_key", key);
+                            const { error } = await supabase.from("participant_payments").update({ amount: num }).eq("participant_id", client.id).eq("payment_key", key);
+                            if (error) notify("Error guardando importe: " + error.message);
                           }}
                           className="rounded-2xl"
                         />
@@ -2462,11 +2467,13 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
   };
 
   const deleteTemplate = async (templateId) => {
+    const { error: e1 } = await supabase.from("participant_documents").delete().eq("template_id", templateId);
+    if (e1) { notify("Error al eliminar documentos: " + e1.message); return; }
+    const { error: e2 } = await supabase.from("document_templates").delete().eq("id", templateId);
+    if (e2) { notify("Error al eliminar plantilla: " + e2.message); return; }
     setTemplates((prev) => prev.filter((t) => t.id !== templateId));
     setUsers((prev) => prev.map((u) => u.role === "client" ? { ...u, documents: u.documents.filter((d) => d.id !== templateId) } : u));
     if (selectedTemplateId === templateId) setSelectedTemplateId(templates.find((t) => t.id !== templateId)?.id || "");
-    await supabase.from("participant_documents").delete().eq("template_id", templateId);
-    await supabase.from("document_templates").delete().eq("id", templateId);
     notify("Plantilla eliminada.");
   };
 
@@ -2567,8 +2574,9 @@ function AdminChecklists({ trips, setTrips, notify }) {
     if (!newItem.trim()) return;
     const nextChecklist = [...selectedTrip.checklist, newItem];
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: nextChecklist } : t));
-    await supabase.from("trips").update({ checklist: nextChecklist }).eq("id", selectedTripId);
-    setNewItem("");
+    const { error } = await supabase.from("trips").update({ checklist: nextChecklist }).eq("id", selectedTripId);
+    if (error) notify("Error añadiendo elemento: " + error.message);
+    else setNewItem("");
   };
 
   const duplicateChecklist = () => {
@@ -2608,7 +2616,8 @@ function AdminChecklists({ trips, setTrips, notify }) {
                 <Button variant="ghost" size="sm" onClick={async () => {
                   const next = selectedTrip.checklist.filter((l) => l !== item);
                   setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: next } : t));
-                  await supabase.from("trips").update({ checklist: next }).eq("id", selectedTripId);
+                  const { error } = await supabase.from("trips").update({ checklist: next }).eq("id", selectedTripId);
+                  if (error) notify("Error quitando elemento: " + error.message);
                 }}>Quitar</Button>
               </div>
             ))}
@@ -2626,7 +2635,8 @@ function AdminTrips({ trips, setTrips, notify }) {
   const syncField = (field, value) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, [field]: value } : t));
   const saveField = async (field, value) => {
     syncField(field, value);
-    await supabase.from("trips").update({ [field]: value }).eq("id", selectedTripId);
+    const { error } = await supabase.from("trips").update({ [field]: value }).eq("id", selectedTripId);
+    if (error) notify("Error guardando cambios: " + error.message);
   };
 
   if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
@@ -2662,7 +2672,7 @@ function AdminTrips({ trips, setTrips, notify }) {
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTripId); }} className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); const { error } = await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTripId); if (error) notify("Error guardando fecha: " + error.message); }} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
@@ -2695,7 +2705,8 @@ function AdminItinerary({ trips, setTrips, notify }) {
   const syncItinerary = async (nextOrder) => {
     setLocalOrder(nextOrder);
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, itinerary: nextOrder } : t));
-    await supabase.from("trips").update({ itinerary: nextOrder }).eq("id", selectedTripId);
+    const { error } = await supabase.from("trips").update({ itinerary: nextOrder }).eq("id", selectedTripId);
+    if (error) notify("Error guardando itinerario: " + error.message);
   };
 
   if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
@@ -2727,7 +2738,8 @@ function AdminItinerary({ trips, setTrips, notify }) {
                     onClick={async () => {
                       const next = selectedTrip.showItinerary === false;
                       setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showItinerary: next } : t));
-                      await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showItinerary: next } }).eq("id", selectedTripId);
+                      const { error } = await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showItinerary: next } }).eq("id", selectedTripId);
+                      if (error) notify("Error guardando visibilidad: " + error.message);
                     }}
                     className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showItinerary !== false ? "bg-green-500" : "bg-zinc-300"}`}
                   >
@@ -2781,7 +2793,8 @@ function AdminLogistica({ trips, setTrips, notify }) {
 
   const syncLogistics = async (nextLogistics) => {
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, logistics: nextLogistics } : t));
-    await supabase.from("trips").update({ logistics: nextLogistics }).eq("id", selectedTripId);
+    const { error } = await supabase.from("trips").update({ logistics: nextLogistics }).eq("id", selectedTripId);
+    if (error) notify("Error guardando logística: " + error.message);
   };
 
   if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
@@ -2813,7 +2826,8 @@ function AdminLogistica({ trips, setTrips, notify }) {
                     onClick={async () => {
                       const next = selectedTrip.showLogistics === false;
                       setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showLogistics: next } : t));
-                      await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showLogistics: next } }).eq("id", selectedTripId);
+                      const { error } = await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showLogistics: next } }).eq("id", selectedTripId);
+                      if (error) notify("Error guardando visibilidad: " + error.message);
                     }}
                     className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showLogistics !== false ? "bg-green-500" : "bg-zinc-300"}`}
                   >
@@ -4537,7 +4551,8 @@ function AdminSchools({ trips, notify, section = "colegios" }) {
                         {d.description && <div className="text-sm text-zinc-500">{d.description}</div>}
                       </div>
                       <Button variant="ghost" size="icon" onClick={async () => {
-                        await supabase.from("school_documents").delete().eq("name", d.name);
+                        const { error } = await supabase.from("school_documents").delete().eq("name", d.name);
+                        if (error) { notify("Error eliminando documento: " + error.message); return; }
                         setAllSchoolDocs((prev) => prev.filter((x) => x.name !== d.name));
                         notify("Documento eliminado.");
                       }}>
@@ -5157,7 +5172,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
       <div className="mx-auto flex max-w-[1400px] gap-6 px-6 py-6">
         {/* Sidebar */}
         <aside className="hidden w-56 shrink-0 lg:block">
-          <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
+          <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: "calc(100vh - 7rem)" }}>
             <nav className="space-y-1">
               {/* CAMPAMENTOS colapsable */}
               <button type="button" onClick={() => setCampExpanded(!campExpanded)}
