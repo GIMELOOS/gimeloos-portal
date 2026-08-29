@@ -139,7 +139,18 @@
       "Bash(python3 -c \"import docx\")",
       "Bash(git remote *)",
       "Bash(git branch *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(cp /Users/adri/gimeloos-portal/.env.local /Users/adri/Desktop/.env)",
+      "Bash(echo \"NEXT_PUBLIC_APP_URL=https://gimeloos-portal.vercel.app\")",
+      "Bash(cp /Users/adri/gimeloos-portal/.env.local /Users/adri/Desktop/env.txt)",
+      "Bash(rm /Users/adri/Desktop/env.txt && echo \"Borrado\")",
+      "Bash(rm -rf /Users/adri/gimeloos-portal/app/animaciones *)",
+      "Bash(git checkout *)",
+      "Bash(mkdir -p /Users/adri/gimeloos-animaciones)",
+      "Bash(cp -r /Users/adri/gimeloos-portal/app/animaciones /Users/adri/gimeloos-animaciones/app-animaciones)",
+      "Bash(cp -r /Users/adri/gimeloos-portal/app/api/animaciones /Users/adri/gimeloos-animaciones/api-animaciones)",
+      "Bash(cp /Users/adri/gimeloos-portal/scripts/generar_propuesta.py /Users/adri/gimeloos-animaciones/)"
     ]
   }
 }
