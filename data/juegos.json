@@ -1,0 +1,1705 @@
+[
+  {
+    "id": "juego-001",
+    "nombre": "Palangana veraniega",
+    "descripcion": "Cada niño meterá los pies en una palangana con agua. En ella habrá pelotas de dos colores que representarán a los dos equipos que participarán. Con los ojos tapados y únicamente usando los pies, deberán sacar una pelota de la palangana.",
+    "materiales": [
+      "Pelota(s)",
+      "Palangana"
+    ],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-002",
+    "nombre": "Preferencias",
+    "descripcion": "Se lanzan preguntas y deben colocarse a un lado o a otro en función de sus preferencias. Por ejemplo: colacao o Nesquik, Fanta o Coca-Cola, invierno o primavera, basket o fútbol, reyes o papa Noel…",
+    "materiales": [],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-003",
+    "nombre": "Sacos",
+    "descripcion": "Pediremos que hagan sacos con X número de personas hasta decir un número que suponga hacer dos grupos del mismo número",
+    "materiales": [
+      "Sacos"
+    ],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 20,
+    "activo": true
+  },
+  {
+    "id": "juego-004",
+    "nombre": "Papelitos",
+    "descripcion": "Sacarán papelitos de colores. Harán dos grupos en función del color que tengan.",
+    "materiales": [
+      "Papelitos de colores"
+    ],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-005",
+    "nombre": "Capitan, marinero, tierra",
+    "descripcion": "Contaremos una historia. Cuando digamos capitán deberán formar equipos de 3 personas, cuando digamos marinero de 4 y cuando digamos tierra de 5.",
+    "materiales": [],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-006",
+    "nombre": "A dedo",
+    "descripcion": "Nombrar a dedo los equipos haciendo 1-2.",
+    "materiales": [],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-007",
+    "nombre": "Animales",
+    "descripcion": "Se dirá al oido a cada niño un animal. Cuando todos tengan animal, deberían comenzar a emitir el sonido característico de ese animal y juntarse por familias.",
+    "materiales": [],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-008",
+    "nombre": "Por mes de cumpleaños",
+    "descripcion": "Los participantes deberán juntarse por mes de cumpleaños para hacer",
+    "materiales": [],
+    "categorias": [
+      "Juegos para formar equipos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-009",
+    "nombre": "Declaro la paz",
+    "descripcion": "Un participante coge la pelota y grita “Declaro la paz a… ” al decir el nombre de otro participante, tira la pelota al aire y todos se separan corriendo. Cuando el participante coge la pelota grita “¡Pies quietos!”. Entonces da tres pasos y lanza la pelota. Si da a otro participante, este será el siguiente que declare la paz. Sino, lo hará quien tenía el balón.",
+    "materiales": [
+      "Pelota(s)",
+      "Balón"
+    ],
+    "categorias": [
+      "Juegos para aprender nombres"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-010",
+    "nombre": "¿Quién será?",
+    "descripcion": "Se divide a los niños en dos grupos. Se coloca una tela en medio separando los equipos. Cada equipo elegirá, para cada ronda, a un miembro de su equipo que se pondrá delante del resto. Cuando baje la tela, se verán dos niños de cada equipo cara a cara. Ganará la ronda aquel que diga antes el nombre del otro niño.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos para aprender nombres"
+    ],
+    "veces_usado": 12,
+    "activo": true
+  },
+  {
+    "id": "juego-011",
+    "nombre": "Pistolero",
+    "descripcion": "Se pone un niño o niña en el centro del círculo, pone las manos como si fuera una pistola y va dando vueltas sobre sí mismo. El juego consiste en que cuando se pare y apunte a un niño o niña del círculo, este deberá agacharse y los compañeros que tiene a su derecha e izquierda deberán decir los nombres del otro respectivamente. El primero que lo diga gana. El que pierde pasa a ser pistolero y el pistolero ocupa el lugar del que ha perdido.",
+    "materiales": [],
+    "categorias": [
+      "Juegos para aprender nombres"
+    ],
+    "veces_usado": 16,
+    "activo": true
+  },
+  {
+    "id": "juego-012",
+    "nombre": "Bulla controlada",
+    "descripcion": "Los participantes van libres por el campo. Cuando encuentran a un compañero, juegan a piedra, papel o tijera (a uno), el que pierda deberá andar detrás del ganador animándole y gritando su nombre. Esto se repetirá sucesivamente y cada vez habrá menos jugadores y estos tendrán a más compañeros animándolos (si se encuentran dos y uno tiene 10 compañeros animándole y el otro 5 el que pierda mas todos sus seguidores se unirán al ganador y gritarán su nombre). Hasta que finalmente queden dos y al ganador se le mantea.",
+    "materiales": [],
+    "categorias": [
+      "Juegos para aprender nombres"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-013",
+    "nombre": "Fútbol chino",
+    "descripcion": "Por equipos y alternados, se ponen en círculo con las piernas abiertas y tiene que conseguir colar la pelota entre las piernas del contrario. La pelota se mueve por el círculo SOLAMENTE golpeándola con las manos. Se defienden despejando la pelota con las manos. Cuando cuelan la pelota, esa persona queda eliminada. Gana el equipo que consiga mantener a más miembros vivos.",
+    "materiales": [
+      "Pelota(s)"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 67,
+    "activo": true
+  },
+  {
+    "id": "juego-014",
+    "nombre": "Bomba",
+    "descripcion": "En círculo, hay una persona en medio que es el que cuenta. Empieza a contar mientras que el resto de jugadores se pasan la pelota. Cuando el del medio grite bomba, el que tiene la pelota se elimina.",
+    "materiales": [
+      "Pelota(s)"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-015",
+    "nombre": "El aro",
+    "descripcion": "Se hace un circulo cogidos de la mano. Con un aro entre ellos, han de conseguir que el aro de la vuelta por todo le círculo sin soltarse de la mano.",
+    "materiales": [
+      "Aros"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-016",
+    "nombre": "Carrera de aros",
+    "descripcion": "Se colocan aros en el suelo haciendo una fila. Por equipos, saldrá un participante de cada equipo y al encontrarse con el del equipo contrario, jugarán una partida a piedra papel o tijera. El que gana avanza y sigue su recorrido, el que pierde se va y sale el siguiente. Gana el primer equipo que consiga llegar al otro lado del camino.",
+    "materiales": [
+      "Aros"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 31,
+    "activo": true
+  },
+  {
+    "id": "juego-017",
+    "nombre": "Rompetobillos",
+    "descripcion": "En equipos hacen estrategia para intentar eliminar a todo el equipo contrario. Con una pelota si golpean a una persona se sienta, sin moverse del sitio. Si esa persona empoma el balón se sienta la que ha lanzado. El que tiene el balón solo puede dar tres pasos con la pelota. Los que están sentados pueden salvarse de distintas maneras: si tocan el tobillo de una persona del otro equipo, si consiguen la pelota y, o bien golpean a un vivo o pasa la pelota a un muerto.",
+    "materiales": [
+      "Pelota(s)",
+      "Balón"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 11,
+    "activo": true
+  },
+  {
+    "id": "juego-018",
+    "nombre": "El pañuelo globero",
+    "descripcion": "Como en el juego del pañuelo pero con globos. Cada niño se atará un globo con un hilo al tobillo. El monitor dirá un número. Los dos niños que tengan esos números correrán hacia el monitor y al encontrarse intentarán explotar el globo del oponente.",
+    "materiales": [
+      "Globos",
+      "Pañuelo/tela",
+      "Hilo"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 7,
+    "activo": true
+  },
+  {
+    "id": "juego-019",
+    "nombre": "A la zapatilla por detrás",
+    "descripcion": "Nos ponemos en círculo y una persona ira por fuera con un vaso lleno de agua. En un momento dado se lo tirará a otra por encima y esta tendrá que levantarse y  pillarle antes de que se siente en el círculo.",
+    "materiales": [
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-020",
+    "nombre": "El oso hormiguero",
+    "descripcion": "Uno/dos de los participantes llevarán un churro apoyado en la nariz. Han de ir corriendo pillando al resto de participantes (tocando con el churro). Cuando pillan a un participante, este se tumba y solo puede ser salvado si entre otros dos participantes lo llevan a un punto del campo acordado.",
+    "materiales": [
+      "Churro"
+    ],
+    "categorias": [
+      "Juegos cortos de inicio"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-021",
+    "nombre": "Salvemos al globo",
+    "descripcion": "Se hincha un globo y se lanza al aire. Para superar el reto deben conseguir hacer un recorrido determinado sin que el globo toque el suelo y siendo tocado por todos los participantes al menos una vez.",
+    "materiales": [
+      "Globos"
+    ],
+    "categorias": [
+      "Juegos cooperativos"
+    ],
+    "veces_usado": 10,
+    "activo": true
+  },
+  {
+    "id": "juego-022",
+    "nombre": "El arrancacebollas",
+    "descripcion": "Se tumban en el suelo y se agarran entre ellos. Los monitores tratarán de ir separándolos como si se tratasen de capas de una cebolla.",
+    "materiales": [],
+    "categorias": [
+      "Juegos cooperativos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-023",
+    "nombre": "El ovillo",
+    "descripcion": "Se juntan todos cogiéndose de las manos y deben deshacer el ovillo sin soltarse las manos.",
+    "materiales": [],
+    "categorias": [
+      "Juegos cooperativos"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-024",
+    "nombre": "La cascada",
+    "descripcion": "El monitor tendrá una pelota dando vueltas a su alrededor. Debajo tendrá colocados vasos. Los participantes deben coger los vasos sin que les toque la pelota, sacarlos y colocarlos dentro de un aro.",
+    "materiales": [
+      "Pelota(s)",
+      "Aros",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos cooperativos"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-025",
+    "nombre": "Misión Pepito",
+    "descripcion": "Cada equipo tendrá una patata que proteger. Se harán 6 rondas. En cada una, un equipo será el atacante y el otro el defensor. El equipo atacante deberá decidir en secreto qué miembro llevará la patata. El equipo defensor deberá tratar de adivinar quién lleva la patata y pillarlo antes de que cruce la meta.",
+    "materiales": [
+      "Patata"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-026",
+    "nombre": "Caragalleta",
+    "descripcion": "Se ponen una galleta en la frente. Sin usar las manos tendrán que conseguir que baje por su cara hasta llegar a la boca.",
+    "materiales": [
+      "Galletas"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 53,
+    "activo": true
+  },
+  {
+    "id": "juego-027",
+    "nombre": "Mega Tangram",
+    "descripcion": "El equipo que primero consiga obtener la figura propuesta gana.",
+    "materiales": [
+      "Piezas de tangram"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-028",
+    "nombre": "Bandera",
+    "descripcion": "Cada equipo tendrá una base y una bandera que custodiar. Gana el equipo que consiga llegar a la base del contrario y coger la bandera. Cuando se encuentran dos de equipos distintos pueden pillarse. Si se pillan se retan a piedra, papel o tijera, el que pierda se vuelve a su base. No pueden pillar cuando está dentro de la base.",
+    "materiales": [
+      "Banderas/pañuelos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 17,
+    "activo": true
+  },
+  {
+    "id": "juego-029",
+    "nombre": "Bandera a 5 bandas",
+    "descripcion": "La bandera clásica pero compiten 5 equipos a la vez. Cuando un equipo consigue la bandera del otro, el equipo invadido se convierte, automáticamente, en parte del equipo que los ha conquistado y juegan juntos como un solo equipo. Hasta que finalmente solo queda un equipo.",
+    "materiales": [
+      "Banderas/pañuelos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-030",
+    "nombre": "Relevos zapatilla",
+    "descripcion": "Cada participante se quita una de sus zapatillas y se juntan al final del relevo. El relevo consiste en ir al montón, encontrar la zapatilla, ponerse bien atada y volver a su equipo para que salga el siguiente. Gana el equipo que consiga antes tener puestas todas las zapatillas.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 12,
+    "activo": true
+  },
+  {
+    "id": "juego-031",
+    "nombre": "Maquillaje a ciegas",
+    "descripcion": "Por parejas. Uno llevará los ojos tapados y tendrá que intentar maquillar a su pareja lo mejor posible.",
+    "materiales": [
+      "Maquillaje"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-032",
+    "nombre": "Batalla de flanes",
+    "descripcion": "Se enfrentan por parejas y el primero que se acabe el flan gana.",
+    "materiales": [
+      "Flanes"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-033",
+    "nombre": "Diverflan",
+    "descripcion": "Por parejas, uno será la cabeza y otro las manos. El reto consiste en comerse un flan sin marcharse.",
+    "materiales": [
+      "Flanes"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-034",
+    "nombre": "La red",
+    "descripcion": "Todos se juntan en el centro y se dan las manos unos a otros. El juego consiste en conseguir deshacer la red sin soltarse las manos.",
+    "materiales": [
+      "Red"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-035",
+    "nombre": "La cola",
+    "descripcion": "En dos equipos, todos se ponen en la parte de atrás del pantalón una tela de un color. Gana el equipo que consiga quitar antes las telas del equipo contrario.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 52,
+    "activo": true
+  },
+  {
+    "id": "juego-036",
+    "nombre": "Meeting point",
+    "descripcion": "Cada equipo tendrá una base. Cada miembro del equipo responderá a unas preguntas sobre sí mismos. Preguntas: comida favorita, lugar al que te gustaría viajar, película favorita, futura profesión y deporte favorito. Los miembros de un equipo deberán ir a la base del equipo contrario. Al llegar pueden conseguir una sola respuesta. Al saber la respuesta vuelven corriendo a su base para comunicárselo a su monitor. En cuento tienen las cinco respuestas de uno de los miembros del equipo contrario, podrán ir a la base de ese equipo y decirlas al monitor. Si acierta las cinco respuestas dará una foto de ea persona.  Gana el equipo que consiga antes las fotos de todo los miembros del equipo contrario. Cuando se encuentran dos de equipos distintos pueden pillarse. Si se pillan se retan a piedra, papel o tijera a uno. El que pierde debe quedarse en el lugar parado y contar hasta diez en voz alta.",
+    "materiales": [
+      "Cámara/móvil (fotos)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-037",
+    "nombre": "Pañuelo esterilla",
+    "descripcion": "Igual que el pañuelo normal pero en este caso, se sustituye el pañuelo por dos esterillas. Cada vez que se dice un número, saldrá uno de cada equipo, chutará la esterilla del equipo contrario y correrá a por la suya. Gana el equipo que antes plante su esterilla en la base.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-038",
+    "nombre": "Pañuelo gigante",
+    "descripcion": "Se pondrá a cada equipo en un lado del campo. Y se les asignará un color (azul o rojo) En el centro habrá dos pelotas gigantes azul y roja. Al escuchar el número, deberán salir corriendo, golpear la pelota del equipo contrario y correr para atrapar la pelota de su color. Ganará el equipo que primero consiga plantar la pelota en su sitio.",
+    "materiales": [
+      "Pelota(s)",
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 21,
+    "activo": true
+  },
+  {
+    "id": "juego-039",
+    "nombre": "Escondite al revés",
+    "descripcion": "Se esconde una persona y el resto deberá ir a buscarla. Cuando la encuentra, se esconde con el/ella en silencio. Cuando 4 personas hayan encontrado a la persona escondida, se acaba la partida. El siguiente en esconderse será la primera persona que encontró al escondido en la partida anterior.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 6,
+    "activo": true
+  },
+  {
+    "id": "juego-040",
+    "nombre": "Hundir la flota",
+    "descripcion": "Se pondrán a cada lado de la lona y con la pelota deberán tirarla y conseguir darle a uno del otro equipo.",
+    "materiales": [
+      "Pelota(s)",
+      "Lona"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 12,
+    "activo": true
+  },
+  {
+    "id": "juego-041",
+    "nombre": "¡Atiza, que puntería!",
+    "descripcion": "Con ojos cerrados deberán lanzar a la canasta y acertar por lo menos la mitad de los jugadores.",
+    "materiales": [
+      "Canasta/aro de baloncesto"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 12,
+    "activo": true
+  },
+  {
+    "id": "juego-042",
+    "nombre": "¡Atiza, que puntería! 2.0",
+    "descripcion": "Deberán lanzar una pelota a una torre de vasos. Gana el equipo que más vasos consiga tirar en una ronda.",
+    "materiales": [
+      "Pelota(s)",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 8,
+    "activo": true
+  },
+  {
+    "id": "juego-043",
+    "nombre": "¡Dame tu firmita!",
+    "descripcion": "Deberán conseguir el mayor número de firmas posible en 1 minuto.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 31,
+    "activo": true
+  },
+  {
+    "id": "juego-044",
+    "nombre": "El churrobaile",
+    "descripcion": "Concurso de baile. Gana quien baile peor.",
+    "materiales": [
+      "Churro"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-045",
+    "nombre": "¡Tarareo Jones!",
+    "descripcion": "Irán saliendo uno a uno. Se pondrán unos cascos/auriculares y deberán tararear la canción que escuchen para que la adivinen el resto de niños.",
+    "materiales": [
+      "Altavoz / música",
+      "Cascos/auriculares"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 14,
+    "activo": true
+  },
+  {
+    "id": "juego-046",
+    "nombre": "Frozen",
+    "descripcion": "Pondremos música. Como el juego de las sillas musicales. Cuando la música pare deberán quedarse quietos como estatuas.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 23,
+    "activo": true
+  },
+  {
+    "id": "juego-047",
+    "nombre": "Meeeeeeec",
+    "descripcion": "Se pondrán en círculo. Iremos haciendo preguntas uno a uno y deberán dar una respuesta incorrecta a la pregunta. Por ejemplo: ¿Cómo se llaman los Reyes Magos? - Miguel, Samuel y Juan.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-048",
+    "nombre": "3, 2, 1... ¡Acción!",
+    "descripcion": "Han de conseguir que uno de los invitados adivine la mayor cantidad de películas Disney representadas por los participantes.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 0,
+    "activo": true
+  },
+  {
+    "id": "juego-049",
+    "nombre": "La torre inclinada",
+    "descripcion": "Competición participantes vs monitores a la torre inclinada. Al mejor de tres.",
+    "materiales": [
+      "Torre de bloques apilables (tipo Jenga gigante)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 19,
+    "activo": true
+  },
+  {
+    "id": "juego-050",
+    "nombre": "Photocrazy",
+    "descripcion": "En 10 minutos deben conseguir hacerse al menos 10 fotos divertidas/originales con diferentes invitados.",
+    "materiales": [
+      "Cámara/móvil (fotos)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-051",
+    "nombre": "Paletillas de playa",
+    "descripcion": "El reto consiste en conseguir superar el récord de 50 toques seguidos en Paletillas de playa.",
+    "materiales": [
+      "Palas de playa"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-052",
+    "nombre": "Pañuelo playero",
+    "descripcion": "El pañuelo de toda la vida pero antes de salir deberán dar cinco vueltas sobre si mismos.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-053",
+    "nombre": "Pañuelo",
+    "descripcion": "Dos equipo, cada niño tiene un número. Al decir el número salen y el primero que coja el pañuelo y llegue a su base gana punto.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 63,
+    "activo": true
+  },
+  {
+    "id": "juego-054",
+    "nombre": "Bolos",
+    "descripcion": "Rellenamos botellas de plástico con arena y por turnos tratan de derribar los bolos.",
+    "materiales": [
+      "Botellas de plástico",
+      "Botella(s)",
+      "Arena / zona de playa"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 11,
+    "activo": true
+  },
+  {
+    "id": "juego-055",
+    "nombre": "BolosXL",
+    "descripcion": "En dos equipos, uno hará de bolos y el otro tirará la pelota.",
+    "materiales": [
+      "Pelota(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-056",
+    "nombre": "Pictionary",
+    "descripcion": "En dos equipos jugaremos al pictionay en la arena. La persona que dibuja no puede hablar.",
+    "materiales": [
+      "Arena / zona de playa"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-057",
+    "nombre": "El palacete",
+    "descripcion": "En dos equipos harán una competición de castillos de arena.",
+    "materiales": [
+      "Arena / zona de playa"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-058",
+    "nombre": "Pin y pong",
+    "descripcion": "Se colocan vasos de plástico sobre el suelo como si fueran bolos. Los participantes tendrán que tirar la pelota, haciendo que bote primero en el suelo, consiguiendo que ente dentro de un vaso. Gana el equipo que más veces enceste en 1 minuto.",
+    "materiales": [
+      "Pelota(s)",
+      "Vasos de plástico",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-059",
+    "nombre": "Guacamole",
+    "descripcion": "Se pondrá una sabana tensa con agujeros lo suficientemente grandes como para que saquen la cabeza. Se pondrá un equipo debajo (topos) y se elegirá a un representante del otro equipo (cazador). Los topos, que están debajo de la sabana, tendrán que sacar la cabeza por los agujeros y el cazador tendrá que golpearlos con un churro en la cabeza. El juego consiste en que los topos tienen que ser rápidos para que no les den en la cabeza. Topo cazado topo eliminado.",
+    "materiales": [
+      "Sábana",
+      "Churro"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-060",
+    "nombre": "Guacamole (variante contrarreloj)",
+    "descripcion": "Competición a ver que equipo acaba antes con los topos.",
+    "materiales": [
+      "Sábana",
+      "Churro"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-061",
+    "nombre": "Saber o explotar",
+    "descripcion": "Sobre un árbol se pasa una cuerda y se ata un globo. El juego consiste en que debajo del globo se coloca un participante con una diadema con alfileres. Iremos haciéndoles preguntas varias que deberán responder. Si aciertan el globo sube, si fallan el globo baja. Cada pregunta la responde un miembro del equipo. Deberán conseguir que no les explote el globo. Ganará el que consiga que su globo no explote.",
+    "materiales": [
+      "Globos",
+      "Cuerda",
+      "Diadema",
+      "Alfileres"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-062",
+    "nombre": "Tu sí que vendes",
+    "descripcion": "Se les dará un objeto absurdo a cada equipo y deberán venderlo a alguno de los invitados. Gana aquel equipo que lo venda por más dinero. El dinero se devuelve después del juego.",
+    "materiales": [
+      "Objeto absurdo (a elegir)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-063",
+    "nombre": "Chilichuche",
+    "descripcion": "Se saca a un equipo. A cada participante se le dará una chuche. El juego consiste en que a dos o tres de los investigadores se les dará una chuche picante. El otro equipo de participantes deberá adivinar cuál de los participantes que están comiendo la chuche lleva la chuche picante.",
+    "materiales": [
+      "Chuches"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-064",
+    "nombre": "¿Qué será será?",
+    "descripcion": "Se ponen dos cajas cada una con dos agujeros para meter las manos. Dentro de ellas se pondrá un objeto. Deberán tocar los distintos objetos sin verlos y adivinar de que objeto se trata. Gana el que más objetos adivine.",
+    "materiales": [
+      "Cajas"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-065",
+    "nombre": "Zumbeame",
+    "descripcion": "Deberán conseguir a x invitados para darles una clase magistral de zumba. Poniéndoles una música alguno de los participantes deberá dar una clase de zumba a sus clientes.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-066",
+    "nombre": "Dejajas",
+    "descripcion": "Los participantes tendrán que conseguir que los monitores nos riamos y escupamos el agua que llevamos en la boca.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-067",
+    "nombre": "Sillas musicales",
+    "descripcion": "Típico juego de las sillas. Hay una silla de menos. Se pone música y cuando se para, tienen que sentarse. El que se queda sin silla pierde.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 20,
+    "activo": true
+  },
+  {
+    "id": "juego-068",
+    "nombre": "Aros musicales",
+    "descripcion": "Típico juego de las sillas, pero usando los aros. Hay un aro de menos. Se pone música y cuando se para, tienen que saltar dentro del aro. El que se queda sin aro pierde.",
+    "materiales": [
+      "Aros",
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 62,
+    "activo": true
+  },
+  {
+    "id": "juego-069",
+    "nombre": "Manzana al tenedor",
+    "descripcion": "Con tenedores y manzanas, consiste en ver que equipo consigue clavar más tenedores, seguidos, en una manzana.",
+    "materiales": [
+      "Tenedores",
+      "Manzanas"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-070",
+    "nombre": "Carrera de sacos del heladero",
+    "descripcion": "En dos filas, consiste en una carrera de relevos con saco y al final habrá un helado. El primer equipo que salga completo y se acabe el helado gana.",
+    "materiales": [
+      "Sacos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-071",
+    "nombre": "Carrera de sacos",
+    "descripcion": "Dos equipo, se ponen en fila y va saliendo cada vez uno haciendo un recorrido. Al volver le pasa el saco al siguiente del equipo. Gana el equipo que consiga que sus integrantes completen antes el recorrido.",
+    "materiales": [
+      "Sacos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 9,
+    "activo": true
+  },
+  {
+    "id": "juego-072",
+    "nombre": "Pictioloco",
+    "descripcion": "Como el teléfono loco pero con dibujos. En fila, cada uno cogerá un folio y un rotulador. Comenzará el último de la fila haciendo una parte del dibujo. El siguiente deberá dibujar en el folio apoyado en la espalda del siguiente participante lo percibido y así sucesivamente.",
+    "materiales": [
+      "Folios",
+      "Bolígrafos/rotuladores"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-073",
+    "nombre": "La araña",
+    "descripcion": "En el centro dos monitores. Los participantes deberán de ir de un lado al otro del campo evitando ser pillados.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 22,
+    "activo": true
+  },
+  {
+    "id": "juego-074",
+    "nombre": "Globocoptero",
+    "descripcion": "Se hinchan tres globos de colores diferentes. Cada globo tiene una puntuación. Se suelta para que salgan volando y tienen que conseguir cogerlo antes de que toque el suelo",
+    "materiales": [
+      "Globos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 72,
+    "activo": true
+  },
+  {
+    "id": "juego-075",
+    "nombre": "Carrera de borrachos",
+    "descripcion": "Con una cuchara y una pelota tendrán que llegar hasta el final del recorrido y volver sin que caiga la pelota. Si la pelota cae, volverán a empezar.",
+    "materiales": [
+      "Pelota(s)",
+      "Cuchara"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-076",
+    "nombre": "¡Canasta!",
+    "descripcion": "Con una diadema y un vaso pegada en ella. Tiran una pelota al aire y tiene que hacer canasta.",
+    "materiales": [
+      "Pelota(s)",
+      "Vaso(s)",
+      "Diadema",
+      "Canasta/aro de baloncesto"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 34,
+    "activo": true
+  },
+  {
+    "id": "juego-077",
+    "nombre": "¡Furor!",
+    "descripcion": "Se pondrá una canción y cuando se pare han de seguir la letra. El equipo que lo consiga se lleva el punto.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-078",
+    "nombre": "Relevos circenses",
+    "descripcion": "Cada participante se pone un palillo de brocheta en la boca. El primero, con un vaso de plástico en el otro extremo del palillo, deberá pasarlo al palillo del siguiente participante sin usar las manos y así sucesivamente.",
+    "materiales": [
+      "Vasos de plástico",
+      "Vaso(s)",
+      "Palillos de brocheta"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-079",
+    "nombre": "Simon say’s",
+    "descripcion": "Se pondrán cara a cara. En el suelo un objeto que han de coger. El monitor dirá partes del cuerpo que deberán ir señalando y cuando diga una palabra clave, los participantes encarados deberán coger el objeto del suelo. El primero que lo coja gana.",
+    "materiales": [
+      "Objeto pequeño (a elegir)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-080",
+    "nombre": "Globo en raya",
+    "descripcion": "Por equipo. Se pondrán un cinturón de globos al rededor de la cintura. El juego consiste en que, siguiendo unas lineas en el suelo de las que no se pueden salir, han de ir explotándose los globos unos a otros hasta que solo quede una persona.",
+    "materiales": [
+      "Globos",
+      "Cinturón"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-081",
+    "nombre": "3 en raya gigante",
+    "descripcion": "Dos equipos. En un tablero grande, consiste en jugar al 3 en raya. Cada vez sale uno del equipo.",
+    "materiales": [
+      "Tablero"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-082",
+    "nombre": "¡A soplar!",
+    "descripcion": "Se pone una cuerda de un extremo a otro. Por dentro de la cuerda ponemos un baso de plástico. Por turnos deberán competir entre ellos. Consiste en soplar al vaso y conseguir llegar de un lado al otro. Gana le que llegue primero.",
+    "materiales": [
+      "Cuerda",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-083",
+    "nombre": "La tiza manda",
+    "descripcion": "Por equipos. En el suelo se dibujará una fila de círculos divididos por la mitad. Cada uno con una orientación. Los participantes deberán saltar de un circulo a otro sin esa la línea del centro y poniendo en cada salto los pies en la dirección correcta.",
+    "materiales": [
+      "Tiza"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-084",
+    "nombre": "Cuadrado mágico",
+    "descripcion": "Consiste en ordenar los conos de colores para que estén en fila sin levantarlos del tablero.",
+    "materiales": [
+      "Conos",
+      "Tablero"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-085",
+    "nombre": "Palangana veraniega",
+    "descripcion": "Cada niño meterá la cabeza en una palangana con agua. En ella habrá caramelos. Deberán coger caramelos de dentro de la palangana con la boca.",
+    "materiales": [
+      "Palangana"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 4,
+    "activo": true
+  },
+  {
+    "id": "juego-086",
+    "nombre": "Patata Splash",
+    "descripcion": "En un círculo, se pasarán la patata de uno a otro hasta que explote el globo de dentro.",
+    "materiales": [
+      "Globos",
+      "Patata"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-087",
+    "nombre": "Ni Si ni No",
+    "descripcion": "Se harán preguntas al azar a cada niño y no podrán responder ni Si no No. Si lo hacen les mojaremos con una pistola de agua.",
+    "materiales": [
+      "Pistola de agua"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-088",
+    "nombre": "Relevos pasados por agua",
+    "descripcion": "Una típica carrera de relevos pero llevarán en la cabeza una botella o vaso de plástico con agua. Deberán ir de un lado al otro con la botella en la cabeza evitando que caiga el agua. Ganará el equipo que llene con más agua la palangana.",
+    "materiales": [
+      "Palangana",
+      "Botella(s)",
+      "Vasos de plástico",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 15,
+    "activo": true
+  },
+  {
+    "id": "juego-089",
+    "nombre": "Pañuelo mojado",
+    "descripcion": "Igual que el pañuelo normal pero en este caso, se sustituye el pañuelo por una pistola de agua. Cada vez que se dice un número, saldrá uno de cada equipo, el primero que llegué cogerá la pistola y deberá mojar a su contrincante. Gana el equipo que más veces moje al otro equipo.",
+    "materiales": [
+      "Pistola de agua",
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 8,
+    "activo": true
+  },
+  {
+    "id": "juego-090",
+    "nombre": "Esponjas remojadas",
+    "descripcion": "En dos equipos, se tumbarán boca arriba con las piernas flexionadas. El primero cogerá una esponja con los pies y deberá pasarla al siguiente sin levantarse hasta que lleguen al final. Gana el equipo que antes lo consiga.",
+    "materiales": [
+      "Esponjas"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-091",
+    "nombre": "Declaro la esponja a…",
+    "descripcion": "Como el clásico juego de declaro la guerra pero en esta ocasión, los niños jugaran con una esponja empapada.",
+    "materiales": [
+      "Esponjas"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-092",
+    "nombre": "Water pong",
+    "descripcion": "Se hacen dos equipos, cada uno colocará 10 vasos en formación de bolos y se rellenaran con agua. Se trata de encestar una pelota de ping pong en uno de los vasos del equipo contrario, cuando un jugador encesta decide a quién le tira el agua del vaso.",
+    "materiales": [
+      "Pelotas de ping-pong",
+      "Pelota(s)",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 6,
+    "activo": true
+  },
+  {
+    "id": "juego-093",
+    "nombre": "Que el ritmo no pare",
+    "descripcion": "Extendemos una lona en el suelo y la mojamos para que resbale mucho. Pondremos música y deberán bailar. Cuando la música pare, tendrán que quedarse quietos.",
+    "materiales": [
+      "Altavoz / música",
+      "Lona"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-094",
+    "nombre": "A cubazos",
+    "descripcion": "Sentados en fila y dándose la espalda. Pasaran del primero al último agua de cubo en cubo por encima de la cabeza. Gana el equipo que al final tenga más agua en el último cubo.",
+    "materiales": [
+      "Cubos"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-095",
+    "nombre": "MascARTilla",
+    "descripcion": "Cada participante decorará su propia mascarilla de tela a su estilo.",
+    "materiales": [
+      "Pañuelo/tela"
+    ],
+    "categorias": [
+      "Talleres"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-096",
+    "nombre": "Cualgamask",
+    "descripcion": "Cada participante hará su propio cuelga mascarillas con hilo y bolitas de colores.",
+    "materiales": [
+      "Hilo"
+    ],
+    "categorias": [
+      "Talleres"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-097",
+    "nombre": "Fútbol Frisbie",
+    "descripcion": "Dos equipos. Deben conseguir meter gol con el frisbie. Cuando cogen el frisbie no pueden moverse del sitio. Para meter gol ha de tocar el frisbie todo el equipo.",
+    "materiales": [
+      "Frisbee"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-098",
+    "nombre": "Baseball",
+    "descripcion": "Dos equipos y cuatro bases. Un equipo lanza el balón y el otro chuta. Si el equipo que recibe empoma la pelota se cambian los equipos. Si el pitcher planta el balón antes de que llegue a la base, el jugador es eliminado. Cuando completan una vuelta se suma un punto.",
+    "materiales": [
+      "Pelota(s)",
+      "Balón"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 7,
+    "activo": true
+  },
+  {
+    "id": "juego-099",
+    "nombre": "Balontiro",
+    "descripcion": "Dos equipos. Si golpean se van al cementerio y deben intentar salvarse golpeando a un miembro del otro equipo.",
+    "materiales": [
+      "Balón"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 33,
+    "activo": true
+  },
+  {
+    "id": "juego-100",
+    "nombre": "Colpball",
+    "descripcion": "Fútbol con la mano. No pueden usarse los pies ni coger el balón y solo puede darse un toque cada vez.",
+    "materiales": [
+      "Balón"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 3,
+    "activo": true
+  },
+  {
+    "id": "juego-101",
+    "nombre": "Fútbol noruego",
+    "descripcion": "Dos equipos. Cada jugador llevará una cuerda atada al pantalón. El juego consiste en plantar la pelota en la línea del equipo contrario. Los jugadores solo podrán anotar gol si el balón ha sido tocado por todo el equipo. Con el balón pueden moverse por todo el campo libremente. Si una persona del otro equipo quita la cinta a la persona que lleva el balón. Este debe parar y pasar la pelota a alguien de su equipo. El equipo defensor puede recuperar la pelota interceptando un pase, pero nunca quitando la pelota de la mano al equipo atacante. Si lo hacen, será falta y tendrá que salir del campo por 15 segundos.",
+    "materiales": [
+      "Pelota(s)",
+      "Cuerda",
+      "Balón",
+      "Cinta"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 12,
+    "activo": true
+  },
+  {
+    "id": "juego-102",
+    "nombre": "Pistolero acuático",
+    "descripcion": "Se pone un niño o niña en el centro del círculo, coge una pistola de agua y va dando vueltas sobre sí mismo. El juego consiste en que cuando se pare y dispare agua a uno de los participantes, este deberá agacharse y los compañeros que tiene a su derecha e izquierda deberán decir los nombres del otro respectivamente. El primero que lo diga gana. El que pierde pasa a ser pistolero y el pistolero ocupa el lugar del que ha perdido.",
+    "materiales": [
+      "Pistola de agua"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 9,
+    "activo": true
+  },
+  {
+    "id": "juego-103",
+    "nombre": "Lyrics master",
+    "descripcion": "Se elige una palabra clave y cada equipo debe cantar una canción que la contenga. Si repites, te trabas o te quedas en blanco, estás fuera.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 9,
+    "activo": true
+  },
+  {
+    "id": "juego-104",
+    "nombre": "No pierdas el ritmo",
+    "descripcion": "El DJ lanza el inicio de una canción y el equipo debe seguir la letra sin errores. Si fallas, dudas o inventas palabras, estás fuera.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 7,
+    "activo": true
+  },
+  {
+    "id": "juego-105",
+    "nombre": "Salto al hit",
+    "descripcion": "La música suena, todos bailan y cuando se detiene hay que correr y saltar dentro de un aro. Hay menos aros que jugadores; el que se queda fuera, eliminado.",
+    "materiales": [
+      "Aros",
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 6,
+    "activo": true
+  },
+  {
+    "id": "juego-106",
+    "nombre": "¿Te la sabes?",
+    "descripcion": "Se reproduce un fragmento muy corto de una canción y los equipos deben adivinarla lo más rápido posible. El primer equipo que pulse el botón tiene la oportunidad de adivinar canción y cantante.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 6,
+    "activo": true
+  },
+  {
+    "id": "juego-107",
+    "nombre": "Hits con emoticonos",
+    "descripcion": "Se proyectan secuencias de emojis que representan una canción. El equipo que lo adivine primero gana el punto.",
+    "materiales": [
+      "Altavoz / música",
+      "Proyector / pantalla"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 8,
+    "activo": true
+  },
+  {
+    "id": "juego-108",
+    "nombre": "Batalla de gallos",
+    "descripcion": "Se sacan voluntarios a improvisar rimas por turnos, con respeto y sin palabrotas.",
+    "materiales": [],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-109",
+    "nombre": "Volley ball",
+    "descripcion": "Dos equipos separados por una red intentan pasar la pelota sin que toque el suelo de su campo. Se juega a 15 puntos o el equipo que más puntos lleve a los 15 minutos de partido.",
+    "materiales": [
+      "Pelota(s)",
+      "Red"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-110",
+    "nombre": "Fútbol playa gigante",
+    "descripcion": "Dos equipos se enfrentan en un partido de fútbol con una pelota gigante. Gana el primero que meta 5 goles o el equipo que más goles lleve a los 15 minutos de partido.",
+    "materiales": [
+      "Pelota gigante",
+      "Pelota(s)"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-111",
+    "nombre": "Tingo tango",
+    "descripcion": "Se emparejan y se separan en dos círculos. Se dice tingo tingo tingo y al decir tango tienen que romper el círculo, encontrar a su pareja y sentarse. La última pareja que se siente se elimina.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 11,
+    "activo": true
+  },
+  {
+    "id": "juego-112",
+    "nombre": "Petanca sueca",
+    "descripcion": "Versión simplificada de la petanca. Al derribar las cinco piezas del equipo contrario, se derriba la reina.",
+    "materiales": [
+      "Juego de petanca (bolos suecos)"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 5,
+    "activo": true
+  },
+  {
+    "id": "juego-113",
+    "nombre": "Soga-tira",
+    "descripcion": "Dos equipos se colocan a cada lado de una cuerda. Al silbato, tiran con fuerza intentando arrastrar al otro equipo más allá de una marca en el suelo.",
+    "materiales": [
+      "Cuerda",
+      "Silbato"
+    ],
+    "categorias": [
+      "Juegos deportivos"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  },
+  {
+    "id": "juego-114",
+    "nombre": "Coge el micro",
+    "descripcion": "Se eligen voluntarios de cada equipo. En el centro hay un micro y tarjetas bocabajo. Levantan una tarjeta y el primero en cantar una canción con la palabra que salga gana el punto.",
+    "materiales": [
+      "Altavoz / música",
+      "Micrófono(s)",
+      "Tarjetas"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-115",
+    "nombre": "El lince",
+    "descripcion": "En el centro una hoja llena de números. Cada participante tiene una hoja con 54 casillas y debe tachar el número que se diga en voz alta antes que el resto. Gana quien antes tache sus 54 casillas.",
+    "materiales": [
+      "Hojas"
+    ],
+    "categorias": [
+      "Feria"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-116",
+    "nombre": "Baloon bolt",
+    "descripcion": "Una mesa llena de vasos bocabajo. El participante lanza un globo al aire y agrupa vasos antes de que el globo toque el suelo, recogiéndolo y repitiendo. Gana quien antes agrupe todos los vasos.",
+    "materiales": [
+      "Globos",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Feria"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-117",
+    "nombre": "Scream challenge",
+    "descripcion": "Por turnos, corren mientras gritan sin tomar aire. Gana quien llegue más lejos.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-118",
+    "nombre": "Memory extreme",
+    "descripcion": "Una hoja con 12 casillas muestra un patrón de dibujos. Cada participante debe memorizarlo y replicarlo en su propia hoja vacía. Gana quien antes lo replique sin errores.",
+    "materiales": [
+      "Hojas"
+    ],
+    "categorias": [
+      "Feria"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-119",
+    "nombre": "Pasa el baile",
+    "descripcion": "Como el teléfono loco pero con baile. En fila, el último hace un paso de baile al de delante, que debe pasarlo sin errores hasta el principio de la fila.",
+    "materiales": [],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-120",
+    "nombre": "El espantapájaros",
+    "descripcion": "Una persona hace de espantapájaros. El resto, de uno en uno, corre a colocarle un vaso encima y vuelve para que salga el siguiente. Gana el equipo cuyo espantapájaros mantenga más vasos al final.",
+    "materiales": [
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-121",
+    "nombre": "El gusano juguetón",
+    "descripcion": "El primer participante coge un globo, se lo coloca en la espalda y corre a por el siguiente. Entre ambos sostienen un globo mientras corren a por el siguiente participante, y así sucesivamente.",
+    "materiales": [
+      "Globos"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-122",
+    "nombre": "El circo",
+    "descripcion": "Cada participante lleva un vaso o cono en la cabeza y debe ser el último en conservarlo, sin usar las manos para tirar el de otro.",
+    "materiales": [
+      "Conos",
+      "Vaso(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-123",
+    "nombre": "Pasa el aro",
+    "descripcion": "En fila, el primero lleva un aro en el cuello y, sin usar las manos, lo pasa al siguiente hasta el final de la fila.",
+    "materiales": [
+      "Aros"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-124",
+    "nombre": "Adivina el color",
+    "descripcion": "Se colocan cinco globos de colores distintos y se coloca sobre el participante un globo de agua de un color al azar; debe adivinar cuál, si acierta se salva, si falla se le explota encima.",
+    "materiales": [
+      "Globos de agua",
+      "Globos"
+    ],
+    "categorias": [
+      "Juegos de agua"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-125",
+    "nombre": "El flan volador",
+    "descripcion": "El monitor lanza un flan y el participante debe atraparlo con la boca sin que toque el suelo.",
+    "materiales": [
+      "Flanes"
+    ],
+    "categorias": [
+      "Feria"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-126",
+    "nombre": "Tortilla challenge",
+    "descripcion": "Dos equipos en fila encarados, cada uno con una tortita. Juegan a piedra, papel o tijera; quien gana golpea con la tortita al otro, que sale de la fila.",
+    "materiales": [
+      "Tortitas"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-127",
+    "nombre": "Botella de distancia",
+    "descripcion": "Un voluntario lanza la botella lo más lejos posible, apoyando siempre un pie en el suelo. Gana el equipo que la coloque más lejos.",
+    "materiales": [
+      "Botella(s)"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-128",
+    "nombre": "No te sientes",
+    "descripcion": "En círculo, todos dicen a la vez un número y hacen como que se sientan. Si coinciden dos con el mismo número, quedan eliminados.",
+    "materiales": [],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-129",
+    "nombre": "Switch baloon",
+    "descripcion": "Cada participante tiene un globo. Al silbato, lo lanzan al aire y cogen uno ajeno. Quien no consiga coger un globo queda eliminado.",
+    "materiales": [
+      "Globos",
+      "Silbato"
+    ],
+    "categorias": [
+      "Juegos de desarrollo"
+    ],
+    "veces_usado": 1,
+    "activo": true
+  },
+  {
+    "id": "juego-130",
+    "nombre": "Tingo tango musical",
+    "descripcion": "Variante de Tingo tango: en lugar de gritar “tingo tango”, se pone música y los participantes corren a buscar a su pareja cuando la música se detiene.",
+    "materiales": [
+      "Altavoz / música"
+    ],
+    "categorias": [
+      "Furor"
+    ],
+    "veces_usado": 2,
+    "activo": true
+  }
+]

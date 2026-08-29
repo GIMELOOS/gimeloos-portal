@@ -33,21 +33,23 @@ export async function POST(request) {
     }
 
     try {
-      // Buscar si ya existe en Auth
-      const { data: existing } = await supabaseAdmin.auth.admin.listUsers();
-      const existingUser = existing?.users?.find((u) => u.email === email.toLowerCase().trim());
+      // Buscar si ya existe en Auth por email (evita límite de paginación de listUsers)
+      const normalizedEmail = email.toLowerCase().trim();
+      const { data: byEmail } = await supabaseAdmin.auth.admin.getUserByEmail(normalizedEmail);
+      const existingUser = byEmail?.user ?? null;
 
       let authUid;
 
       if (existingUser) {
         // Actualizar contraseña si cambió
-        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { password });
+        const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { password });
+        if (updErr) { results.errors.push({ email: normalizedEmail, error: updErr.message }); continue; }
         authUid = existingUser.id;
         results.updated++;
       } else {
         // Crear cuenta nueva — email_confirm: true para acceso inmediato
         const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           password,
           email_confirm: true,
         });
@@ -60,10 +62,11 @@ export async function POST(request) {
       }
 
       // Vincular auth_uid en participants
-      await supabaseAdmin
+      const { error: linkErr } = await supabaseAdmin
         .from("participants")
         .update({ auth_uid: authUid })
         .eq("id", participantId);
+      if (linkErr) { results.errors.push({ participantId, error: "auth_uid link: " + linkErr.message }); continue; }
 
     } catch (err) {
       results.errors.push({ participantId, error: err.message });

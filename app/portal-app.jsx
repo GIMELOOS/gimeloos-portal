@@ -86,6 +86,7 @@ import {
   CreditCard,
   Download,
   Eye,
+  ExternalLink,
   FileCheck2,
   FileText,
   FolderUp,
@@ -110,7 +111,7 @@ import {
   Settings,
   ChevronRight,
   Sparkles,
-  Map,
+  Map as MapIcon,
   ListChecks,
   Plus,
   Luggage,
@@ -121,6 +122,11 @@ import {
   Clock,
   ImagePlus,
   Loader2,
+  Save,
+  BadgeCheck,
+  Home,
+  Grid2x2,
+  Building2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -131,6 +137,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CORPORATE_RED = "#FF3131";
 // [MENOR-1] Renombrado: era SESSION_STORAGE_KEY pero usaba localStorage
@@ -154,10 +164,10 @@ const initialTrips = [
     heroImage: DEFAULT_HERO_IMAGES[0],
     heroImages: [DEFAULT_HERO_IMAGES[0], DEFAULT_HERO_IMAGES[1], DEFAULT_HERO_IMAGES[2]],
     transferInfo: {
-      bank: "Banco Santander",
-      accountHolder: "GIMELOOS Experiences SL",
-      iban: "ES12 1234 5678 9012 3456 7890",
-      concept: "Nombre del participante + viaje",
+      bank: "",
+      accountHolder: "",
+      iban: "",
+      concept: "",
     },
     automation: {
       autoReminderEnabled: true,
@@ -208,10 +218,10 @@ const initialTrips = [
     heroImage: DEFAULT_HERO_IMAGES[1],
     heroImages: [DEFAULT_HERO_IMAGES[1], DEFAULT_HERO_IMAGES[0], DEFAULT_HERO_IMAGES[3]],
     transferInfo: {
-      bank: "CaixaBank",
-      accountHolder: "GIMELOOS Experiences SL",
-      iban: "ES98 0000 1111 2222 3333 4444",
-      concept: "Nombre del participante + Zarautz",
+      bank: "",
+      accountHolder: "",
+      iban: "",
+      concept: "",
     },
     automation: { autoReminderEnabled: true, reminderDaysBefore: 5 },
     documentRules: [
@@ -414,11 +424,11 @@ const getNextStep = (user, trip, templates) => {
   const pendingUploadDoc = user.documents.find((doc) => doc.status === "pending_upload");
   const pendingConfirmationDoc = user.documents.find((doc) => doc.status === "pending_confirmation");
   const pendingPaymentKey =
-    user.payments.reservation.status !== "sent"
+    user.payments?.reservation?.status !== "sent"
       ? "enviar el justificante de la reserva"
-      : user.payments.firstInstallment.status !== "sent"
+      : user.payments?.firstInstallment?.status !== "sent"
       ? "enviar el justificante de la primera cuota"
-      : user.payments.secondInstallment.status !== "sent"
+      : user.payments?.secondInstallment?.status !== "sent"
       ? "enviar el justificante de la segunda cuota"
       : null;
   const completedChecklist = trip.checklist.filter((item) => user.checklistState[item]).length;
@@ -444,7 +454,7 @@ async function getAuthToken() {
 async function sendNotification(type, to, participantId, data) {
   try {
     const token = await getAuthToken();
-    await fetch("/api/notify", {
+    const res = await fetch("/api/notify", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -452,8 +462,15 @@ async function sendNotification(type, to, participantId, data) {
       },
       body: JSON.stringify({ type, to, participantId, data }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("sendNotification failed:", type, res.status, body.error);
+      return { ok: false, error: body.error };
+    }
+    return { ok: true };
   } catch (err) {
     console.error("sendNotification error:", err);
+    return { ok: false, error: err.message };
   }
 }
 
@@ -482,16 +499,6 @@ async function uploadFileToDrive(file, participantName, subfolder, onProgress, t
   });
 }
 
-async function uploadFileToStorage(file, folder = "misc") {
-  const fileExt = file.name.split(".").pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-  const filePath = `${folder}/${fileName}`;
-  const { error } = await supabase.storage
-    .from("participant-documents")
-    .upload(filePath, file, { upsert: true });
-  if (error) throw error;
-  return { filePath, fileName: file.name };
-}
 
 // [ALTO-1] upsertDocument: no sobreescribe documentos ya confirmados
 async function upsertDocument(participantId, templateId, payload) {
@@ -521,7 +528,8 @@ async function upsertDocument(participantId, templateId, payload) {
 }
 
 // [ALTO-1] upsertPayment: no sobreescribe pagos ya confirmados o enviados
-async function upsertPayment(participantId, paymentKey, payload) {
+// bypassProtection=true lo usa el admin para confirmar/rechazar desde el panel
+async function upsertPayment(participantId, paymentKey, payload, bypassProtection = false) {
   const { data: existing, error: fetchErr } = await supabase
     .from("participant_payments")
     .select("id, status")
@@ -531,12 +539,11 @@ async function upsertPayment(participantId, paymentKey, payload) {
 
   if (fetchErr) throw fetchErr;
 
-  const PROTECTED_STATUSES = ["confirmed", "sent"];
-
   if (existing?.id) {
     const updates = { ...payload };
-    // Si ya está confirmado/enviado, no degradar el estado ni borrar justificante
-    if (PROTECTED_STATUSES.includes(existing.status)) {
+    // El cliente no puede degradar un pago ya enviado o confirmado;
+    // el admin (bypassProtection) sí puede cambiar el estado libremente.
+    if (!bypassProtection && ["confirmed", "sent"].includes(existing.status)) {
       delete updates.status;
       delete updates.proof_name;
       delete updates.proof_path;
@@ -552,6 +559,54 @@ async function upsertPayment(participantId, paymentKey, payload) {
       .insert({ participant_id: participantId, payment_key: paymentKey, ...payload });
     if (error) throw error;
   }
+}
+
+// ─── Exportar PDF ────────────────────────────────────────────────────────────
+function exportListToPDF(title, subtitle = "", htmlBody) {
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("El navegador ha bloqueado la ventana emergente.\nPor favor, permite ventanas emergentes para este sitio y vuelve a intentarlo.");
+    return;
+  }
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>${title} — GIMELOOS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; color: #18181b; background: #fff; padding: 32px 40px; }
+  .pdf-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; border-bottom: 2px solid #18181b; padding-bottom: 16px; }
+  .pdf-header-left h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .pdf-header-left p  { font-size: 12px; color: #71717a; margin-top: 4px; }
+  .pdf-header-brand   { font-size: 28px; font-weight: 700; letter-spacing: -1px; color: #18181b; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th { text-align: left; padding: 8px 10px; background: #f4f4f5; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #52525b; border-bottom: 1px solid #e4e4e7; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f4f4f5; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600; }
+  .badge-red  { background: #fee2e2; color: #b91c1c; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .room-block { margin-bottom: 16px; break-inside: avoid; }
+  .room-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  .room-students { font-size: 12px; color: #52525b; }
+  .footer { margin-top: 40px; font-size: 10px; color: #a1a1aa; text-align: center; }
+  @media print { body { padding: 20px 28px; } }
+</style></head><body>
+<div class="pdf-header">
+  <div class="pdf-header-left">
+    <h1>${title}</h1>
+    ${subtitle ? `<p>${subtitle}</p>` : ""}
+    <p>Generado el ${new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" })}</p>
+  </div>
+  <div class="pdf-header-brand">GIMELOOS</div>
+</div>
+${htmlBody}
+<div class="footer" style="border-top:1px solid #e4e4e7;padding-top:12px;margin-top:32px">
+  ⚠️ Documento confidencial — contiene datos personales protegidos por la LOPD/RGPD. Uso interno exclusivo. No distribuir.
+  <br>GIMELOOS · Listado generado automáticamente
+</div>
+</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
 }
 
 // ─── Componentes UI reutilizables ────────────────────────────────────────────
@@ -604,6 +659,7 @@ function ActionToast({ notifications, removeNotification }) {
               </div>
               <button
                 type="button"
+                aria-label="Cerrar notificación"
                 onClick={() => removeNotification(item.id)}
                 className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
               >
@@ -637,6 +693,30 @@ function LogoMark({ dark = false, totalParticipants = null }) {
 function LoginScreen({ onLogin, loginError, isLoading }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim());
+  const emailError = emailTouched && username && !emailValid ? "Introduce un email válido" : null;
+
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState(null);
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setForgotLoading(false);
+    if (error) {
+      setForgotError("No hemos podido enviar el enlace. Comprueba el email e inténtalo de nuevo.");
+    } else {
+      setForgotSent(true);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white text-zinc-950">
@@ -649,6 +729,8 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
           <img
             src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80"
             alt="Experiencias GIMELOOS"
+            width="1600"
+            height="900"
             className="absolute inset-0 h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.72),rgba(0,0,0,0.45),rgba(255,49,49,0.18))]" />
@@ -677,45 +759,216 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 pt-2 sm:p-7 sm:pt-2">
-                  {/* [CRÍTICO-1] onSubmit llama a supabase.auth.signInWithPassword en el padre */}
-                  <form
-                    className="space-y-4"
-                    onSubmit={(e) => { e.preventDefault(); onLogin(username, password); }}
-                  >
-                    <div className="space-y-2">
-                      <Label>Usuario</Label>
-                      <Input
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Introduce tu usuario"
-                        className="h-12 rounded-2xl border-zinc-200 bg-white"
-                        autoComplete="username"
-                      />
+                  {forgotMode ? (
+                    forgotSent ? (
+                      <div className="space-y-4">
+                        <div className="rounded-2xl bg-green-50 px-4 py-4 text-sm text-green-700">
+                          Hemos enviado un enlace a <strong>{forgotEmail}</strong>. Revisa tu bandeja de entrada y sigue las instrucciones.
+                        </div>
+                        <button
+                          type="button"
+                          className="w-full text-sm text-zinc-500 underline-offset-2 hover:underline"
+                          onClick={() => { setForgotMode(false); setForgotSent(false); setForgotEmail(""); }}
+                        >
+                          Volver al inicio de sesión
+                        </button>
+                      </div>
+                    ) : (
+                      <form className="space-y-4" onSubmit={handleForgotPassword}>
+                        <p className="text-sm text-zinc-500">Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.</p>
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            placeholder="Introduce tu email"
+                            className="h-12 rounded-2xl border-zinc-200 bg-white"
+                            autoComplete="email"
+                            type="email"
+                            required
+                          />
+                        </div>
+                        {forgotError && (
+                          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{forgotError}</div>
+                        )}
+                        <Button
+                          type="submit"
+                          disabled={forgotLoading}
+                          className="h-12 w-full rounded-2xl text-white shadow-lg"
+                          style={{ backgroundColor: CORPORATE_RED }}
+                        >
+                          {forgotLoading ? "Enviando..." : "Enviar enlace"}
+                        </Button>
+                        <button
+                          type="button"
+                          className="w-full text-sm text-zinc-500 underline-offset-2 hover:underline"
+                          onClick={() => { setForgotMode(false); setForgotError(null); }}
+                        >
+                          Volver al inicio de sesión
+                        </button>
+                      </form>
+                    )
+                  ) : (
+                    <>
+                      {/* [CRÍTICO-1] onSubmit llama a supabase.auth.signInWithPassword en el padre */}
+                      <form
+                        className="space-y-4"
+                        onSubmit={(e) => { e.preventDefault(); onLogin(username, password); }}
+                      >
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            onBlur={() => setEmailTouched(true)}
+                            placeholder="Introduce tu email"
+                            className={`h-12 rounded-2xl border-zinc-200 bg-white ${emailError ? "border-red-400" : ""}`}
+                            autoComplete="email"
+                            type="email"
+                          />
+                          {emailError && <p className="text-xs text-red-500">{emailError}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Contraseña</Label>
+                          <Input
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            type="password"
+                            placeholder="••••••••"
+                            className="h-12 rounded-2xl border-zinc-200 bg-white"
+                            autoComplete="current-password"
+                          />
+                        </div>
+                        {loginError && (
+                          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{loginError}</div>
+                        )}
+                        <Button
+                          type="submit"
+                          disabled={isLoading}
+                          className="h-12 w-full rounded-2xl text-white shadow-lg"
+                          style={{ backgroundColor: CORPORATE_RED }}
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          {isLoading ? "Entrando..." : "Entrar"}
+                        </Button>
+                      </form>
+                      <button
+                        type="button"
+                        className="mt-4 w-full text-sm text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+                        onClick={() => { setForgotMode(true); setForgotEmail(username); }}
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordScreen({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
+    setLoading(true);
+    setError(null);
+    const { error: updErr } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (updErr) { setError("No se pudo actualizar la contraseña: " + updErr.message); return; }
+    setDone(true);
+    await supabase.auth.signOut();
+    setTimeout(onDone, 2500);
+  }
+
+  return (
+    <div className="min-h-screen bg-white text-zinc-950">
+      <div className="mx-auto flex min-h-screen max-w-6xl items-center p-4 sm:p-6 lg:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full overflow-hidden rounded-[32px] border border-black/5 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.18)]"
+        >
+          <img
+            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80"
+            alt="Experiencias GIMELOOS"
+            width="1600" height="900"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.72),rgba(0,0,0,0.45),rgba(255,49,49,0.18))]" />
+          <div className="relative grid min-h-[700px] grid-cols-1 lg:grid-cols-[1.1fr_420px]">
+            <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+              <LogoMark dark />
+              <div className="mt-4 max-w-xl">
+                <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">Área privada de clientes</Badge>
+                <h1 className="mt-4 text-[1.35rem] font-semibold leading-tight tracking-tight text-white sm:text-[1.65rem] lg:text-[1.95rem]">
+                  LA EXPERIENCIA QUE TE MERECES
+                </h1>
+              </div>
+            </div>
+            <div className="flex items-end p-4 sm:p-6 lg:items-center lg:p-6">
+              <Card className="w-full rounded-[28px] border border-white/10 bg-white/88 shadow-2xl backdrop-blur-xl">
+                <CardHeader className="space-y-3 p-6 pb-3 sm:p-7 sm:pb-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">GIMELOOS</div>
+                    <CardTitle className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
+                      Nueva contraseña
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 pt-2 sm:p-7 sm:pt-2">
+                  {done ? (
+                    <div className="rounded-2xl bg-green-50 px-4 py-4 text-sm text-green-700">
+                      ✓ Contraseña actualizada. Redirigiendo al inicio de sesión…
                     </div>
-                    <div className="space-y-2">
-                      <Label>Contraseña</Label>
-                      <Input
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        type="password"
-                        placeholder="••••••••"
-                        className="h-12 rounded-2xl border-zinc-200 bg-white"
-                        autoComplete="current-password"
-                      />
-                    </div>
-                    {loginError && (
-                      <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{loginError}</div>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="h-12 w-full rounded-2xl text-white shadow-lg"
-                      style={{ backgroundColor: CORPORATE_RED }}
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      {isLoading ? "Entrando..." : "Entrar"}
-                    </Button>
-                  </form>
+                  ) : (
+                    <form className="space-y-4" onSubmit={handleSubmit}>
+                      <div className="space-y-2">
+                        <Label>Nueva contraseña</Label>
+                        <Input
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          type="password"
+                          placeholder="Mínimo 6 caracteres"
+                          className="h-12 rounded-2xl border-zinc-200 bg-white"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Confirmar contraseña</Label>
+                        <Input
+                          value={confirm}
+                          onChange={(e) => setConfirm(e.target.value)}
+                          type="password"
+                          placeholder="Repite la contraseña"
+                          className="h-12 rounded-2xl border-zinc-200 bg-white"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="h-12 w-full rounded-2xl text-white shadow-lg"
+                        style={{ backgroundColor: CORPORATE_RED }}
+                      >
+                        {loading ? "Guardando…" : "Guardar nueva contraseña"}
+                      </Button>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -729,21 +982,38 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
 function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
   const remaining = daysRemaining(trip.departureDate);
 
+  // 1 experiencia contratada = 1 imagen. Sin carrusel.
   const heroImages = useMemo(
-    () =>
-      trip.heroImages?.length
-        ? trip.heroImages
-        : [trip.heroImage || DEFAULT_HERO_IMAGES[0], ...DEFAULT_HERO_IMAGES.slice(1)],
-    [trip.heroImages, trip.heroImage]
+    () => [trip.heroImage || trip.heroImages?.[0] || DEFAULT_HERO_IMAGES[0]],
+    [trip.heroImage, trip.heroImages]
   );
 
-  const activeImage = 0;
+  const [activeImage, setActiveImage] = useState(0);
   const totalPending = pendingSummary.reduce((acc, s) => acc + s.count, 0);
+
+  useEffect(() => {
+    if (heroImages.length <= 1) return;
+    const id = setInterval(() => setActiveImage((i) => (i + 1) % heroImages.length), 5000);
+    return () => clearInterval(id);
+  }, [heroImages.length]);
 
   return (
     <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_70px_rgba(0,0,0,0.12)]">
-      <img src={heroImages[activeImage]} alt={trip.name} className="absolute inset-0 block h-full w-full object-cover object-center" />
+      <img src={heroImages[activeImage]} alt={trip.name} className="absolute inset-0 block h-full w-full object-cover object-center transition-opacity duration-700" />
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.80),rgba(0,0,0,0.45),rgba(255,49,49,0.16))]" />
+      {heroImages.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+          {heroImages.map((_, i) => (
+            <button
+              key={i}
+              aria-label={`Imagen ${i + 1}`}
+              onClick={() => setActiveImage(i)}
+              className="h-1.5 rounded-full transition-all duration-300"
+              style={{ width: i === activeImage ? 20 : 6, backgroundColor: i === activeImage ? "#fff" : "rgba(255,255,255,0.45)" }}
+            />
+          ))}
+        </div>
+      )}
       <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_260px] lg:gap-8 lg:p-10">
         <div className="flex flex-col justify-between">
           <div>
@@ -829,7 +1099,6 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
               <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-zinc-950">{template?.name || docItem.id}</div>
-                  <div className="mt-1 text-sm text-zinc-500">Plantilla: {template?.fileName || "Sin archivo"}</div>
                   {docItem.uploadedFileName && (
                     <div className="mt-1 text-sm text-zinc-500">Subido: {docItem.uploadedFileName}</div>
                   )}
@@ -850,30 +1119,29 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Badge className={status.className} style={status.style}>{status.label}</Badge>
-                  <Button variant="outline" className="rounded-2xl border-zinc-200 bg-white" disabled={!template?.driveUrl} onClick={() => template?.driveUrl && window.open(template.driveUrl, "_blank", "noopener,noreferrer")}>
-                    <Download className="mr-2 h-4 w-4" />Descargar plantilla
-                  </Button>
+                  {template?.driveUrl && (
+                    <Button variant="outline" className="rounded-2xl border-zinc-200 bg-white" onClick={() => window.open(template.driveUrl, "_blank", "noopener,noreferrer")}>
+                      <Download className="mr-2 h-4 w-4" />Descargar plantilla
+                    </Button>
+                  )}
+                  <div className="flex flex-col gap-1">
+                  <p className="text-xs text-zinc-400">PDF · máx. 20 MB</p>
                   <label className={uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"}>
-                    <input type="file" className="hidden" disabled={uploading} onChange={(e) => {
+                    <input type="file" accept=".pdf,.PDF" className="hidden" disabled={uploading} onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setProgress((p) => ({ ...p, [docItem.id]: 0 }));
-                      const interval = setInterval(() => {
-                        setProgress((p) => {
-                          const cur = p[docItem.id] ?? 0;
-                          if (cur >= 88) { clearInterval(interval); return p; }
-                          return { ...p, [docItem.id]: Math.min(88, cur + Math.random() * 12) };
-                        });
-                      }, 400);
-                      onUploadDocument(docItem.id, file, () => {})
-                        .then(() => { clearInterval(interval); setProgress((p) => ({ ...p, [docItem.id]: 100 })); })
-                        .catch(() => { clearInterval(interval); })
+                      const onProgress = (pct) => setProgress((p) => ({ ...p, [docItem.id]: pct }));
+                      onUploadDocument(docItem.id, file, onProgress)
+                        .then(() => setProgress((p) => ({ ...p, [docItem.id]: 100 })))
+                        .catch(() => setProgress((p) => { const n = { ...p }; delete n[docItem.id]; return n; }))
                         .finally(() => setTimeout(() => setProgress((p) => { const n = { ...p }; delete n[docItem.id]; return n; }), 1800));
                     }} />
                     <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
                       <Upload className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : "Subir documento"}
                     </span>
                   </label>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -884,27 +1152,67 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
   );
 }
 
+function InvoiceUploadButton({ existing, onUpload, size = "sm" }) {
+  const [pct, setPct] = useState(undefined);
+  const uploading = pct !== undefined && pct < 100;
+  const label = existing ? "Actualizar factura" : "Subir factura";
+  return (
+    <div className="space-y-1 min-w-0">
+      <label className={`cursor-pointer ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+        <input type="file" accept=".pdf,.PDF" className="hidden" onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try { await onUpload(file, (p) => setPct(p)); }
+          finally { setPct(undefined); e.target.value = ""; }
+        }} />
+        <span className={`inline-flex cursor-pointer items-center rounded-2xl border border-zinc-200 bg-white font-medium text-zinc-700 hover:bg-zinc-50 ${size === "sm" ? "h-8 px-3 text-xs" : "h-9 px-4 text-sm"}`}>
+          <Upload className={`mr-1.5 ${size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}`} />{label}
+        </span>
+      </label>
+      {pct !== undefined && (
+        <div>
+          <div className="flex justify-between text-[10px] text-zinc-400 mb-0.5">
+            <span>{pct < 100 ? "Subiendo…" : "¡Listo!"}</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-100">
+            <div className="h-full rounded-full transition-all duration-200"
+              style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "#16a34a" : CORPORATE_RED }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PaymentRow({ title, payment, onUploadProof }) {
   const status = getStatusMeta(payment.status);
   const [pct, setPct] = useState(undefined);
+  const [localFileName, setLocalFileName] = useState(null); // feedback inmediato
   const uploading = pct !== undefined && pct < 100;
+  const displayProofName = localFileName ?? payment.proofName;
   return (
     <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
       <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="font-medium text-zinc-950">{title}</div>
           <div className="mt-1 text-sm text-zinc-500">Importe: {formatCurrency(payment.amount)}</div>
-          {payment.proofName && <div className="mt-1 text-sm text-zinc-500">Justificante: {payment.proofName}</div>}
+          {displayProofName && (
+            <div className="mt-1 flex items-center gap-1.5 text-sm text-zinc-500">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              <span>Justificante: {displayProofName}</span>
+            </div>
+          )}
           {pct !== undefined && (
             <div className="mt-2">
               <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
-                <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido!"}</span>
-                <span>{pct}%</span>
+                <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido correctamente!"}</span>
+                <span>{Math.round(pct)}%</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
                 <div
                   className="h-full rounded-full transition-all duration-200"
-                  style={{ width: `${pct}%`, backgroundColor: CORPORATE_RED }}
+                  style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "#16a34a" : CORPORATE_RED }}
                 />
               </div>
             </div>
@@ -916,20 +1224,16 @@ function PaymentRow({ title, payment, onUploadProof }) {
             <input type="file" className="hidden" disabled={uploading} onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) return;
+              setLocalFileName(file.name);
               setPct(0);
-              const interval = setInterval(() => {
-                setPct((cur) => {
-                  if ((cur ?? 0) >= 88) { clearInterval(interval); return cur; }
-                  return Math.min(88, (cur ?? 0) + Math.random() * 12);
-                });
-              }, 400);
-              onUploadProof(title, file, () => {})
-                .then(() => { clearInterval(interval); setPct(100); })
-                .catch(() => { clearInterval(interval); })
-                .finally(() => setTimeout(() => setPct(undefined), 1800));
+              const onProgress = (p) => setPct(p);
+              onUploadProof(title, file, onProgress)
+                .then(() => setPct(100))
+                .catch(() => { setLocalFileName(null); setPct(undefined); })
+                .finally(() => setTimeout(() => setPct(undefined), 2500));
             }} />
             <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
-              <FolderUp className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : "Subir justificante"}
+              <FolderUp className="mr-2 h-4 w-4" />{uploading ? `${Math.round(pct)}%` : "Subir justificante"}
             </span>
           </label>
         </div>
@@ -942,7 +1246,7 @@ function ClientPayments({ user, trip, onUploadProof }) {
   const payments = user.payments || {};
   const initialPrice = Number(payments.initialPrice || 0);
   const discount = Number(payments.discount || 0);
-  const finalPrice = Number(payments.finalPrice || 0);
+  const finalPrice = discount > 0 ? Math.max(0, initialPrice - discount) : Number(payments.finalPrice || 0);
   const reservation = payments.reservation || { name: "Reserva", amount: 0, status: "pending", proofName: "", dueDate: "" };
   const firstInstallment = payments.firstInstallment || { name: "Primera cuota", amount: 0, status: "pending", proofName: "", dueDate: "" };
   const secondInstallment = payments.secondInstallment || { name: "Segunda cuota", amount: 0, status: "pending", proofName: "", dueDate: "" };
@@ -959,16 +1263,18 @@ function ClientPayments({ user, trip, onUploadProof }) {
             <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-6">
               {[
                 ["Precio inicial", initialPrice],
-                ["Descuento", discount],
+                discount > 0 ? ["Tu descuento", discount] : null,
                 ["Precio final", finalPrice],
                 ["Importe reserva", Number(reservation.amount || 0)],
                 ["Primera cuota", Number(firstInstallment.amount || 0)],
                 ["Segunda cuota", Number(secondInstallment.amount || 0)],
-              ].map(([label, value]) => (
+              ].filter(Boolean).map(([label, value]) => (
                 // [MENOR-3] Key única: label es único en este array
-                <div key={String(label)} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-                  <div className="mt-2 text-xl font-semibold text-zinc-950">{formatCurrency(value)}</div>
+                <div key={String(label)} className={`rounded-2xl border p-4 ${label === "Tu descuento" ? "border-green-200 bg-green-50" : "border-zinc-200 bg-white"}`}>
+                  <div className={`text-xs uppercase tracking-[0.18em] ${label === "Tu descuento" ? "text-green-600" : "text-zinc-500"}`}>{label}</div>
+                  <div className={`mt-2 text-xl font-semibold whitespace-nowrap ${label === "Tu descuento" ? "text-green-700" : "text-zinc-950"}`}>
+                    {formatCurrency(value)}
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -1002,6 +1308,19 @@ function ClientPayments({ user, trip, onUploadProof }) {
                 </div>
               </div>
             </div>
+            <>
+              <Separator />
+              <div>
+                <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Factura</div>
+                {user.invoiceUrl ? (
+                  <Button variant="outline" className="mt-3 w-full rounded-2xl" onClick={() => window.open(user.invoiceUrl, "_blank", "noopener,noreferrer")}>
+                    <Download className="mr-2 h-4 w-4" />Descargar factura
+                  </Button>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-400">Tu factura estará disponible aquí en cuanto el equipo de GIMELOOS la emita.</p>
+                )}
+              </div>
+            </>
           </CardContent>
         </Card>
       </div>
@@ -1088,11 +1407,11 @@ function ClientChecklist({ user, trip, onToggleItem }) {
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {checklistItems.map((item) => (
-              // [MENOR-3] Key: item es string único en el checklist
-              <label key={item} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-sm">
-                <Checkbox checked={!!checklistState[item]} onCheckedChange={() => onToggleItem(item)} />
+              // [MENOR-3] Key: item es string único en el checklist. div en lugar de label para evitar doble-toggle con Radix button
+              <div key={item} onClick={() => onToggleItem(item)} className="flex cursor-pointer select-none items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-sm">
+                <Checkbox checked={!!checklistState[item]} onCheckedChange={() => onToggleItem(item)} onClick={(e) => e.stopPropagation()} />
                 <span>{item}</span>
-              </label>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -1182,7 +1501,7 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
       }
       onForceOpenConsumed?.();
     }
-  }, [forceOpen]);
+  }, [forceOpen, sectionId, onForceOpenConsumed]);
 
   return (
     <Card id={sectionId} className={`overflow-hidden rounded-[28px] border shadow-sm transition-all ${open ? "border-zinc-200 bg-white shadow-md" : "border-zinc-200 bg-white"}`}>
@@ -1218,7 +1537,26 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
 // ─── Portal del cliente ──────────────────────────────────────────────────────
 
 function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
-  const trip = trips.find((t) => t.id === user.tripId) || trips[0];
+  const trip = trips.find((t) => t.id === user.tripId);
+
+  if (!trip) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-8 text-center">
+        <div>
+          <div className="text-4xl mb-4">🗺️</div>
+          <h2 className="text-xl font-semibold text-zinc-900 mb-2">No tienes una experiencia asignada</h2>
+          <p className="text-sm text-zinc-500">Contacta con el equipo de GIMELOOS para que te asignen tu viaje.</p>
+          <button
+            type="button"
+            className="mt-6 text-sm text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+            onClick={onLogout}
+          >
+            Volver a la página de inicio de sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // [ALTO-2] Snapshot para rollback: capturado antes de cada operación optimista
   const updateCurrentUser = useCallback((updater, rollbackUser) => {
@@ -1242,6 +1580,14 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    const handler = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showNotifications]);
 
   useEffect(() => {
     supabase.from("notifications").select("*").eq("participant_id", user.id).order("created_at", { ascending: false }).limit(20)
@@ -1260,14 +1606,67 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
     questions: notifications.some((n) => !n.read && n.type === "question_replied"),
   };
 
-  const [openSection, setOpenSection] = useState(null);
-  const navigateTo = (key) => setOpenSection(key);
+  const [activeTab, setActiveTab] = useState("docs");
+
+  // Conteos "ya vistos" por tab — persisten en localStorage por participante
+  const seenKey = `gimeloos_seen_${user.id}`;
+  const [seenCounts, setSeenCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(seenKey) || "{}"); } catch (_) { return {}; }
+  });
+
+  const markTabSeen = (tab, count) => {
+    setSeenCounts((prev) => {
+      const next = { ...prev, [tab]: count };
+      try { localStorage.setItem(seenKey, JSON.stringify(next)); } catch (_) {}
+      return next;
+    });
+  };
+
+  const navigateTo = (key) => {
+    const tabMap = { docs: "docs", payments: "payments", replies: "questions" };
+    if (tabMap[key]) setActiveTab(tabMap[key]);
+  };
+
+  // Marcar tabs como vistos al activarlos
+  useEffect(() => {
+    if (activeTab === "docs") markTabSeen("docs", pendingDocuments);
+    if (activeTab === "payments") markTabSeen("payments", sentPayments);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Marcar respuestas como vistas al abrir el tab de dudas
+  useEffect(() => {
+    if (activeTab !== "questions") return;
+    const unread = (user.questions || []).filter((q) => q.reply && q.status === "replied");
+    if (!unread.length) return;
+    const ids = unread.map((q) => q.id);
+    updateCurrentUser((u) => ({
+      ...u,
+      questions: u.questions.map((q) => ids.includes(q.id) ? { ...q, status: "read" } : q),
+    }));
+    supabase.from("participant_questions").update({ status: "read" }).in("id", ids).then(({ error }) => {
+      if (error) console.error("Error marcando dudas como vistas:", error.message);
+    });
+  }, [activeTab, user.questions]);
+
+  // Badge visible solo si hay más items que la última vez que se visitó el tab
+  const docsBadge = pendingDocuments > (seenCounts.docs ?? pendingDocuments) ? pendingDocuments : null;
+  const paymentsBadge = sentPayments > (seenCounts.payments ?? sentPayments) ? sentPayments : null;
 
   const pendingSummary = [
-    { key: "docs",      label: "Docs",       icon: FileCheck2,           count: pendingDocuments, sectionId: "section-docs" },
+    { key: "docs",      label: "Docs",       icon: FileCheck2,           count: docsBadge ?? 0,   sectionId: "section-docs" },
     { key: "payments",  label: "Pagos",      icon: Wallet,               count: pendingPayments,  sectionId: "section-payments" },
     { key: "replies",   label: "Respuestas", icon: MessageCircleQuestion, count: unreadReplies,   sectionId: "section-questions" },
     { key: "notifs",    label: "Avisos",     icon: Bell,                 count: unreadCount,      sectionId: null },
+  ];
+
+  const clientTabs = [
+    { key: "docs",       label: "Documentación", icon: FileCheck2,            badge: docsBadge },
+    { key: "payments",   label: "Pagos",          icon: Wallet,               badge: paymentsBadge },
+    ...(trip.showLogistics !== false ? [{ key: "logistics", label: "Lo que llevar", icon: MapPinned }] : []),
+    ...(trip.showItinerary !== false ? [{ key: "itinerary", label: "Itinerario",    icon: CalendarDays }] : []),
+    { key: "checklist",  label: "Checklist",      icon: CheckCircle2,          badge: null },
+    { key: "questions",  label: "Dudas",          icon: MessageCircleQuestion, badge: unreadReplies > 0 ? unreadReplies : null },
+    ...(user.invoiceUrl ? [{ key: "invoice", label: "Factura", icon: Download }] : []),
   ];
 
   return (
@@ -1280,7 +1679,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               Participante: <span className="font-medium text-zinc-950">{user.participantName}</span>
             </div>
             {/* Campana de notificaciones */}
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <Button variant="outline" className="relative rounded-2xl px-3" onClick={() => setShowNotifications((v) => !v)}>
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
@@ -1298,11 +1697,11 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
                       <button onClick={() => setShowNotifications(false)} className="text-zinc-400 hover:text-zinc-700 ml-1">✕</button>
                     </div>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto rounded-b-3xl">
                     {notifications.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm text-zinc-400">Sin notificaciones</div>
-                    ) : notifications.map((n) => (
-                      <div key={n.id} className={`border-b border-zinc-50 px-4 py-3 ${n.read ? "" : "bg-red-50"}`}>
+                    ) : notifications.map((n, i, arr) => (
+                      <div key={n.id} className={`border-b border-zinc-50 px-4 py-3 ${n.read ? "" : "bg-red-50"} ${i === arr.length - 1 ? "rounded-b-3xl" : ""}`}>
                         <div className="font-medium text-sm text-zinc-950">{n.title}</div>
                         <div className="text-xs text-zinc-500 mt-0.5">{n.body}</div>
                         <div className="text-xs text-zinc-400 mt-1">{new Date(n.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
@@ -1321,22 +1720,31 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
         <div className="space-y-6">
           <HeroBanner trip={trip} user={user} pendingSummary={pendingSummary} onNavigate={navigateTo} />
 
-          <div className="space-y-4">
-            <AccordionSection
-              title="Documentación"
-              subtitle="Revisa, descarga y sube cada documento pendiente."
-              icon={FileCheck2}
-              hasUnread={unreadBySection.docs}
-              sectionId="section-docs"
-              forceOpen={openSection === "docs"}
-              onForceOpenConsumed={() => setOpenSection(null)}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{pendingDocuments} pendientes</Badge>}
-            >
+          {/* Tabs — igual que portal de colegios */}
+          <div className="flex flex-wrap gap-2">
+            {clientTabs.map(({ key, label, icon: Icon, badge }) => {
+              const isActive = activeTab === key;
+              return (
+                <button key={key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setActiveTab(key)}
+                  className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition ${isActive ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  style={isActive ? { backgroundColor: CORPORATE_RED } : {}}>
+                  <Icon className="h-4 w-4" />{label}
+                  {badge != null && (
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isActive ? "bg-white text-red-600" : "text-white"}`}
+                      style={!isActive ? { backgroundColor: CORPORATE_RED } : {}}>{badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Contenido del tab activo */}
+          <div className="mt-2">
+            {activeTab === "docs" && (
               <ClientDocuments
                 user={user}
                 templates={templates}
                 onUploadDocument={async (docId, file, onProgress) => {
-                  // [ALTO-2] Snapshot para rollback
                   const previousDocs = user.documents;
                   try {
                     const uploaded = await uploadFileToDrive(file, user.participantName, "documentos", onProgress, trip?.name);
@@ -1346,104 +1754,47 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
                         : doc
                     );
                     updateCurrentUser((current) => ({ ...current, documents: nextDocs }));
-
-                    // [ALTO-1] upsertDocument no degrada documentos confirmados
-                    await upsertDocument(user.id, docId, {
-                      status: "pending_confirmation",
-                      uploaded_file_name: file.name,
-                      file_path: "",
-                      storage_path: "",
-                      drive_url: uploaded.webViewLink,
-                      confirmed_at: null,
-                    });
+                    await upsertDocument(user.id, docId, { status: "pending_confirmation", uploaded_file_name: file.name, file_path: "", storage_path: "", drive_url: uploaded.webViewLink, confirmed_at: null });
                     notify(`Documento subido: ${file.name}.`);
                     const docName = templates.find((t) => t.id === docId)?.name || file.name;
                     sendNotification("admin_doc_uploaded", null, null, { participantName: user.participantName, docName, tripName: trip?.name || "" });
                   } catch (error) {
                     console.error(error);
-                    // [ALTO-2] Rollback si falla
                     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, documents: previousDocs } : u));
                     notify("No se ha podido subir el documento. Los cambios han sido revertidos.");
                   }
                 }}
               />
-            </AccordionSection>
+            )}
 
-            <AccordionSection
-              title="Pagos"
-              subtitle="Importes, estados y justificantes de transferencia."
-              icon={Wallet}
-              hasUnread={unreadBySection.payments}
-              sectionId="section-payments"
-              forceOpen={openSection === "payments"}
-              onForceOpenConsumed={() => setOpenSection(null)}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{sentPayments}/3 enviados</Badge>}
-            >
+            {activeTab === "payments" && (
               <ClientPayments
                 user={user}
                 trip={trip}
                 onUploadProof={async (paymentKey, file, onProgress) => {
-                  // [ALTO-2] Snapshot para rollback
                   const previousPayments = user.payments;
                   try {
                     const uploaded = await uploadFileToDrive(file, user.participantName, "pagos", onProgress, trip?.name);
                     updateCurrentUser((current) => ({
                       ...current,
-                      payments: {
-                        ...current.payments,
-                        [paymentKey]: { ...current.payments[paymentKey], proofName: file.name, proofPath: uploaded.webViewLink, status: "sent" },
-                      },
+                      payments: { ...current.payments, [paymentKey]: { ...current.payments[paymentKey], proofName: file.name, proofPath: uploaded.webViewLink, status: "sent" } },
                     }));
-
-                    // [ALTO-1] upsertPayment no degrada pagos confirmados
-                    await upsertPayment(user.id, paymentKey, {
-                      name: user.payments[paymentKey].name,
-                      amount: user.payments[paymentKey].amount,
-                      status: "sent",
-                      proof_name: file.name,
-                      proof_path: uploaded.webViewLink,
-                      due_date: user.payments[paymentKey].dueDate || null,
-                    });
+                    await upsertPayment(user.id, paymentKey, { name: user.payments[paymentKey].name, amount: user.payments[paymentKey].amount, status: "sent", proof_name: file.name, proof_path: uploaded.webViewLink, due_date: user.payments[paymentKey].dueDate || null });
                     notify("Justificante cargado correctamente.");
                     sendNotification("admin_payment_uploaded", null, null, { participantName: user.participantName, paymentName: user.payments[paymentKey].name, tripName: trip?.name || "" });
                   } catch (error) {
                     console.error(error);
-                    // [ALTO-2] Rollback si falla
                     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, payments: previousPayments } : u));
                     notify("No se ha podido subir el justificante. Los cambios han sido revertidos.");
                   }
                 }}
               />
-            </AccordionSection>
-
-            {trip.showLogistics !== false && (
-              <AccordionSection
-                title="Lo que no puedes olvidar"
-                subtitle="Información clave antes del viaje: punto de encuentro, horarios y qué llevar."
-                icon={MapPinned}
-                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{(trip.logistics || []).length} puntos</Badge>}
-              >
-                <ClientLogistics trip={trip} />
-              </AccordionSection>
             )}
 
-            {trip.showItinerary !== false && (
-              <AccordionSection
-                title="Itinerario del viaje"
-                subtitle="Qué ocurrirá cada día durante la experiencia."
-                icon={CalendarDays}
-                meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{trip.itinerary.length} días</Badge>}
-              >
-                <ClientItinerary trip={trip} />
-              </AccordionSection>
-            )}
+            {activeTab === "logistics" && <ClientLogistics trip={trip} />}
+            {activeTab === "itinerary" && <ClientItinerary trip={trip} />}
 
-            <AccordionSection
-              title="Checklist de equipaje"
-              subtitle="Controla lo que ya tienes preparado y lo que te falta."
-              icon={CheckCircle2}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{completedChecklist}/{trip.checklist.length} listo</Badge>}
-            >
+            {activeTab === "checklist" && (
               <ClientChecklist
                 user={user}
                 trip={trip}
@@ -1451,28 +1802,16 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
                   const previousState = user.checklistState;
                   const nextChecklist = { ...user.checklistState, [item]: !user.checklistState[item] };
                   updateCurrentUser((current) => ({ ...current, checklistState: nextChecklist }));
-                  try {
-                    await supabase.from("participants").update({ checklist_state: nextChecklist }).eq("id", user.id);
-                  } catch (error) {
-                    console.error(error);
-                    // [ALTO-2] Rollback
+                  const { error: ckErr } = await supabase.from("participants").update({ checklist_state: nextChecklist }).eq("id", user.id);
+                  if (ckErr) {
                     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, checklistState: previousState } : u));
                     notify("No se pudo guardar el checklist. Los cambios han sido revertidos.");
                   }
                 }}
               />
-            </AccordionSection>
+            )}
 
-            <AccordionSection
-              title="¿Tienes alguna duda?"
-              subtitle="Escríbenos y te responderemos lo antes posible."
-              icon={MessageCircleQuestion}
-              hasUnread={unreadBySection.questions}
-              sectionId="section-questions"
-              forceOpen={openSection === "replies"}
-              onForceOpenConsumed={() => setOpenSection(null)}
-              meta={<Badge className="bg-zinc-100 text-zinc-900 hover:bg-zinc-100">{questionsCount} enviadas</Badge>}
-            >
+            {activeTab === "questions" && (
               <ClientQuestions
                 questions={user.questions || []}
                 onSendQuestion={async (message) => {
@@ -1483,7 +1822,6 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
                   try {
                     const { data, error } = await supabase.from("participant_questions").insert({ participant_id: user.id, message, status: "sent" }).select("id").single();
                     if (error) throw error;
-                    // Reemplazar el ID temporal con el UUID real de Supabase
                     updateCurrentUser((current) => ({ ...current, questions: current.questions.map((q) => q.id === tempId ? { ...q, id: data.id } : q) }));
                     notify("Tu duda ha sido enviada.");
                     sendNotification("admin_new_question", null, null, { participantName: user.participantName, question: message, tripName: trip?.name || "" });
@@ -1493,7 +1831,17 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
                   }
                 }}
               />
-            </AccordionSection>
+            )}
+
+            {activeTab === "invoice" && user.invoiceUrl && (
+              <div className="rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+                <Download className="mx-auto mb-3 h-8 w-8 text-zinc-400" />
+                <div className="mb-4 text-sm text-zinc-500">Tu factura está disponible para descargar.</div>
+                <Button variant="outline" className="rounded-2xl" onClick={() => window.open(user.invoiceUrl, "_blank", "noopener,noreferrer")}>
+                  <Download className="mr-2 h-4 w-4" />Descargar factura
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1504,7 +1852,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
 // ─── Panel de administración ─────────────────────────────────────────────────
 
 function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
-  const clients = users.filter((u) => u.role === "client");
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
   const [selectedTripFilter, setSelectedTripFilter] = useState("all");
   const [selectedGroupTrip, setSelectedGroupTrip] = useState(trips[0]?.id || "");
   const [assignTargetTrip, setAssignTargetTrip] = useState(trips[0]?.id || "");
@@ -1516,14 +1864,26 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
   const [importMessage, setImportMessage] = useState("");
   const [importTotal, setImportTotal] = useState(0);
   const [importDone, setImportDone] = useState(0);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmBulkInvite, setConfirmBulkInvite] = useState(false);
+  const [pendingDeleteInvoiceClientId, setPendingDeleteInvoiceClientId] = useState(null);
+  const [clientPage, setClientPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const visibleClients = clients.filter(
     (client) =>
       (selectedTripFilter === "all" || client.tripId === selectedTripFilter) &&
       matchesParticipantSearch(client, searchQuery)
   );
-  const visibleClientIds = visibleClients.map((c) => c.id);
+  const totalPages = Math.max(1, Math.ceil(visibleClients.length / PAGE_SIZE));
+  const pagedClients = visibleClients.slice((clientPage - 1) * PAGE_SIZE, clientPage * PAGE_SIZE);
+  const visibleClientIds = pagedClients.map((c) => c.id);
   const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedClientIds.includes(id));
+
+  useEffect(() => { setClientPage(1); }, [selectedTripFilter, searchQuery]);
 
   const toggleClientSelection = (clientId) =>
     setSelectedClientIds((prev) => prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]);
@@ -1538,36 +1898,42 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       ? selectedClientIds
       : users.filter((u) => u.role === "client" && u.tripId === selectedGroupTrip).map((u) => u.id);
     if (!targetIds.length) { notify("No hay clientes seleccionados."); return; }
-    setUsers((prev) => prev.map((u) => targetIds.includes(u.id) ? { ...u, tripId: assignTargetTrip } : u));
     for (const clientId of targetIds) {
       const { error } = await supabase.from("participants").update({ trip_id: assignTargetTrip }).eq("id", clientId);
       if (error) { notify("Error asignando experiencia: " + error.message); return; }
     }
+    setUsers((prev) => prev.map((u) => targetIds.includes(u.id) ? { ...u, tripId: assignTargetTrip } : u));
     notify("Experiencia aplicada correctamente.");
   };
 
   const restoreDeletedClient = async (deletedClient) => {
+    const errors = [];
+
     const payload = {
       id: deletedClient.id,
       role: deletedClient.role,
       username: deletedClient.username,
-      // [CRÍTICO-1] password NO se restaura desde el cliente; debe gestionarse en Supabase Auth
       participant_name: deletedClient.participantName || "",
       mother_name: deletedClient.motherName || "",
       father_name: deletedClient.fatherName || "",
       parent_name: deletedClient.parentName || "",
       email: deletedClient.email || "",
       contact_emails: deletedClient.contactEmails || [],
+      dni: deletedClient.dni || "",
       trip_id: deletedClient.tripId || null,
       checklist_state: deletedClient.checklistState || {},
     };
-    await supabase.from("participants").insert(payload);
-    await supabase.from("participant_pricing").upsert(
+    const { error: participantErr } = await supabase.from("participants").insert(payload);
+    if (participantErr) throw new Error("Error restaurando participante: " + participantErr.message);
+
+    const { error: pricingErr } = await supabase.from("participant_pricing").upsert(
       { participant_id: deletedClient.id, initial_price: deletedClient.payments?.initialPrice || 0, discount: deletedClient.payments?.discount || 0, final_price: deletedClient.payments?.finalPrice || 0 },
       { onConflict: "participant_id" }
     );
+    if (pricingErr) errors.push("precios: " + pricingErr.message);
+
     for (const [key, name] of [["reservation", "Reserva"], ["firstInstallment", "Primera cuota"], ["secondInstallment", "Segunda cuota"]]) {
-      await supabase.from("participant_payments").insert({
+      const { error: payErr } = await supabase.from("participant_payments").insert({
         participant_id: deletedClient.id,
         payment_key: key,
         name: deletedClient.payments?.[key]?.name || name,
@@ -1576,9 +1942,11 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         proof_name: deletedClient.payments?.[key]?.proofName || "",
         due_date: deletedClient.payments?.[key]?.dueDate || null,
       });
+      if (payErr) errors.push(`pago ${key}: ` + payErr.message);
     }
+
     for (const doc of deletedClient.documents || []) {
-      await supabase.from("participant_documents").insert({
+      const { error: docErr } = await supabase.from("participant_documents").insert({
         participant_id: deletedClient.id,
         template_id: doc.id,
         status: doc.status || "pending_upload",
@@ -1588,26 +1956,36 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         drive_url: doc.driveUrl || "",
         confirmed_at: doc.status === "confirmed" ? new Date().toISOString() : null,
       });
+      if (docErr) errors.push("documento: " + docErr.message);
     }
+
     for (const q of deletedClient.questions || []) {
-      await supabase.from("participant_questions").insert({
+      const { error: qErr } = await supabase.from("participant_questions").insert({
         participant_id: deletedClient.id,
         message: q.message || "",
         status: q.status || "sent",
         created_at: q.createdAt || new Date().toISOString(),
       });
+      if (qErr) errors.push("pregunta: " + qErr.message);
     }
+
+    if (errors.length) notify(`Restaurado con errores parciales: ${errors.join(", ")}`);
   };
 
   const deleteSingleClient = async (clientId) => {
     const deletedClient = users.find((u) => u.id === clientId);
     if (!deletedClient) return;
     try {
-      await supabase.from("participant_questions").delete().eq("participant_id", clientId);
-      await supabase.from("participant_documents").delete().eq("participant_id", clientId);
-      await supabase.from("participant_payments").delete().eq("participant_id", clientId);
-      await supabase.from("participant_pricing").delete().eq("participant_id", clientId);
-      await supabase.from("participants").delete().eq("id", clientId);
+      const subtableDeletes = await Promise.all([
+        supabase.from("participant_questions").delete().eq("participant_id", clientId),
+        supabase.from("participant_documents").delete().eq("participant_id", clientId),
+        supabase.from("participant_payments").delete().eq("participant_id", clientId),
+        supabase.from("participant_pricing").delete().eq("participant_id", clientId),
+      ]);
+      const subtableError = subtableDeletes.find((r) => r.error);
+      if (subtableError) throw new Error(subtableError.error.message);
+      const { error: participantError } = await supabase.from("participants").delete().eq("id", clientId);
+      if (participantError) throw new Error(participantError.message);
       setUsers((prev) => prev.filter((u) => u.id !== clientId));
       setSelectedClientIds((prev) => prev.filter((id) => id !== clientId));
       // [MEDIO-1] Toast destructivo: 7s para dar tiempo al "Deshacer"
@@ -1635,11 +2013,16 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
     const deletedClients = users.filter((u) => selectedClientIds.includes(u.id));
     try {
       for (const clientId of selectedClientIds) {
-        await supabase.from("participant_questions").delete().eq("participant_id", clientId);
-        await supabase.from("participant_documents").delete().eq("participant_id", clientId);
-        await supabase.from("participant_payments").delete().eq("participant_id", clientId);
-        await supabase.from("participant_pricing").delete().eq("participant_id", clientId);
-        await supabase.from("participants").delete().eq("id", clientId);
+        const [r1, r2, r3, r4] = await Promise.all([
+          supabase.from("participant_questions").delete().eq("participant_id", clientId),
+          supabase.from("participant_documents").delete().eq("participant_id", clientId),
+          supabase.from("participant_payments").delete().eq("participant_id", clientId),
+          supabase.from("participant_pricing").delete().eq("participant_id", clientId),
+        ]);
+        const subtableErr = [r1, r2, r3, r4].find((r) => r.error)?.error;
+        if (subtableErr) throw new Error(subtableErr.message);
+        const { error: mainErr } = await supabase.from("participants").delete().eq("id", clientId);
+        if (mainErr) throw new Error(mainErr.message);
       }
       setUsers((prev) => prev.filter((u) => u.role === "admin" || !selectedClientIds.includes(u.id)));
       // [MEDIO-1] Toast destructivo con 7s
@@ -1663,6 +2046,53 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
     }
   };
 
+  const bulkInviteSelected = async () => {
+    const targets = (selectedClientIds.length ? users.filter((u) => selectedClientIds.includes(u.id)) : clients.filter((u) => u.role === "client")).filter((u) => u.email);
+    if (!targets.length) { notify("Ningún participante con email en la selección."); return; }
+    notify(`Enviando acceso a ${targets.length} participante(s)…`);
+    let ok = 0; let fail = 0;
+    const token = await getAuthToken();
+    for (const client of targets) {
+      try {
+        const res = await fetch("/api/invite-participant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ participantId: client.id }),
+        });
+        const json = await res.json();
+        if (res.ok) ok++; else fail++;
+      } catch { fail++; }
+    }
+    notify(`✅ Acceso enviado a ${ok} participante(s).${fail ? ` ${fail} fallaron.` : ""}`);
+  };
+
+  const handleSyncSheet = async () => {
+    if (!sheetUrl.trim()) { notify("Introduce la URL del documento Excel o Google Sheets."); return; }
+    const selectedGroupTripObj = trips.find((t) => t.id === selectedGroupTrip);
+    if (!selectedGroupTripObj) { notify("Selecciona primero el campamento en 'Grupo origen'."); return; }
+
+    // Extraer ID de Google Sheets si es una URL de Google
+    let fetchUrl = sheetUrl.trim();
+    const gSheetMatch = fetchUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (gSheetMatch) {
+      const sheetId = gSheetMatch[1];
+      fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+    }
+
+    setIsSyncingSheet(true);
+    try {
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error(`No se pudo descargar el archivo (${res.status}). Asegúrate de que el documento es público.`);
+      const buffer = await res.arrayBuffer();
+      const fakeFile = new File([buffer], "sheet.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      await handleBulkExcelUpload(fakeFile, null);
+    } catch (err) {
+      notify("Error al sincronizar: " + err.message, { variant: "destructive" });
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
   const handleBulkExcelUpload = async (file, input) => {
     if (!file) { notify("No se ha seleccionado ningún archivo."); return; }
     setImportFileName(file.name);
@@ -1680,6 +2110,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       const sheet = workbook.Sheets[firstSheetName];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
       if (!rows.length) { notify("El Excel está vacío o no tiene filas de datos."); setIsImporting(false); return; }
+      console.log("[Import] Columnas detectadas:", Object.keys(rows[0] || {}));
 
       setImportTotal(rows.length);
 
@@ -1738,33 +2169,131 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       setImportMessage("Sincronizando plantillas...");
       setImportProgress(5);
 
-      await supabase.from("document_templates").upsert(
+      const { error: tplErr } = await supabase.from("document_templates").upsert(
         templatesToUse.map((t) => ({ id: t.id, name: t.name, file_name: t.fileName || "" })),
         { onConflict: "id" }
       );
+      if (tplErr) throw new Error("Error sincronizando plantillas: " + tplErr.message);
 
       // ── Fase 1: parsear todas las filas en memoria ────────────────────────────
       setImportMessage("Procesando filas...");
       setImportProgress(10);
 
+      // Fallback de viaje: usar el viaje seleccionado en "Grupo origen", o el único viaje si solo hay uno
+      const selectedGroupTripObj = trips.find((t) => t.id === selectedGroupTrip);
+      const fallbackTripName = selectedGroupTripObj?.name || (trips.length === 1 ? trips[0].name : "");
+
       const parsedRows = [];
       for (const row of rows) {
-        const tripTitle = safeString(getRowValue(row, "Viaje_Titulo", "viaje_titulo", "Viaje", "viaje", "Trip", "trip"));
-        const participantName = safeString(getRowValue(row, "Participante"));
-        if (!tripTitle || !participantName) continue;
+        // Nombre del participante — acepta cualquier variante razonable
+        const participantName = safeString(
+          getRowValue(row,
+            "Participante", "Nombre participante", "Nombre del participante", "Nombre completo del participante",
+            "Nombre y apellidos", "Nombre completo", "NombreCompleto", "Nombre", "Alumno", "Alumna",
+            "Menor", "Hijo", "Hija", "Niño", "Niña", "name", "fullname", "full_name", "student"
+          )
+        );
+        if (!participantName) continue; // fila sin nombre → saltar
 
-        const tripId = `trip-${slugify(tripTitle)}`;
-        const usernameFromExcel = safeString(getRowValue(row, "Usuario"));
-        const finalUsername = (usernameFromExcel || slugify(participantName) || `user-${Date.now()}`)
-          .toString().trim().toLowerCase().replace(/\s+/g, "-");
-        const motherName = safeString(getRowValue(row, "Nombre_Madre"));
-        const fatherName = safeString(getRowValue(row, "Nombre_Padre"));
-        const motherEmail = safeString(getRowValue(row, "Email_Madre"));
-        const fatherEmail = safeString(getRowValue(row, "Email_Padre"));
-        const passwordFromExcel = safeString(getRowValue(row, "Password"));
-        const discount = parseAmount(getRowValue(row, "Viaje_Descuento"));
-        const initialPrice = parseAmount(getRowValue(row, "Viaje_Precio"));
-        const finalPrice = parseAmount(getRowValue(row, "Viaje_APagar")) || Math.max(0, initialPrice - discount);
+        // Título del viaje: si el usuario seleccionó un viaje en "Grupo origen", siempre usarlo
+        // (evita que el partial-match pesque columnas como "Qué modalidad de campamento...")
+        const tripTitle = selectedGroupTripObj?.name || safeString(
+          getRowValue(row, "Viaje_Titulo", "Titulo_Viaje", "Viaje", "Trip")
+        ) || (trips.length === 1 ? trips[0].name : "");
+        if (!tripTitle) continue;
+
+        // Si hay viaje seleccionado en Grupo origen, usar su ID real (no generar slug)
+        const tripId = selectedGroupTripObj ? selectedGroupTripObj.id : `trip-${slugify(tripTitle)}`;
+        const usernameFromExcel = safeString(getRowValue(row, "Usuario", "Username", "Login", "User"));
+        const emailRaw = safeString(
+          getRowValue(row,
+            "Email", "email", "Correo", "Correo_electronico", "Correo electronico", "Mail",
+            "Email_Madre", "Email_Padre", "Correo_Madre", "Correo_Padre",
+            "Correo electrónico de la madre", "Correo electrónico del padre",
+            "email_madre", "email_padre"
+          )
+        ).split(",")[0].trim();
+        // Si hay columna Usuario la usamos; si no, el email; si no, slug del nombre
+        const finalUsername = (usernameFromExcel
+          ? usernameFromExcel.toString().trim().toLowerCase().replace(/\s+/g, "-")
+          : emailRaw
+            ? emailRaw.toLowerCase()
+            : (slugify(participantName) || `user-${Date.now()}`));
+        const motherName = safeString(getRowValue(row,
+          "Nombre_Madre", "Nombre completo de la madre", "Madre", "madre", "NombreMadre",
+          "Nombre madre", "Nombre de la madre", "Tutor_1", "Tutor1", "Tutor", "Responsable_1"
+        ));
+        const fatherName = safeString(getRowValue(row,
+          "Nombre_Padre", "Nombre completo del padre", "Padre", "padre", "NombrePadre",
+          "Nombre padre", "Nombre del padre", "Tutor_2", "Tutor2", "Responsable_2"
+        ));
+        const motherEmail = safeString(getRowValue(row,
+          "Email_Madre", "Correo electrónico de la madre", "email_madre", "Correo_Madre",
+          "correo madre", "Email madre", "Email_Tutor1", "Email_Tutor_1"
+        ));
+        const fatherEmail = safeString(getRowValue(row,
+          "Email_Padre", "Correo electrónico del padre", "email_padre", "Correo_Padre",
+          "correo padre", "Email padre", "Email_Tutor2", "Email_Tutor_2"
+        ));
+        const passwordFromExcel = safeString(getRowValue(row, "Password", "Contraseña", "Clave", "Pass"));
+        const dniFromExcel = safeString(getRowValue(row,
+          "DNI", "Dni", "NIF", "Pasaporte", "passport", "document",
+          "DNI del participante", "DNI (participante)", "Documento", "ID"
+        ));
+        const birthDateRaw = getRowValue(row,
+          "Fecha_Nacimiento", "Fecha de nacimiento", "FechaNacimiento", "Nacimiento",
+          "fecha_nac", "F_Nacimiento", "birthdate", "birth_date", "Fecha nacimiento"
+        );
+        const genderRaw = safeString(getRowValue(row, "Sexo", "Genero", "Género", "Sex", "Gender"));
+        const addressRaw = safeString(getRowValue(row,
+          "Direccion", "Dirección", "Dirección completa", "Direccion_Completa",
+          "address", "Domicilio", "Domicilio completo"
+        ));
+        const schoolRaw = safeString(getRowValue(row,
+          "Colegio", "Colegio en el que estudia", "Centro_Educativo", "School",
+          "Centro educativo", "Escuela", "Instituto"
+        ));
+        const phoneFatherRaw = safeString(getRowValue(row,
+          "Telefono_Padre", "Teléfono del padre", "Tel_Padre", "Telefono padre",
+          "Movil_Padre", "Movil padre", "Phone_Father", "Tlf padre"
+        ));
+        const phoneMotherRaw = safeString(getRowValue(row,
+          "Telefono_Madre", "Teléfono de la madre", "Tel_Madre", "Telefono madre",
+          "Movil_Madre", "Movil madre", "Phone_Mother", "Tlf madre"
+        ));
+        const dniFatherRaw = safeString(getRowValue(row, "DNI_Padre", "DNI del padre", "NIF padre"));
+        const dniMotherRaw = safeString(getRowValue(row, "DNI_Madre", "DNI de la madre", "NIF madre"));
+        const imageAuthRaw = getRowValue(row,
+          "Autorizacion_Imagenes", "Autorización uso de imágenes", "Auth_Imagenes",
+          "autorizacion imagenes", "Uso de imágenes", "Autorización imágenes"
+        );
+        const imageAuth = imageAuthRaw ? ["si", "sí", "yes", "1", "true", "autorizo", "autorizado"].includes(String(imageAuthRaw).toLowerCase().trim()) : false;
+        const allergiesRaw = safeString(getRowValue(row,
+          "Alergias", "Alergias y/o intolerancias alimentarias", "Alergias_Intolerancias",
+          "Intolerancias", "Alergias e intolerancias", "allergies"
+        ));
+        const healthNotesRaw = safeString(getRowValue(row,
+          "Salud", "¿El participante tiene algún problema de salud?", "Problemas_Salud",
+          "Health", "Salud_Observaciones", "Problema de salud", "Condición médica"
+        ));
+        const shirtSizeRaw = safeString(getRowValue(row,
+          "Talla", "Talla de camiseta", "Talla_Camiseta", "Shirt_Size", "Talla camiseta", "Size"
+        ));
+        const notesRaw = safeString(getRowValue(row,
+          "Observaciones", "Alguna otra información relevante", "Notas", "Notes",
+          "Comentarios", "Otros", "Other", "Información adicional"
+        ));
+        const modalityRaw = safeString(getRowValue(row,
+          "Modalidad", "Qué modalidad de campamento", "Turno", "Modality",
+          "Modalidad campamento", "Turno campamento"
+        ));
+        const howKnownRaw = safeString(getRowValue(row,
+          "Como_Conocio", "Cómo nos has conocido", "Como_nos_conocio", "How_Known",
+          "Como nos conociste", "Como conociste gimeloos"
+        ));
+        const discount = parseAmount(getRowValue(row, "Viaje_Descuento", "Descuento", "discount"));
+        const initialPrice = parseAmount(getRowValue(row, "Viaje_Precio", "Precio", "Importe", "price", "amount"));
+        const finalPrice = parseAmount(getRowValue(row, "Viaje_APagar", "A_Pagar", "Total", "Importe total")) || Math.max(0, initialPrice - discount);
 
         parsedRows.push({
           tripId, tripTitle,
@@ -1783,6 +2312,22 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
             parent_name: [motherName, fatherName].filter(Boolean).join(" / "),
             email: safeString(motherEmail, fatherEmail),
             contact_emails: Array.from(new Set([motherEmail, fatherEmail].filter(Boolean))),
+            dni: dniFromExcel,
+            birth_date: birthDateRaw ? normalizeDateForDb(birthDateRaw) : null,
+            gender: genderRaw,
+            address: addressRaw,
+            school: schoolRaw,
+            phone_father: phoneFatherRaw,
+            phone_mother: phoneMotherRaw,
+            dni_father: dniFatherRaw,
+            dni_mother: dniMotherRaw,
+            image_auth: imageAuth,
+            allergies: allergiesRaw,
+            health_notes: healthNotesRaw,
+            shirt_size: shirtSizeRaw,
+            notes: notesRaw,
+            modality: modalityRaw,
+            how_known: howKnownRaw,
             trip_id: tripId,
           },
           pricing: { initial_price: initialPrice, discount, final_price: finalPrice },
@@ -1795,11 +2340,24 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           email: safeString(motherEmail, fatherEmail),
           contactEmails: Array.from(new Set([motherEmail, fatherEmail].filter(Boolean))),
           finalUsername, initialPrice, discount, finalPrice,
-          passwordFromExcel,
+          passwordFromExcel, dniFromExcel,
         });
       }
 
       setImportTotal(parsedRows.length);
+
+      if (parsedRows.length === 0) {
+        const foundCols = Object.keys(rows[0] || {}).slice(0, 8).join(" | ");
+        const hint = !fallbackTripName && trips.length > 1
+          ? ' Tienes varios viajes: añade una columna "Viaje" con el nombre del campamento.'
+          : ' Asegúrate de que haya una columna con el nombre del participante (ej. "Nombre", "Participante", "Alumno").';
+        notify(`No se han podido importar participantes. Columnas detectadas: ${foundCols || "(ninguna)"}.${hint}`, { variant: "destructive" });
+        setIsImporting(false);
+        if (input) input.value = "";
+        setImportFileName("");
+        setTimeout(() => { setImportProgress(0); setImportMessage(""); setImportTotal(0); setImportDone(0); }, 300);
+        return;
+      }
 
       // ── Fase 2: upsert trips (batch, sin duplicados) ──────────────────────────
       setImportMessage("Guardando viajes...");
@@ -1809,12 +2367,14 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       const uniqueTrips = new Map();
       for (const r of parsedRows) {
         if (!uniqueTrips.has(r.tripId)) {
+          // Si usamos un viaje existente (selectedGroupTripObj), no lo modificamos
+          if (selectedGroupTripObj && r.tripId === selectedGroupTripObj.id) continue;
           const existingTrip = currentTrips.find((t) => t.id === r.tripId);
           uniqueTrips.set(r.tripId, {
             ...r.tripPayload,
             hero_image: existingTrip?.heroImage || DEFAULT_HERO_IMAGES[0],
             hero_images: existingTrip?.heroImages || DEFAULT_HERO_IMAGES,
-            transfer_info: existingTrip?.transferInfo || { bank: "Banco Santander", accountHolder: "GIMELOOS Experiences SL", iban: "ES12 1234 5678 9012 3456 7890", concept: "Nombre del participante + viaje" },
+            transfer_info: existingTrip?.transferInfo || { bank: "", accountHolder: "", iban: "", concept: "" },
             automation: existingTrip?.automation || { autoReminderEnabled: false, reminderDaysBefore: 5 },
             document_rules: existingTrip?.documentRules || [
               { templateId: "doc-1", dueType: "days_before_trip", dueValue: 20 },
@@ -1837,7 +2397,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
       for (const [tripId, tp] of uniqueTrips) {
         if (!currentTrips.find((t) => t.id === tripId)) {
-          currentTrips.push({ id: tripId, name: tp.name, departureDate: tp.departure_date || "", description: tp.description, heroImage: tp.hero_image, heroImages: tp.hero_images, transferInfo: tp.transfer_info, automation: tp.automation, documentRules: tp.document_rules, paymentSchedule: tp.payment_schedule, itinerary: tp.itinerary, checklist: tp.checklist });
+          currentTrips.push({ id: tripId, name: tp.name, departureDate: tp.departure_date || "", description: tp.description, heroImage: tp.hero_image, heroImages: tp.hero_images, transferInfo: tp.transfer_info || { bank: "", accountHolder: "", iban: "", concept: "" }, automation: tp.automation, documentRules: tp.document_rules, paymentSchedule: tp.payment_schedule, itinerary: tp.itinerary, checklist: tp.checklist });
         }
       }
 
@@ -1856,16 +2416,14 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       const toInsert = parsedRows.filter((r) => !existingByUsername.has(r.finalUsername)).map((r) => r.participantPayload);
       const toUpdate = parsedRows.filter((r) => existingByUsername.has(r.finalUsername));
 
-      if (toInsert.length) {
-        const { data: inserted, error: insertErr } = await supabase.from("participants").insert(toInsert).select("id, username");
-        if (insertErr) { notify(`Error insertando participantes: ${insertErr.message}`); setIsImporting(false); return; }
-        for (const p of (inserted || [])) existingByUsername.set(p.username, p.id);
-      }
-
-      if (toUpdate.length) {
-        await Promise.all(
-          toUpdate.map((r) => supabase.from("participants").update(r.participantPayload).eq("id", existingByUsername.get(r.finalUsername)))
-        );
+      const allPayloads = parsedRows.map((r) => r.participantPayload);
+      if (allPayloads.length) {
+        const { data: upserted, error: upsertErr } = await supabase
+          .from("participants")
+          .upsert(allPayloads, { onConflict: "username" })
+          .select("id, username");
+        if (upsertErr) { notify(`Error importando participantes: ${upsertErr.message}`); setIsImporting(false); return; }
+        for (const p of (upserted || [])) existingByUsername.set(p.username, p.id);
       }
 
       setImportProgress(55);
@@ -1877,7 +2435,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         .map((r) => ({ participant_id: existingByUsername.get(r.finalUsername), ...r.pricing }));
 
       if (pricingRows.length) {
-        await supabase.from("participant_pricing").upsert(pricingRows, { onConflict: "participant_id" });
+        const { error: pricErr } = await supabase.from("participant_pricing").upsert(pricingRows, { onConflict: "participant_id" });
+        if (pricErr) { notify("Error sincronizando precios: " + pricErr.message, { variant: "destructive" }); setIsImporting(false); return; }
       }
 
       setImportProgress(65);
@@ -1915,7 +2474,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
       if (paymentsToInsert.length) {
         const { error: payInsertErr } = await supabase.from("participant_payments").insert(paymentsToInsert);
-        if (payInsertErr) console.error("Error insertando pagos:", payInsertErr);
+        if (payInsertErr) { console.error("Error insertando pagos:", payInsertErr); notify("Error guardando pagos del Excel. Revisa los datos manualmente.", { variant: "destructive" }); }
       }
 
       // Updates individuales (necesario porque cada row tiene su propio id)
@@ -1949,10 +2508,11 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
             body: JSON.stringify({ participants: authCandidates }),
           });
           const result = await res.json();
-          if (!res.ok) console.error("Error creando cuentas Auth:", result.error);
+          if (!res.ok) { console.error("Error creando cuentas Auth:", result.error); notify(`Error creando accesos: ${result.error || "revisa el log"}`, { variant: "destructive" }); }
           else notify(`Accesos creados: ${result.created} nuevos, ${result.updated} actualizados.`);
         } catch (err) {
           console.error("Error llamando /api/create-auth-users:", err);
+          notify("Error creando accesos de participantes. Revisa el log.", { variant: "destructive" });
         }
       }
 
@@ -1979,6 +2539,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           },
           checklistState: {},
           questions: [],
+          dni: r.dniFromExcel || "",
         };
       });
 
@@ -1998,12 +2559,12 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
       setImportProgress(100);
       setImportMessage("Importación completada");
-      notify(`Excel importado: ${rows.length} participante(s) procesados.`);
+      notify(`Excel importado: ${parsedRows.length} participante(s) procesados correctamente.`);
       if (input) input.value = "";
       setImportFileName("");
     } catch (error) {
       console.error(error);
-      notify("No se ha podido leer o guardar el Excel. Revisa el formato.");
+      notify(`Error importando Excel: ${error?.message || "Revisa el formato."}`);
       if (input) input.value = "";
     } finally {
       setTimeout(() => { setIsImporting(false); setImportProgress(0); setImportMessage(""); setImportTotal(0); setImportDone(0); }, 1200);
@@ -2063,6 +2624,28 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
               </div>
             </div>
           )}
+
+          <div className="mt-3 border-t border-zinc-100 pt-3">
+            <Label className="mb-2 block text-xs text-zinc-500">Vincular documento Excel o Google Sheets (URL pública)</Label>
+            <div className="flex gap-2">
+              <Input
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/... o enlace Excel"
+                className="rounded-2xl text-sm"
+              />
+              <Button
+                onClick={handleSyncSheet}
+                disabled={isSyncingSheet || isImporting}
+                className="h-11 shrink-0 rounded-2xl text-white"
+                style={{ backgroundColor: CORPORATE_RED }}
+              >
+                {isSyncingSheet ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                <span className="ml-2">{isSyncingSheet ? "Sincronizando..." : "Sincronizar"}</span>
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace). Usa el mismo campamento seleccionado en "Grupo origen".</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -2081,18 +2664,23 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                 <CheckCircle2 className="mr-2 h-4 w-4" />{allVisibleSelected ? "Deseleccionar todos" : "Seleccionar todos"}
               </Button>
             </div>
-            {selectedClientIds.length > 1 && (
-              <div className="flex items-center gap-2 self-end">
+            <div className="flex items-center gap-2 self-end flex-wrap">
+              {selectedClientIds.length > 1 && (
                 <Badge className="bg-zinc-900 text-white hover:bg-zinc-900">{selectedClientIds.length} seleccionados</Badge>
-                <Button variant="outline" className="h-11 rounded-2xl" onClick={deleteSelectedClients}>
+              )}
+              <Button variant="outline" className="h-11 rounded-2xl" onClick={() => setConfirmBulkInvite(true)}>
+                <Mail className="mr-2 h-4 w-4" />{selectedClientIds.length > 1 ? `Enviar acceso (${selectedClientIds.length})` : "Enviar acceso a todos"}
+              </Button>
+              {selectedClientIds.length > 1 && (
+                <Button variant="outline" className="h-11 rounded-2xl" onClick={() => setConfirmBulkDelete(true)}>
                   <Trash2 className="mr-2 h-4 w-4" />Eliminar selección
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3">
-            {visibleClients.map((client) => {
+            {pagedClients.map((client) => {
               const isSelected = selectedClientIds.includes(client.id);
               return (
                 <div key={client.id} className={`grid gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-white shadow-sm" : "border-zinc-200 bg-white"}`}>
@@ -2124,6 +2712,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                   <div className="flex flex-col items-end gap-2">
                     <Button
                       variant="ghost" size="icon"
+                      aria-label={client.email ? "Enviar invitación de acceso" : "Sin email registrado"}
                       title={client.email ? "Crear acceso / reenviar invitación" : "Sin email registrado"}
                       disabled={!client.email}
                       onClick={async () => {
@@ -2148,7 +2737,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                     >
                       <Mail className="h-4 w-4 text-zinc-700" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteSingleClient(client.id)}>
+                    <Button variant="ghost" size="icon" aria-label="Eliminar participante" onClick={() => setPendingDeleteId(client.id)}>
                       <Trash2 className="h-4 w-4 text-zinc-700" />
                     </Button>
                   </div>
@@ -2156,24 +2745,437 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
               );
             })}
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-zinc-100 pt-4 mt-2">
+              <span className="text-xs text-zinc-400">{visibleClients.length} participantes · página {clientPage} de {totalPages}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="rounded-xl" disabled={clientPage === 1} onClick={() => setClientPage((p) => p - 1)}>←</Button>
+                <Button variant="outline" size="sm" className="rounded-xl" disabled={clientPage === totalPages} onClick={() => setClientPage((p) => p + 1)}>→</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Confirmación: borrar factura participante */}
+      <AlertDialog open={!!pendingDeleteInvoiceClientId} onOpenChange={(o) => { if (!o) setPendingDeleteInvoiceClientId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar factura?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará el enlace a la factura de este participante. El archivo en Google Drive no se borrará.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction style={{ backgroundColor: CORPORATE_RED }} onClick={async () => {
+              const id = pendingDeleteInvoiceClientId;
+              setPendingDeleteInvoiceClientId(null);
+              const { error } = await supabase.from("participants").update({ invoice_url: null }).eq("id", id);
+              if (!error) { setUsers((prev) => prev.map((u) => u.id === id ? { ...u, invoiceUrl: null } : u)); notify("Factura eliminada."); }
+              else notify("Error eliminando factura: " + error.message, { variant: "destructive" });
+            }}>Borrar factura</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación enviar invitaciones */}
+      <AlertDialog open={confirmBulkInvite} onOpenChange={setConfirmBulkInvite}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {selectedClientIds.length > 1 ? `¿Enviar acceso a ${selectedClientIds.length} participantes?` : "¿Enviar acceso a todos los participantes?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Se enviará un email de invitación con sus credenciales de acceso al portal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { bulkInviteSelected(); setConfirmBulkInvite(false); }}>
+              Enviar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación eliminar individual */}
+      <AlertDialog open={pendingDeleteId !== null} onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar participante?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán todos los datos del participante. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => { deleteSingleClient(pendingDeleteId); setPendingDeleteId(null); }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación eliminar selección múltiple */}
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedClientIds.length} participantes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán todos sus datos permanentemente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => { deleteSelectedClients(); setConfirmBulkDelete(false); }}>
+              Eliminar {selectedClientIds.length} participantes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function AdminParticipantsExport({ users, trips }) {
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
+  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "all");
+
+  // Todos los campos disponibles, organizados por grupo
+  const COLUMN_GROUPS = [
+    {
+      group: "Participante",
+      cols: [
+        { key: "nombre",       label: "Nombre del participante",    default: true },
+        { key: "dni",          label: "DNI / NIF / Pasaporte",      default: false },
+        { key: "nacimiento",   label: "Fecha de nacimiento",        default: false },
+        { key: "sexo",         label: "Sexo",                       default: false },
+        { key: "direccion",    label: "Dirección completa",         default: false },
+        { key: "colegio",      label: "Colegio",                    default: false },
+        { key: "talla",        label: "Talla de camiseta",          default: false },
+        { key: "modalidad",    label: "Modalidad de campamento",    default: false },
+        { key: "username",     label: "Usuario (login)",            default: false },
+      ],
+    },
+    {
+      group: "Familia",
+      cols: [
+        { key: "madre",        label: "Nombre de la madre",         default: false },
+        { key: "tel_madre",    label: "Teléfono de la madre",       default: false },
+        { key: "email_madre",  label: "Email de la madre",          default: false },
+        { key: "dni_madre",    label: "DNI de la madre",            default: false },
+        { key: "padre",        label: "Nombre del padre",           default: false },
+        { key: "tel_padre",    label: "Teléfono del padre",         default: false },
+        { key: "email_padre",  label: "Email del padre",            default: false },
+        { key: "dni_padre",    label: "DNI del padre",              default: false },
+        { key: "email",        label: "Email de contacto",          default: false },
+        { key: "auth_img",     label: "Autorización imágenes",      default: false },
+      ],
+    },
+    {
+      group: "Salud",
+      cols: [
+        { key: "alergias",     label: "Alergias / intolerancias",   default: false },
+        { key: "salud",        label: "Problemas de salud",         default: false },
+        { key: "observ",       label: "Observaciones",              default: false },
+      ],
+    },
+    {
+      group: "Procedencia",
+      cols: [
+        { key: "como_conocio", label: "Cómo nos conocieron",        default: false },
+        { key: "viaje",        label: "Nombre del viaje",           default: false },
+      ],
+    },
+    {
+      group: "Económico",
+      cols: [
+        { key: "precio_ini",   label: "Precio inicial",             default: false },
+        { key: "descuento",    label: "Descuento",                  default: false },
+        { key: "precio_fin",   label: "Precio final",               default: false },
+      ],
+    },
+    {
+      group: "Pagos",
+      cols: [
+        { key: "res_importe",  label: "Reserva — importe",          default: false },
+        { key: "res_estado",   label: "Reserva — estado",           default: false },
+        { key: "res_fecha",    label: "Reserva — fecha límite",     default: false },
+        { key: "p1_importe",   label: "1ª Cuota — importe",         default: false },
+        { key: "p1_estado",    label: "1ª Cuota — estado",          default: false },
+        { key: "p1_fecha",     label: "1ª Cuota — fecha límite",    default: false },
+        { key: "p2_importe",   label: "2ª Cuota — importe",         default: false },
+        { key: "p2_estado",    label: "2ª Cuota — estado",          default: false },
+        { key: "p2_fecha",     label: "2ª Cuota — fecha límite",    default: false },
+      ],
+    },
+  ];
+
+  const allCols = COLUMN_GROUPS.flatMap((g) => g.cols);
+  const [cols, setCols] = useState(() => Object.fromEntries(allCols.map((c) => [c.key, c.default])));
+  const toggleCol = (key) => setCols((p) => ({ ...p, [key]: !p[key] }));
+  const [openGroups, setOpenGroups] = React.useState(() => Object.fromEntries(COLUMN_GROUPS.map(g => [g.group, false])));
+  const toggleGroup = (group) => setOpenGroups(p => ({ ...p, [group]: !p[group] }));
+
+  const STATUS_LABELS = { pending: "Pendiente", sent: "Enviado", confirmed: "Confirmado", rejected: "Rechazado" };
+
+  const tripClients = selectedTripId === "all" ? clients : clients.filter((c) => c.tripId === selectedTripId);
+  const tripName = selectedTripId === "all" ? "Todos los viajes" : trips.find((t) => t.id === selectedTripId)?.name || "";
+
+  const getCell = (client, key) => {
+    const p = client.payments || {};
+    const fmt = (v) => v ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v) : "—";
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-ES") : "—";
+    if (key === "nombre")      return client.participantName || "—";
+    if (key === "dni")         return client.dni || "—";
+    if (key === "nacimiento")  return client.birthDate ? new Date(client.birthDate).toLocaleDateString("es-ES") : "—";
+    if (key === "sexo")        return client.gender || "—";
+    if (key === "direccion")   return client.address || "—";
+    if (key === "colegio")     return client.school || "—";
+    if (key === "talla")       return client.shirtSize || "—";
+    if (key === "modalidad")   return client.modality || "—";
+    if (key === "username")    return client.username || "—";
+    if (key === "madre")       return client.motherName || "—";
+    if (key === "tel_madre")   return client.phoneMother || "—";
+    if (key === "email_madre") return client.contactEmails?.[0] || client.email || "—";
+    if (key === "dni_madre")   return client.dniMother || "—";
+    if (key === "padre")       return client.fatherName || "—";
+    if (key === "tel_padre")   return client.phoneFather || "—";
+    if (key === "email_padre") return client.contactEmails?.[1] || "—";
+    if (key === "dni_padre")   return client.dniFather || "—";
+    if (key === "email")       return client.email || client.contactEmails?.[0] || "—";
+    if (key === "auth_img")    return client.imageAuth ? "Sí" : "No";
+    if (key === "alergias")    return client.allergies || "—";
+    if (key === "salud")       return client.healthNotes || "—";
+    if (key === "observ")      return client.notes || "—";
+    if (key === "como_conocio") return client.howKnown || "—";
+    if (key === "viaje")       return trips.find((t) => t.id === client.tripId)?.name || "—";
+    if (key === "precio_ini")  return fmt(p.initialPrice);
+    if (key === "descuento")   return p.discount > 0 ? fmt(p.discount) : "—";
+    if (key === "precio_fin")  return fmt(p.finalPrice || Math.max(0, (p.initialPrice || 0) - (p.discount || 0)));
+    if (key === "res_importe") return fmt(p.reservation?.amount);
+    if (key === "res_estado")  return STATUS_LABELS[p.reservation?.status] || "—";
+    if (key === "res_fecha")   return fmtDate(p.reservation?.dueDate);
+    if (key === "p1_importe")  return fmt(p.firstInstallment?.amount);
+    if (key === "p1_estado")   return STATUS_LABELS[p.firstInstallment?.status] || "—";
+    if (key === "p1_fecha")    return fmtDate(p.firstInstallment?.dueDate);
+    if (key === "p2_importe")  return fmt(p.secondInstallment?.amount);
+    if (key === "p2_estado")   return STATUS_LABELS[p.secondInstallment?.status] || "—";
+    if (key === "p2_fecha")    return fmtDate(p.secondInstallment?.dueDate);
+    return "—";
+  };
+
+  const activeCols = allCols.filter((c) => cols[c.key]);
+
+  const handleExport = () => {
+    if (!tripClients.length || !activeCols.length) return;
+    const tbody = tripClients.map((client, i) =>
+      `<tr><td style="color:#a1a1aa;width:24px">${i + 1}</td>${activeCols.map((c) => `<td>${getCell(client, c.key)}</td>`).join("")}</tr>`
+    ).join("");
+    exportListToPDF(
+      `Participantes — ${tripName}`,
+      `${tripClients.length} participante(s)`,
+      `<table><thead><tr><th>#</th>${activeCols.map((c) => `<th>${c.label}</th>`).join("")}</tr></thead><tbody>${tbody}</tbody></table>`
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionTitle icon={FileText} title="Participantes" subtitle="Exporta listados personalizados en PDF." />
+
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5 space-y-6">
+          {/* Selector de viaje */}
+          <div className="space-y-2">
+            <Label>Viaje</Label>
+            <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)}
+              className="h-11 w-full max-w-sm rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+              <option value="all">Todos los viajes</option>
+              {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+
+          {/* Columnas por grupo — desplegables */}
+          {COLUMN_GROUPS.map(({ group, cols: groupCols }) => {
+            const groupActive = groupCols.filter(c => cols[c.key]).length;
+            const open = openGroups[group];
+            return (
+              <div key={group} className="rounded-2xl border border-zinc-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  className="flex w-full items-center justify-between bg-zinc-50 px-4 py-3 text-left transition hover:bg-zinc-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{group}</span>
+                    {groupActive > 0 && (
+                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                        {groupActive}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+                </button>
+                {open && (
+                  <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3 border-t border-zinc-100 bg-white">
+                    {groupCols.map(({ key, label }) => (
+                      <div key={key} onClick={() => toggleCol(key)}
+                        className={`flex cursor-pointer select-none items-center gap-3 rounded-2xl border p-3 text-sm transition-all ${cols[key] ? "border-zinc-900 bg-zinc-950 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>
+                        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${cols[key] ? "border-white bg-white text-zinc-950" : "border-zinc-300"}`}>
+                          {cols[key] ? "✓" : ""}
+                        </div>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={() => setCols(Object.fromEntries(allCols.map(c => [c.key, true])))}>
+              Seleccionar todo
+            </Button>
+            <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={() => setCols(Object.fromEntries(allCols.map(c => [c.key, false])))}>
+              Borrar selección
+            </Button>
+            <Button onClick={handleExport} disabled={!tripClients.length || activeCols.length === 0}
+              className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+              <FileText className="mr-2 h-4 w-4" />
+              Exportar PDF — {tripClients.length} participante(s)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Vista previa */}
+      {tripClients.length > 0 && activeCols.length > 0 && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 text-sm font-semibold text-zinc-700">Vista previa</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-400">#</th>
+                    {activeCols.map((c) => <th key={c.key} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{c.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tripClients.slice(0, 8).map((client, i) => (
+                    <tr key={client.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                      <td className="px-3 py-2 text-zinc-400">{i + 1}</td>
+                      {activeCols.map((c) => <td key={c.key} className="px-3 py-2 text-zinc-700">{getCell(client, c.key)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {tripClients.length > 8 && <div className="mt-2 text-xs text-zinc-400">+{tripClients.length - 8} participantes más en el PDF</div>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 function AdminTracking({ users, trips, templates, setUsers, notify }) {
-  const clients = users.filter((u) => u.role === "client");
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
   const [selectedTripId, setSelectedTripId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [replyTexts, setReplyTexts] = useState({});
+  const [sendingReply, setSendingReply] = useState({});
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [syncingSheet, setSyncingSheet] = useState(false);
+  const handleReplyQuestion = async (participantId, questionId, reply) => {
+    if (!reply?.trim()) return;
+    setSendingReply((s) => ({ ...s, [questionId]: true }));
+    try {
+      const { error } = await supabase.from("participant_questions").update({ reply, replied_at: new Date().toISOString(), status: "replied" }).eq("id", questionId);
+      if (error) throw new Error(error.message);
+      setUsers((prev) => prev.map((u) => u.id === participantId ? { ...u, questions: (u.questions || []).map((q) => q.id === questionId ? { ...q, reply, repliedAt: new Date().toISOString(), status: "replied" } : q) } : u));
+      setReplyTexts((t) => { const n = { ...t }; delete n[questionId]; return n; });
+      const participant = users.find((u) => u.id === participantId);
+      const question = (participant?.questions || []).find((q) => q.id === questionId);
+      if (participant?.email && question) sendNotification("question_replied", participant.email, participantId, { participantName: participant.participantName, question: question.message, reply });
+      notify("✅ Respuesta enviada.");
+    } catch (err) { notify("Error guardando respuesta: " + err.message); }
+    finally { setSendingReply((s) => { const n = { ...s }; delete n[questionId]; return n; }); }
+  };
   const filteredClients = clients.filter(
     (c) => (selectedTripId === "all" || c.tripId === selectedTripId) && matchesParticipantSearch(c, searchQuery)
   );
   const updateClient = (clientId, updater) =>
     setUsers((prev) => prev.map((u) => u.id === clientId ? updater(u) : u));
-  const sendReminder = (client, type) =>
-    notify(`Recordatorio enviado a ${client.parentName || getFamilyLabel(client)} sobre ${type}.`);
+  const sendReminder = async (client, type) => {
+    const trip = trips.find((t) => t.id === client.tripId);
+    const email = client.email || client.contactEmails?.[0];
+    if (!email) { notify("Este participante no tiene email registrado."); return; }
+    try {
+      const token = await getAuthToken();
+      const authHeaders = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      if (type === "documentación") {
+        // Bug fix: los estados válidos son "pending_upload" y "pending_confirmation", no "pending"/"not_uploaded"
+        const pendingDocs = client.documents.filter((d) =>
+          !["confirmed"].includes(d.status)
+        );
+        const docName = pendingDocs.length > 0
+          ? pendingDocs.map((d) => d.id).join(", ")
+          : "Documentación pendiente";
+        const res = await fetch("/api/notify", {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ type: "doc_reminder", to: email, participantId: client.id, data: { participantName: client.participantName, docName, tripName: trip?.name || "" } }),
+        });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Error ${res.status}`); }
+      } else {
+        const pendingPays = [
+          { key: "reservation", label: "Reserva" },
+          { key: "firstInstallment", label: "1.ª cuota" },
+          { key: "secondInstallment", label: "2.ª cuota" },
+        ].filter((p) => client.payments[p.key]?.status === "pending");
+        const paymentName = pendingPays.map((p) => p.label).join(", ") || "Pago pendiente";
+        const res = await fetch("/api/notify", {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ type: "payment_reminder", to: email, participantId: client.id, data: { participantName: client.participantName, paymentName, amount: "", dueDate: "", daysLeft: "", tripName: trip?.name || "" } }),
+        });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Error ${res.status}`); }
+      }
+      notify(`✉️ Recordatorio enviado a ${email}`);
+    } catch (err) {
+      notify("Error enviando recordatorio: " + err.message);
+    }
+  };
   const getSummaryTone = (v) => v === 0 ? "bg-red-100 text-red-700" : v === 1 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700";
+
+  // Actualizar Google Sheets de seguimiento cuando cambia un estado de pago
+  const syncPaymentToSheet = async (client, paymentKey, nextStatus, amount) => {
+    const trip = trips.find((t) => t.id === client.tripId);
+    if (!trip) return;
+    try {
+      const token = await getAuthToken();
+      await fetch("/api/tracking-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          action: "update_payment",
+          tripName: trip.name,
+          participantName: client.participantName,
+          participantEmail: client.email || "",
+          participantDni: client.dni || "",
+          paymentKey,
+          paymentStatus: nextStatus,
+          paymentAmount: amount || 0,
+        }),
+      });
+    } catch (err) {
+      console.warn("tracking-sheet sync error (non-critical):", err.message);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -2201,8 +3203,61 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
             <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
               <span>Primer doc: <strong>{formatShortDate(calculateDueDateFromRule(trips.find((t) => t.id === selectedTripId)?.departureDate, trips.find((t) => t.id === selectedTripId)?.documentRules?.[0]))}</strong></span>
               <span>Último pago: <strong>{formatShortDate(getPaymentRuleDueDate(trips.find((t) => t.id === selectedTripId), "secondInstallment"))}</strong></span>
-              <Button variant="outline" className="rounded-2xl" onClick={() => notify("Recordatorio masivo preparado.")}>
-                <Mail className="mr-2 h-4 w-4" />Recordar al grupo
+              <Button variant="outline" className="rounded-2xl" disabled={sendingReminder} onClick={async () => {
+                const trip = trips.find((t) => t.id === selectedTripId);
+                const tripClients = clients.filter((c) => c.tripId === selectedTripId);
+                const withEmail = tripClients.filter((c) => c.email || c.contactEmails?.[0]);
+                if (!withEmail.length) { notify("Ningún participante tiene email registrado."); return; }
+                setSendingReminder(true);
+                notify(`Enviando recordatorio a ${withEmail.length} participante(s)…`);
+                const token = await getAuthToken();
+                const authHeaders = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+                let sent = 0; let failed = 0;
+                for (const c of withEmail) {
+                  const email = c.email || c.contactEmails?.[0];
+                  const tripName = trip?.name || "";
+                  let ok = true;
+                  // Docs pendientes
+                  const pendingDocs = c.documents.filter((d) => d.status === "pending_upload" || d.status === "pending_confirmation");
+                  if (pendingDocs.length) {
+                    const r = await fetch("/api/notify", { method: "POST", headers: authHeaders, body: JSON.stringify({ type: "doc_reminder", to: email, participantId: c.id, data: { participantName: c.participantName, docName: pendingDocs.map((d) => { const t2 = templates.find((t3) => t3.id === d.id); return t2?.name || "documento pendiente"; }).join(", "), tripName } }) }).catch(() => null);
+                    if (!r?.ok) ok = false;
+                  }
+                  // Pagos pendientes
+                  const pendingPays = ["reservation", "firstInstallment", "secondInstallment"].filter((k) => c.payments[k]?.status === "pending");
+                  for (const pk of pendingPays) {
+                    const pay = c.payments[pk];
+                    const r = await fetch("/api/notify", { method: "POST", headers: authHeaders, body: JSON.stringify({ type: "payment_reminder", to: email, participantId: c.id, data: { participantName: c.participantName, paymentName: pay.name || pk, amount: pay.amount ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(pay.amount) : "", dueDate: pay.dueDate || "", daysLeft: "", tripName } }) }).catch(() => null);
+                    if (!r?.ok) ok = false;
+                  }
+                  if (ok) sent++; else failed++;
+                }
+                setSendingReminder(false);
+                if (failed > 0) notify(`Recordatorio: ${sent} enviados, ${failed} con error.`, { variant: "destructive" });
+                else notify(`✅ Recordatorio enviado a ${sent} participante(s) del grupo.`);
+              }}>
+                {sendingReminder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}Recordar al grupo
+              </Button>
+              <Button variant="outline" className="rounded-2xl" disabled={syncingSheet} onClick={async () => {
+                const trip = trips.find((t) => t.id === selectedTripId);
+                const tripClients = clients.filter((c) => c.tripId === selectedTripId);
+                if (!trip || !tripClients.length) { notify("No hay participantes en este viaje."); return; }
+                setSyncingSheet(true);
+                notify("Sincronizando hoja de seguimiento…");
+                try {
+                  const token = await getAuthToken();
+                  const res = await fetch("/api/tracking-sheet", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                    body: JSON.stringify({ action: "sync", tripName: trip.name, participants: tripClients }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.error || "Error");
+                  notify("✅ Hoja sincronizada.", { actionLabel: "Abrir", onAction: () => window.open(json.sheetUrl, "_blank", "noopener,noreferrer") });
+                } catch (err) { notify("Error sincronizando: " + err.message); }
+                finally { setSyncingSheet(false); }
+              }}>
+                {syncingSheet ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileCheck2 className="mr-2 h-4 w-4" />}Sync hoja Excel
               </Button>
             </div>
           )}
@@ -2219,6 +3274,8 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
           const paysTotal = payList.length;
           const paysConfirmed = payList.filter((p) => p.status === "confirmed").length;
           const paysReview = payList.filter((p) => ["sent", "review"].includes(p.status)).length;
+          const questionsUnanswered = (client.questions || []).filter((q) => !q.reply).length;
+          const totalPendingReview = docsReview + paysReview + questionsUnanswered;
 
           return (
             <AccordionSection
@@ -2228,6 +3285,9 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
               icon={Users}
               meta={
                 <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+                  {totalPendingReview > 0 && (
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>{totalPendingReview}</span>
+                  )}
                   <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(docsConfirmed === docsTotal ? 2 : docsConfirmed > 0 || docsReview > 0 ? 1 : 0)}`}>Docs {docsConfirmed}/{docsTotal}</div>
                   <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(paysConfirmed === paysTotal ? 2 : paysConfirmed > 0 || paysReview > 0 ? 1 : 0)}`}>Pagos {paysConfirmed}/{paysTotal}</div>
                   <Button variant="outline" className="h-9 shrink-0 rounded-2xl px-3" onClick={(e) => { e.stopPropagation(); sendReminder(client, "documentación"); }}><Mail className="mr-2 h-4 w-4" />Recordar docs</Button>
@@ -2244,61 +3304,94 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
                 ))}
               </div>
 
+              {/* Información del participante */}
+              <div className="mb-5 flex flex-wrap gap-2">
+                {[
+                  { label: "Email",        value: client.email },
+                  { label: "Usuario",      value: client.username },
+                  { label: "DNI",          value: client.dni },
+                  { label: "Fecha nac.",   value: client.birthDate ? new Date(client.birthDate).toLocaleDateString("es-ES") : null },
+                  { label: "Género",       value: client.gender },
+                  { label: "Familia",      value: getFamilyLabel(client) },
+                  { label: "Madre",        value: client.motherName },
+                  { label: "Tel. madre",   value: client.phoneMother },
+                  { label: "Padre",        value: client.fatherName },
+                  { label: "Tel. padre",   value: client.phoneFather },
+                  { label: "Colegio",      value: client.school },
+                  { label: "Dirección",    value: client.address },
+                  { label: "Alergias",     value: client.allergies },
+                  { label: "Salud",        value: client.healthNotes },
+                  { label: "Talla",        value: client.shirtSize },
+                  { label: "Modalidad",    value: client.modality },
+                  { label: "Notas",        value: client.notes },
+                ].filter(({ value }) => !!value).map(({ label, value }) => (
+                  <div key={label} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs">
+                    <span className="text-zinc-400">{label}:</span>
+                    <span className="font-medium text-zinc-800">{value}</span>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid gap-5 xl:grid-cols-2">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Documentación</div>
                   {client.documents.map((docItem) => {
                     const template = templates.find((t) => t.id === docItem.id);
                     const status = getStatusMeta(docItem.status);
+                    const isPendingReview = docItem.status === "pending_confirmation";
                     return (
-                      <div key={docItem.id} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                        <div className="flex flex-wrap items-center gap-3">
+                      <div key={docItem.id} className={`rounded-2xl border p-4 space-y-3 ${isPendingReview ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"}`}>
+                        {/* Fila 1: info + badge */}
+                        <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-zinc-950">{template?.name || docItem.id}</div>
-                            <div className="truncate text-sm text-zinc-500">{docItem.uploadedFileName || "Sin archivo subido"}</div>
-                            <div className="flex items-center gap-2 truncate text-sm text-zinc-500">
-                              <span className={`h-2.5 w-2.5 rounded-full ${getDueStatus(getDocumentRuleDueDate(trip, docItem.id)).className}`} />
+                            <div className="font-medium text-zinc-950">{template?.name || docItem.id}</div>
+                            <div className="text-sm text-zinc-500">{docItem.uploadedFileName || "Sin archivo subido"}</div>
+                            <div className="flex items-center gap-2 text-sm text-zinc-500 mt-0.5">
+                              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDueStatus(getDocumentRuleDueDate(trip, docItem.id)).className}`} />
                               <span>Límite: {formatShortDate(getDocumentRuleDueDate(trip, docItem.id))}</span>
                             </div>
                           </div>
-                          <Badge className={status.className} style={status.style}>{status.label}</Badge>
-                          <select
-                            value={docItem.status}
-                            onChange={async (e) => {
-                              const nextStatus = e.target.value;
-                              const prevDocs = client.documents;
-                              updateClient(client.id, (c) => ({ ...c, documents: c.documents.map((d) => d.id === docItem.id ? { ...d, status: nextStatus } : d) }));
-                              try {
-                                // [ALTO-2] Rollback en error
-                                await upsertDocument(client.id, docItem.id, {
-                                  status: nextStatus,
-                                  uploaded_file_name: docItem.uploadedFileName || "",
-                                  file_path: docItem.filePath || "",
-                                  storage_path: docItem.filePath || "",
-                                  drive_url: docItem.driveUrl || "",
-                                  confirmed_at: nextStatus === "confirmed" ? new Date().toISOString() : null,
-                                });
-                                if (nextStatus === "confirmed" || nextStatus === "rejected") {
-                                  const docName = template?.name || docItem.id;
-                                  const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
-                                  sendNotification(nextStatus === "confirmed" ? "doc_confirmed" : "doc_rejected", client.email, client.id, { participantName: client.participantName, docName, tripName });
-                                }
-                              } catch (err) {
-                                console.error(err);
-                                updateClient(client.id, (c) => ({ ...c, documents: prevDocs }));
-                                notify("No se pudo guardar el estado del documento.");
-                              }
-                            }}
-                            className="h-10 min-w-[190px] rounded-2xl border border-zinc-200 bg-white px-3 text-sm"
-                          >
-                            <option value="pending_upload">Pendiente de envío</option>
-                            <option value="pending_confirmation">Por revisar</option>
-                            <option value="confirmed">Confirmado</option>
-                            <option value="rejected">Rechazado</option>
-                          </select>
-                          <Button variant="outline" className="h-10 rounded-2xl px-3" disabled={!docItem.driveUrl && !docItem.filePath} onClick={() => window.open(docItem.driveUrl || docItem.filePath, "_blank", "noopener,noreferrer")}>
-                            <Eye className="mr-2 h-4 w-4" />Ver documento
-                          </Button>
+                          <Badge className={`shrink-0 ${status.className}`} style={status.style}>{status.label}</Badge>
+                        </div>
+                        {/* Fila 2: controles */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {[
+                            { value: "pending_upload", label: "Pendiente" },
+                            { value: "pending_confirmation", label: "Por revisar" },
+                            { value: "confirmed", label: "Confirmado" },
+                            { value: "rejected", label: "Rechazado" },
+                          ].map(({ value, label }) => {
+                            const isActive = docItem.status === value;
+                            const meta = getStatusMeta(value);
+                            return (
+                              <button key={value} type="button"
+                                onClick={async () => {
+                                  if (isActive) return;
+                                  const prevDocs = client.documents;
+                                  updateClient(client.id, (c) => ({ ...c, documents: c.documents.map((d) => d.id === docItem.id ? { ...d, status: value } : d) }));
+                                  try {
+                                    await upsertDocument(client.id, docItem.id, { status: value, uploaded_file_name: docItem.uploadedFileName || "", file_path: docItem.filePath || "", storage_path: docItem.filePath || "", drive_url: docItem.driveUrl || "", confirmed_at: value === "confirmed" ? new Date().toISOString() : null });
+                                    if (value === "confirmed" || value === "rejected") {
+                                      const docName = template?.name || docItem.id;
+                                      const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
+                                      sendNotification(value === "confirmed" ? "doc_confirmed" : "doc_rejected", client.email, client.id, { participantName: client.participantName, docName, tripName });
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                    updateClient(client.id, (c) => ({ ...c, documents: prevDocs }));
+                                    notify("No se pudo guardar el estado del documento.");
+                                  }
+                                }}
+                                className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${isActive ? meta.className : "border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50"}`}
+                                style={isActive && meta.style ? meta.style : undefined}
+                              >{label}</button>
+                            );
+                          })}
+                          {(docItem.driveUrl || docItem.filePath) && (
+                            <Button variant="outline" className="ml-auto h-8 rounded-xl px-3 text-xs shrink-0" onClick={() => window.open(docItem.driveUrl || docItem.filePath, "_blank", "noopener,noreferrer")}>
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />Ver
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -2309,53 +3402,57 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Pagos</div>
                   {[["reservation", client.payments.reservation], ["firstInstallment", client.payments.firstInstallment], ["secondInstallment", client.payments.secondInstallment]].map(([paymentKey, payment]) => {
                     const status = getStatusMeta(payment.status);
+                    const isPendingReview = payment.status === "sent";
                     return (
-                      <div key={String(paymentKey)} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                        <div className="flex flex-wrap items-center gap-3">
+                      <div key={String(paymentKey)} className={`rounded-2xl border p-4 space-y-3 ${isPendingReview ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"}`}>
+                        {/* Fila 1: info + badge */}
+                        <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-zinc-950">{payment.name || String(paymentKey)}</div>
-                            <div className="truncate text-sm text-zinc-500">{formatCurrency(payment.amount)} · {payment.proofName || "Sin justificante"}</div>
-                            <div className="flex items-center gap-2 truncate text-sm text-zinc-500">
-                              <span className={`h-2.5 w-2.5 rounded-full ${getDueStatus(getPaymentRuleDueDate(trip, paymentKey)).className}`} />
+                            <div className="font-medium text-zinc-950">{payment.name || String(paymentKey)}</div>
+                            <div className="text-sm text-zinc-500">{formatCurrency(payment.amount)} · {payment.proofName || "Sin justificante"}</div>
+                            <div className="flex items-center gap-2 text-sm text-zinc-500 mt-0.5">
+                              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDueStatus(getPaymentRuleDueDate(trip, paymentKey)).className}`} />
                               <span>Límite: {formatShortDate(getPaymentRuleDueDate(trip, paymentKey))}</span>
                             </div>
                           </div>
-                          <Badge className={status.className} style={status.style}>{status.label}</Badge>
-                          <select
-                            value={payment.status}
-                            onChange={async (e) => {
-                              const nextStatus = e.target.value;
-                              const prevPayments = client.payments;
-                              updateClient(client.id, (c) => ({ ...c, payments: { ...c.payments, [paymentKey]: { ...c.payments[paymentKey], status: nextStatus } } }));
-                              try {
-                                // [ALTO-2] Rollback + [ALTO-1] upsertPayment centralizado
-                                await upsertPayment(client.id, paymentKey, {
-                                  name: payment.name || String(paymentKey),
-                                  amount: Number(payment.amount || 0),
-                                  status: nextStatus,
-                                  proof_name: payment.proofName || "",
-                                  proof_path: payment.proofPath || "",
-                                  due_date: payment.dueDate || null,
-                                });
-                                if (nextStatus === "confirmed") {
-                                  const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
-                                  const amount = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment.amount || 0);
-                                  sendNotification("payment_confirmed", client.email, client.id, { participantName: client.participantName, paymentName: payment.name, amount, tripName });
-                                }
-                              } catch (err) {
-                                console.error(err);
-                                updateClient(client.id, (c) => ({ ...c, payments: prevPayments }));
-                                notify("No se pudo guardar el estado del pago.");
-                              }
-                            }}
-                            className="h-10 min-w-[190px] rounded-2xl border border-zinc-200 bg-white px-3 text-sm"
-                          >
-                            <option value="pending">Pendiente</option>
-                            <option value="sent">Enviado</option>
-                            <option value="confirmed">Confirmado</option>
-                            <option value="rejected">Rechazado</option>
-                          </select>
-                          <Button variant="outline" className="h-10 rounded-2xl px-3" disabled={!payment.proofPath} onClick={() => window.open(payment.proofPath, "_blank", "noopener,noreferrer")}>
+                          <Badge className={`shrink-0 ${status.className}`} style={status.style}>{status.label}</Badge>
+                        </div>
+                        {/* Fila 2: controles */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {[
+                            { value: "pending", label: "Pendiente" },
+                            { value: "sent", label: "Enviado" },
+                            { value: "confirmed", label: "Confirmado" },
+                            { value: "rejected", label: "Rechazado" },
+                          ].map(({ value, label }) => {
+                            const isActive = payment.status === value;
+                            const meta = getStatusMeta(value);
+                            return (
+                              <button key={value} type="button"
+                                onClick={async () => {
+                                  if (isActive) return;
+                                  const prevPayments = client.payments;
+                                  updateClient(client.id, (c) => ({ ...c, payments: { ...c.payments, [paymentKey]: { ...c.payments[paymentKey], status: value } } }));
+                                  try {
+                                    await upsertPayment(client.id, paymentKey, { name: payment.name || String(paymentKey), amount: Number(payment.amount || 0), status: value, proof_name: payment.proofName || "", proof_path: payment.proofPath || "", due_date: payment.dueDate || null }, true);
+                                    if (value === "confirmed") {
+                                      const tripName = trips.find((t) => t.id === client.tripId)?.name || "";
+                                      const amount = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment.amount || 0);
+                                      sendNotification("payment_confirmed", client.email, client.id, { participantName: client.participantName, paymentName: payment.name, amount, tripName });
+                                    }
+                                    syncPaymentToSheet(client, paymentKey, value, payment.amount);
+                                  } catch (err) {
+                                    console.error(err);
+                                    updateClient(client.id, (c) => ({ ...c, payments: prevPayments }));
+                                    notify("No se pudo guardar el estado del pago.");
+                                  }
+                                }}
+                                className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${isActive ? meta.className : "border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50"}`}
+                                style={isActive && meta.style ? meta.style : undefined}
+                              >{label}</button>
+                            );
+                          })}
+                          <Button variant="outline" className="h-10 rounded-2xl px-3 shrink-0" disabled={!payment.proofPath} onClick={() => window.open(payment.proofPath, "_blank", "noopener,noreferrer")}>
                             <Eye className="mr-2 h-4 w-4" />Ver justificante
                           </Button>
                         </div>
@@ -2364,6 +3461,48 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
                   })}
                 </div>
               </div>
+
+              {/* Sección dudas */}
+              {(client.questions || []).length > 0 && (
+                <div className="mt-5 space-y-3">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Dudas</div>
+                  {[...(client.questions || [])].reverse().map((q) => (
+                    <div key={q.id} className={`rounded-2xl border p-4 space-y-2 ${!q.reply ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+                          <p className="mt-1 text-sm text-zinc-900">{q.message}</p>
+                        </div>
+                        <Badge className={`shrink-0 ${q.reply ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}>
+                          {q.reply ? "Respondida" : "Pendiente"}
+                        </Badge>
+                      </div>
+                      {q.reply ? (
+                        <div className="rounded-xl bg-green-50 px-3 py-2 text-xs text-zinc-700">↳ {q.reply}</div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={replyTexts[q.id] || ""}
+                            onChange={(e) => setReplyTexts((t) => ({ ...t, [q.id]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleReplyQuestion(client.id, q.id, replyTexts[q.id]); }}
+                            placeholder="Escribe la respuesta y pulsa Enter o Enviar…"
+                            className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none"
+                          />
+                          <Button
+                            disabled={!replyTexts[q.id]?.trim() || !!sendingReply[q.id]}
+                            onClick={() => handleReplyQuestion(client.id, q.id, replyTexts[q.id])}
+                            className="h-8 shrink-0 rounded-xl px-3 text-xs text-white"
+                            style={{ backgroundColor: CORPORATE_RED }}
+                          >
+                            <Send className="mr-1.5 h-3 w-3" />{sendingReply[q.id] ? "…" : "Enviar"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </AccordionSection>
           );
         })}
@@ -2372,14 +3511,50 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
   );
 }
 
-function AdminPayments({ users, setUsers, notify }) {
-  const clients = users.filter((u) => u.role === "client");
+function AdminPayments({ users, setUsers, trips, setTrips, notify }) {
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
   const [searchQuery, setSearchQuery] = useState("");
   const filteredClients = clients.filter((c) => matchesParticipantSearch(c, searchQuery));
+  const globalTi = trips?.[0]?.transferInfo || {};
+
+  const saveGlobalTransferInfo = async (field, value) => {
+    if (!trips?.length) return;
+    const updated = { ...globalTi, [field]: value };
+    setTrips?.((prev) => prev.map((t) => ({ ...t, transferInfo: updated })));
+    const ids = trips.map((t) => t.id);
+    const { error } = await supabase.from("trips").update({ transfer_info: updated }).in("id", ids);
+    if (error) notify("Error guardando datos bancarios: " + error.message);
+  };
 
   return (
     <div className="space-y-5">
       <SectionTitle icon={CreditCard} title="Pagos" subtitle="Edita importes y estados por cliente." />
+
+      {/* Datos bancarios globales */}
+      {trips && trips.length > 0 && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-zinc-400" />
+              <span className="text-sm font-semibold uppercase tracking-[0.15em] text-zinc-500">Datos bancarios</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[["Banco", "bank"], ["Titular", "accountHolder"], ["IBAN", "iban"], ["Concepto", "concept"]].map(([label, field]) => (
+                <div key={field} className="space-y-1">
+                  <Label className="text-xs">{label}</Label>
+                  <Input
+                    defaultValue={globalTi[field] || ""}
+                    placeholder={field === "concept" ? "Nombre del participante + viaje" : field === "iban" ? "ES00 0000 0000 0000 0000 0000" : ""}
+                    className="rounded-xl text-sm h-9"
+                    onBlur={(e) => saveGlobalTransferInfo(field, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="space-y-2">
@@ -2397,25 +3572,80 @@ function AdminPayments({ users, setUsers, notify }) {
                   <div>
                     <div className="font-medium text-zinc-950">{client.participantName}</div>
                     {getFamilyLabel(client) && <div className="text-sm text-zinc-500">Familia: {getFamilyLabel(client)}</div>}
+                    {client.dni && <div className="text-sm text-zinc-500">DNI: {client.dni}</div>}
+                    {client.email && <div className="text-xs text-zinc-400">{client.email}</div>}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {client.invoiceUrl ? (
+                        <Button variant="outline" size="sm" className="h-8 rounded-2xl text-xs" onClick={() => window.open(client.invoiceUrl, "_blank", "noopener,noreferrer")}>
+                          <Download className="mr-1.5 h-3.5 w-3.5" />Ver factura
+                        </Button>
+                      ) : null}
+                      <InvoiceUploadButton existing={!!client.invoiceUrl} size="sm" onUpload={async (file, onProgress) => {
+                        try {
+                          const result = await uploadFileToDrive(file, client.participantName, "facturas", onProgress, "GIMELOOS Facturas");
+                          const url = result.webViewLink;
+                          const { error: invErr } = await supabase.from("participants").update({ invoice_url: url }).eq("id", client.id);
+                          if (invErr) throw new Error(invErr.message);
+                          setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, invoiceUrl: url } : u));
+                          notify("Factura subida correctamente.");
+                        } catch (err) { notify("Error subiendo factura: " + err.message); }
+                      }} />
+                      {client.invoiceUrl && (
+                        <Button variant="outline" size="sm" className="h-8 rounded-2xl text-xs text-red-600 hover:bg-red-50 border-red-200" onClick={() => setPendingDeleteInvoiceClientId(client.id)}>
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />Borrar factura
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {[["Precio inicial", "initialPrice"], ["Descuento", "discount"], ["Precio final", "finalPrice"], ["Reserva", "reservation"], ["1ª cuota", "firstInstallment"], ["2ª cuota", "secondInstallment"]].map(([label, key]) => (
                     <div key={label}>
                       <Label className="mb-2 block">{label}</Label>
                       {["initialPrice", "discount", "finalPrice"].includes(key) ? (
-                        <Input type="number" value={client.payments[key] ?? 0}
+                        key === "finalPrice" ? (
+                          <Input
+                            type="number"
+                            value={Math.max(0, (client.payments.initialPrice || 0) - (client.payments.discount || 0))}
+                            readOnly
+                            className="rounded-2xl bg-zinc-50 text-zinc-500 cursor-not-allowed"
+                          />
+                        ) : (
+                        <Input type="number" value={client.payments[key] || ""}
                           onChange={async (e) => {
                             const num = Number(e.target.value || 0);
-                            setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: num } } : u));
-                            const { error } = await supabase.from("participant_pricing").upsert(
-                              { participant_id: client.id, initial_price: key === "initialPrice" ? num : client.payments.initialPrice || 0, discount: key === "discount" ? num : client.payments.discount || 0, final_price: key === "finalPrice" ? num : client.payments.finalPrice || 0 },
+                            const newInitial   = key === "initialPrice" ? num : (client.payments.initialPrice || 0);
+                            const newDiscount  = key === "discount"     ? num : (client.payments.discount     || 0);
+                            const newFinal     = Math.max(0, newInitial - newDiscount);
+                            // La segunda cuota absorbe el descuento: segundaCuota = final - reserva - primeraCuota
+                            const reservation  = Number(client.payments.reservation?.amount || 0);
+                            const first        = Number(client.payments.firstInstallment?.amount || 0);
+                            const newSecond    = Math.max(0, newFinal - reservation - first);
+                            setUsers((prev) => prev.map((u) => u.id === client.id ? {
+                              ...u,
+                              payments: {
+                                ...u.payments,
+                                [key]: num,
+                                finalPrice: newFinal,
+                                secondInstallment: { ...u.payments.secondInstallment, amount: newSecond },
+                              }
+                            } : u));
+                            // Guardar precio
+                            const { error: priceErr } = await supabase.from("participant_pricing").upsert(
+                              { participant_id: client.id, initial_price: newInitial, discount: newDiscount, final_price: newFinal },
                               { onConflict: "participant_id" }
                             );
-                            if (error) notify("Error guardando precio: " + error.message);
+                            if (priceErr) notify("Error guardando precio: " + priceErr.message);
+                            // Actualizar importe de la segunda cuota en BD
+                            const { error: payErr } = await supabase.from("participant_payments")
+                              .update({ amount: newSecond })
+                              .eq("participant_id", client.id)
+                              .eq("payment_key", "secondInstallment");
+                            if (payErr) notify("Error actualizando segunda cuota: " + payErr.message);
                           }}
                           className="rounded-2xl"
                         />
+                        )
                       ) : (
-                        <Input type="number" value={client.payments[key].amount}
+                        <Input type="number" value={client.payments[key].amount || ""}
                           onChange={async (e) => {
                             const num = Number(e.target.value || 0);
                             setUsers((prev) => prev.map((u) => u.id === client.id ? { ...u, payments: { ...u.payments, [key]: { ...u.payments[key], amount: num } } } : u));
@@ -2441,8 +3671,10 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
   const [name, setName] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(undefined);
   const [selectedTrip, setSelectedTrip] = useState(trips[0]?.id || "");
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || "");
+  const [templateToDelete, setTemplateToDelete] = useState(null);
 
   const addTemplate = async () => {
     if (!name.trim()) return;
@@ -2452,19 +3684,20 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
       let driveUrl = "";
       let fileName = uploadedFile?.name || `${name.toLowerCase().replace(/\s+/g, "-")}.pdf`;
       if (uploadedFile) {
-        const result = await uploadFileToDrive(uploadedFile, "archivos", "plantillas", null, "GIMELOOS Plantillas");
+        const result = await uploadFileToDrive(uploadedFile, "archivos", "plantillas", (pct) => setUploadPct(pct), "GIMELOOS Plantillas");
         driveUrl = result.webViewLink;
         fileName = result.fileName;
       }
-      const newTemplate = { id, name, fileName, driveUrl };
-      setTemplates((prev) => [...prev, newTemplate]);
-      await supabase.from("document_templates").upsert({ id, name, file_name: fileName, drive_url: driveUrl });
+      const { error: tplSaveErr } = await supabase.from("document_templates").upsert({ id, name, file_name: fileName, drive_url: driveUrl });
+      if (tplSaveErr) throw new Error(tplSaveErr.message);
+      setTemplates((prev) => [...prev, { id, name, fileName, driveUrl }]);
       setName(""); setUploadedFile(null); setSelectedTemplateId(id);
       notify("Nueva plantilla creada.");
     } catch (err) {
       notify("Error al crear la plantilla: " + err.message);
     } finally {
       setUploading(false);
+      setUploadPct(undefined);
     }
   };
 
@@ -2519,6 +3752,18 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
             <Button onClick={addTemplate} disabled={uploading} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
               <FileText className="mr-2 h-4 w-4" />{uploading ? "Subiendo…" : "Crear plantilla"}
             </Button>
+            {uploadPct !== undefined && (
+              <div>
+                <div className="mb-1 flex justify-between text-xs text-zinc-500">
+                  <span>{uploadPct < 100 ? "Subiendo a Google Drive…" : "¡Listo!"}</span>
+                  <span>{uploadPct}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                  <div className="h-full rounded-full transition-all duration-200"
+                    style={{ width: `${uploadPct}%`, backgroundColor: uploadPct === 100 ? "#16a34a" : CORPORATE_RED }} />
+                </div>
+              </div>
+            )}
             <Separator />
             <div className="space-y-3">
               {templates.map((t) => (
@@ -2533,7 +3778,7 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
                         <Eye className="h-4 w-4 text-zinc-700" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => deleteTemplate(t.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => setTemplateToDelete(t)}>
                       <Trash2 className="h-4 w-4 text-zinc-700" />
                     </Button>
                   </div>
@@ -2563,6 +3808,27 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!templateToDelete} onOpenChange={(open) => { if (!open) setTemplateToDelete(null); }}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar plantilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará <strong>{templateToDelete?.name}</strong> y todos los documentos de participantes vinculados a ella. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-2xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl text-white"
+              style={{ backgroundColor: "#dc2626" }}
+              onClick={() => { deleteTemplate(templateToDelete.id); setTemplateToDelete(null); }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -2632,6 +3898,7 @@ function AdminChecklists({ trips, setTrips, notify }) {
 
 function AdminTrips({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const [creating, setCreating] = useState(false);
   const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
 
   const syncField = (field, value) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, [field]: value } : t));
@@ -2641,16 +3908,41 @@ function AdminTrips({ trips, setTrips, notify }) {
     if (error) notify("Error guardando cambios: " + error.message);
   };
 
-  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
+  const handleCreate = async () => {
+    setCreating(true);
+    const newId = crypto.randomUUID();
+    const { data, error } = await supabase.from("trips").insert({ id: newId, name: "Nuevo campamento", tipo: "campamento", checklist: [], itinerary: [], logistics: [] }).select().single();
+    if (error) { notify("Error creando campamento: " + error.message); setCreating(false); return; }
+    const newTrip = { id: data.id, name: data.name, departureDate: "", description: "", heroImage: "", heroImages: [], transferInfo: { bank: "", accountHolder: "", iban: "", concept: "" }, automation: {}, showItinerary: true, showLogistics: true, documentRules: [], paymentSchedule: {}, itinerary: [], logistics: [], checklist: [], tipo: "campamento" };
+    setTrips((prev) => [...prev, newTrip]);
+    setSelectedTripId(data.id);
+    setCreating(false);
+    notify("Campamento creado. Edita el nombre y los datos.");
+  };
+
+  if (!trips.length) return (
+    <div className="space-y-5">
+      <SectionTitle icon={MapIcon} title="Campamentos" subtitle="Información básica y foto de portada de cada campamento." extra={
+        <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+          <Plus className="mr-1.5 h-4 w-4" />{creating ? "Creando..." : "Nuevo campamento"}
+        </Button>
+      } />
+      <div className="py-16 text-center text-sm text-zinc-400">No hay campamentos configurados. Crea el primero.</div>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={Map} title="Viajes" subtitle="Información básica y foto de portada de cada viaje." />
+      <SectionTitle icon={MapIcon} title="Campamentos" subtitle="Información básica y foto de portada de cada campamento." extra={
+        <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+          <Plus className="mr-1.5 h-4 w-4" />{creating ? "Creando..." : "Nuevo campamento"}
+        </Button>
+      } />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex-1 space-y-1">
-              <Label>Viaje activo</Label>
+              <Label>Campamento activo</Label>
               <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -2684,6 +3976,7 @@ function AdminTrips({ trips, setTrips, notify }) {
                 onChange={(v) => syncField("heroImage", v)}
                 onBlur={(v) => saveField("hero_image", v)}
                 tripId={selectedTripId}
+                notify={notify}
               />
             </div>
             <div className="space-y-2">
@@ -2711,15 +4004,15 @@ function AdminItinerary({ trips, setTrips, notify }) {
     if (error) notify("Error guardando itinerario: " + error.message);
   };
 
-  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
+  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay campamentos configurados.</div>;
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={CalendarDays} title="Itinerario" subtitle="Programa día a día de cada viaje. Arrastra para reordenar." />
+      <SectionTitle icon={CalendarDays} title="Itinerario" subtitle="Programa día a día de cada campamento. Arrastra para reordenar." />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="space-y-1">
-            <Label>Viaje</Label>
+            <Label>Campamento</Label>
             <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
               {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -2799,15 +4092,15 @@ function AdminLogistica({ trips, setTrips, notify }) {
     if (error) notify("Error guardando logística: " + error.message);
   };
 
-  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay viajes configurados.</div>;
+  if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay campamentos configurados.</div>;
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={MapPinned} title="Logística" subtitle="Datos clave previos al viaje: horarios, lugar de encuentro, qué llevar..." />
+      <SectionTitle icon={MapPinned} title="Logística" subtitle="Datos clave previos al campamento: horarios, lugar de encuentro, qué llevar..." />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="space-y-1">
-            <Label>Viaje</Label>
+            <Label>Campamento</Label>
             <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
               {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -2978,72 +4271,26 @@ function AdminQuestions({ users, setUsers, notify }) {
   );
 }
 
-function usePaymentReminders(users, trips) {
-  useEffect(() => {
-    if (!users.length || !trips.length) return;
-    // Registra qué recordatorios ya se enviaron: { "participantId_paymentKey_7d": true, ... }
-    const SENT_KEY = "gimeloos_reminders_v2";
-    const sent = JSON.parse(localStorage.getItem(SENT_KEY) || "{}");
-    const PAYMENT_MILESTONES = [7, 3, 1]; // días antes del vencimiento
-    const clients = users.filter((u) => u.role === "client");
-    const reminders = [];
-    const newSent = { ...sent };
-
-    clients.forEach((client) => {
-      if (!client.email) return;
-      const trip = trips.find((t) => t.id === client.tripId);
-      const tripName = trip?.name || "";
-
-      // Recordatorios de pago — solo en los hitos exactos
-      ["reservation", "firstInstallment", "secondInstallment"].forEach((key) => {
-        const payment = client.payments?.[key];
-        if (!payment || ["confirmed", "sent"].includes(payment.status)) return;
-        if (!payment.dueDate) return;
-        const due = new Date(payment.dueDate);
-        const daysLeft = Math.round((due - new Date()) / 86400000);
-        PAYMENT_MILESTONES.forEach((milestone) => {
-          if (daysLeft !== milestone) return;
-          const sentKey = `${client.id}_${key}_${milestone}d`;
-          if (sent[sentKey]) return; // Ya enviado
-          reminders.push(
-            sendNotification("payment_reminder", client.email, client.id, {
-              participantName: client.participantName,
-              paymentName: payment.name,
-              amount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment.amount || 0),
-              dueDate: due.toLocaleDateString("es-ES", { day: "numeric", month: "long" }),
-              daysLeft,
-              tripName,
-            }).then(() => { newSent[sentKey] = true; })
-          );
-        });
-      });
-
-      // Recordatorio de docs — solo una vez por documento
-      client.documents?.forEach((doc) => {
-        if (doc.status !== "pending_upload") return;
-        const sentKey = `${client.id}_doc_${doc.id}`;
-        if (sent[sentKey]) return;
-        reminders.push(
-          sendNotification("doc_reminder", client.email, client.id, {
-            participantName: client.participantName,
-            docName: doc.id,
-            tripName,
-          }).then(() => { newSent[sentKey] = true; })
-        );
-      });
-    });
-
-    if (reminders.length > 0) {
-      Promise.all(reminders).then(() => {
-        localStorage.setItem(SENT_KEY, JSON.stringify(newSent));
-      });
-    }
-  }, [users, trips]);
-}
-
 // ─── School Portal ────────────────────────────────────────────────────────────
 
-function SchoolTrips({ schoolTrips }) {
+function SchoolTrips({ schoolTrips, courses, students, schoolDocuments, onNavigate }) {
+  const [expandedId, setExpandedId] = useState(null);
+
+  const getPending = (st) => {
+    const tripCourses = courses.filter((c) => c.school_trip_id === st.id);
+    const tripCourseIds = new Set(tripCourses.map((c) => c.id));
+    const tripStudents = students.filter((s) => tripCourseIds.has(s.school_course_id));
+    const pendingDocs = schoolDocuments.filter((d) => tripCourseIds.has(d.school_course_id) && d.status !== "approved");
+    const studentsWithoutMedical = tripStudents.filter((s) => !s.allergies && !s.intolerances && !s.notes);
+    return {
+      docs: pendingDocs,
+      studentsNoMedical: studentsWithoutMedical,
+      tripStudents,
+      tripCourses,
+      total: pendingDocs.length,
+    };
+  };
+
   if (!schoolTrips.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
@@ -3052,47 +4299,156 @@ function SchoolTrips({ schoolTrips }) {
       </div>
     );
   }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionTitle icon={CalendarDays} title="Mis viajes" subtitle="Viajes escolares asignados a tu colegio." />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {schoolTrips.map((st) => (
-          <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm overflow-hidden">
-            {st.trips?.hero_image && (
-              <div className="h-32 w-full overflow-hidden">
-                <img src={st.trips.hero_image} alt={st.trips?.name} className="h-full w-full object-cover" />
-              </div>
-            )}
-            <CardContent className="p-5">
-              <div className="mb-1 text-xs font-medium uppercase tracking-widest text-zinc-400">Viaje</div>
-              <div className="text-base font-bold text-zinc-950">{st.trips?.name || st.trip_id}</div>
-              {st.trips?.departure_date && (
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  {new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+      {schoolTrips.map((st) => {
+        const pending = getPending(st);
+        const isOpen = expandedId === st.id;
+        const depDate = st.trips?.departure_date
+          ? new Date(st.trips.departure_date).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })
+          : null;
+        const remaining = daysRemaining(st.trips?.departure_date);
+
+        return (
+          <div key={st.id} className="rounded-2xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+            {/* Fila principal — clicable */}
+            <button
+              type="button"
+              onClick={() => setExpandedId(isOpen ? null : st.id)}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-zinc-50 transition"
+            >
+              {/* Mini thumbnail */}
+              {st.trips?.hero_image ? (
+                <img src={st.trips.hero_image} alt={st.trips?.name} className="h-12 w-16 rounded-xl object-cover shrink-0" />
+              ) : (
+                <div className="flex h-12 w-16 items-center justify-center rounded-xl bg-zinc-100 shrink-0">
+                  <Map className="h-5 w-5 text-zinc-400" />
                 </div>
               )}
-              {st.courses?.length > 0 && (
-                <div className="mt-3">
-                  <div className="mb-1 text-xs font-medium text-zinc-500">Cursos / grupos</div>
-                  <div className="flex flex-wrap gap-1.5">
+
+              {/* Info */}
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-zinc-950 leading-tight truncate">{st.trips?.name || st.trip_id}</div>
+                {depDate && (
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                    <CalendarDays className="h-3 w-3 shrink-0" />{depDate}
+                    <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
+                      {remaining === 0 ? "hoy" : `${remaining}d`}
+                    </span>
+                  </div>
+                )}
+                {st.courses?.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
                     {st.courses.map((c) => (
-                      <Badge key={c.id} variant="outline" className="rounded-xl text-xs">{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</Badge>
+                      <span key={c.id} className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-600">
+                        {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+                      </span>
                     ))}
                   </div>
+                )}
+              </div>
+
+              {/* Badge pendientes + chevron */}
+              <div className="flex items-center gap-2 shrink-0">
+                {pending.total > 0 && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                    {pending.total}
+                  </span>
+                )}
+                {pending.total === 0 && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                  </span>
+                )}
+                <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {/* Panel expandible */}
+            {isOpen && (
+              <div className="border-t border-zinc-100 px-5 py-4 bg-zinc-50 space-y-4">
+                {/* Stats rápidas */}
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    { icon: Users,        label: "Alumnos",        val: pending.tripStudents.length,                               ok: pending.tripStudents.length > 0 },
+                    { icon: FileCheck2,   label: "Docs pendientes",val: pending.docs.length,                                       ok: pending.docs.length === 0,  bad: pending.docs.length > 0 },
+                    { icon: Home,         label: "Rooming",        val: st.rooming?.length ? `${st.rooming.length} hab.` : "Pendiente",   ok: (st.rooming?.length ?? 0) > 0, bad: !(st.rooming?.length) },
+                    { icon: Grid2x2,     label: "Grupos",         val: st.activity_groups?.length ? `${st.activity_groups.length} grupos` : "Pendiente", ok: (st.activity_groups?.length ?? 0) > 0, bad: !(st.activity_groups?.length) },
+                    { icon: CheckCircle2, label: "Checklist",  val: st.checklist?.length ? `${st.checklist.length} ítems` : "Pendiente",  ok: (st.checklist?.length ?? 0) > 0,  bad: !(st.checklist?.length) },
+                    ...(st.show_itinerary !== false ? [{ icon: CalendarDays, label: "Itinerario", val: st.itinerary?.length ? `${st.itinerary.length} tramos` : "Pendiente", ok: (st.itinerary?.length ?? 0) > 0, bad: !(st.itinerary?.length) }] : []),
+                    ...(st.show_logistics !== false ? [{ icon: MapPinned,    label: "Logística",   val: st.logistics?.length ? `${st.logistics.length} puntos` : "Pendiente", ok: (st.logistics?.length ?? 0) > 0, bad: !(st.logistics?.length) }] : []),
+                    { icon: CreditCard,   label: "Pagos",          val: st.payment_info?.status === "completed" ? "Al día" : st.payment_info?.status === "partial" ? "Parcial" : "Pendiente", ok: st.payment_info?.status === "completed", bad: !st.payment_info?.status || st.payment_info?.status === "pending",
+                      extra: st.invoice_url ? (
+                        <button type="button" className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-emerald-600 underline" onClick={(e) => { e.stopPropagation(); window.open(st.invoice_url, "_blank", "noopener,noreferrer"); }}>
+                          <Download className="h-3 w-3" />Factura
+                        </button>
+                      ) : null },
+                  ].map(({ icon: Icon, label, val, ok, bad, extra }) => (
+                    <div key={label} className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${ok ? "border-emerald-200 bg-emerald-50" : bad ? "border-red-100 bg-red-50" : "border-zinc-200 bg-white"}`}>
+                      <Icon className={`h-4 w-4 shrink-0 ${ok ? "text-emerald-600" : bad ? "text-red-400" : "text-zinc-400"}`} />
+                      <div className="min-w-0">
+                        <div className={`text-xs font-semibold ${ok ? "text-emerald-700" : bad ? "text-red-600" : "text-zinc-500"}`}>{label}</div>
+                        <div className={`truncate text-xs ${ok ? "text-emerald-600" : bad ? "text-red-500" : "text-zinc-400"}`}>{val}{extra}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+                {/* Documentos pendientes */}
+                {pending.docs.length > 0 ? (
+                  <div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">Documentos pendientes</div>
+                    <div className="space-y-1.5">
+                      {pending.docs.slice(0, 6).map((d) => (
+                        <button key={d.id} type="button" onClick={() => onNavigate?.("docs")}
+                          className="flex w-full items-center justify-between rounded-xl bg-white border border-zinc-200 px-3 py-2 text-sm text-left hover:bg-zinc-50 transition">
+                          <span className="truncate text-zinc-700">{d.doc_name || d.name || d.id}</span>
+                          <Badge variant="outline" className="ml-2 shrink-0 rounded-lg text-[10px]">{d.status || "pendiente"}</Badge>
+                        </button>
+                      ))}
+                      {pending.docs.length > 6 && (
+                        <div className="text-xs text-zinc-400 px-1">+{pending.docs.length - 6} más</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+                {/* "Todo al día" solo cuando NADA está en rojo */}
+                {(() => {
+                  const allOk = pending.docs.length === 0
+                    && (st.rooming?.length ?? 0) > 0
+                    && (st.activity_groups?.length ?? 0) > 0
+                    && (st.checklist?.length ?? 0) > 0
+                    && (st.show_itinerary === false || (st.itinerary?.length ?? 0) > 0)
+                    && (st.show_logistics === false || (st.logistics?.length ?? 0) > 0)
+                    && st.payment_info?.status === "completed";
+                  return allOk ? (
+                    <div className="flex items-center gap-2 text-sm text-emerald-600">
+                      <CheckCircle2 className="h-4 w-4" /> Todo al día
+                    </div>
+                  ) : null;
+                })()}
+                {/* Botón de factura si el admin la ha subido */}
+                {st.invoice_url && (
+                  <div>
+                    <Button variant="outline" className="h-9 rounded-2xl text-sm" onClick={() => window.open(st.invoice_url, "_blank", "noopener,noreferrer")}>
+                      <Download className="mr-2 h-4 w-4" />Descargar factura
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function SchoolStudents({ schoolTrips, courses, students, setStudents, notify }) {
-  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
-  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id || "");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
   const [addSurname, setAddSurname] = useState("");
   const [addAllergies, setAddAllergies] = useState("");
@@ -3100,10 +4456,9 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
   const [addNotes, setAddNotes] = useState("");
   const [xlsxPreview, setXlsxPreview] = useState(null); // { rows, mapping, headers, file }
   const [importing, setImporting] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
 
-  const tripCourses = courses.filter((c) => c.school_trip_id === selectedTripId);
-  useEffect(() => { setSelectedCourseId(tripCourses[0]?.id || ""); }, [selectedTripId]);
-
+  const tripCourses = courses; // all courses for this school
   const courseStudents = students.filter((s) => s.school_course_id === selectedCourseId);
 
   const normalizeHeader = (h) => h.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
@@ -3190,109 +4545,137 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
     notify("Alumno eliminado.");
   };
 
+  const handleExportAlumnosPDF = () => {
+    const courseName = tripCourses.find((c) => c.id === selectedCourseId);
+    const tripName = schoolTrips.find((st) => st.id === selectedTripId)?.trips?.name || "";
+    const label = courseName ? `${courseName.course_name}${courseName.group_name ? ` · ${courseName.group_name}` : ""}` : "Todos los cursos";
+    const rows = (selectedCourseId ? courseStudents : students).map((s, i) => {
+      const course = courses.find((c) => c.id === s.school_course_id);
+      return `<tr>
+        <td>${i + 1}</td>
+        <td style="font-weight:600">${[s.name, s.surname].filter(Boolean).join(" ")}</td>
+        <td>${course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+        <td>${s.allergies ? `<span class="badge badge-red">${s.allergies}</span>` : "—"}</td>
+        <td>${s.intolerances ? `<span class="badge badge-amber">${s.intolerances}</span>` : "—"}</td>
+        <td>${s.notes || "—"}</td>
+      </tr>`;
+    }).join("");
+    exportListToPDF(
+      `Listado de alumnos — ${label}`,
+      tripName,
+      `<table><thead><tr><th>#</th><th>Alumno</th><th>Curso / Grupo</th><th>Alergia</th><th>Intolerancia</th><th>Notas</th></tr></thead><tbody>${rows}</tbody></table>`
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <SectionTitle icon={Users} title="Alumnos" subtitle="Gestiona los alumnos asignados a cada curso." />
-      {/* Selectors */}
-      <div className="flex flex-wrap gap-3">
-        <select
-          value={selectedTripId}
-          onChange={(e) => setSelectedTripId(e.target.value)}
-          className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
-        >
-          {schoolTrips.map((st) => (
-            <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>
-          ))}
-        </select>
-        <select
-          value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(e.target.value)}
-          className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
-        >
-          {tripCourses.length === 0 && <option value="">Sin cursos</option>}
-          {tripCourses.map((c) => (
-            <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>
-          ))}
-        </select>
+      <div className="flex items-center gap-3">
+        <SectionTitle icon={Users} title="Alumnos" subtitle="Gestiona los alumnos asignados a cada curso." />
+        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ backgroundColor: CORPORATE_RED }}>
+          <FolderUp className="h-4 w-4" />Importar listado
+          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
+        </label>
       </div>
-
-      {/* Manual add */}
-      {selectedCourseId && (
-        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="mb-3 text-sm font-semibold text-zinc-700">Añadir alumno manualmente</div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <Input placeholder="Nombre *" value={addName} onChange={(e) => setAddName(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
-              <Input placeholder="Apellidos" value={addSurname} onChange={(e) => setAddSurname(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
-              <Input placeholder="Alergias" value={addAllergies} onChange={(e) => setAddAllergies(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
-              <Input placeholder="Intolerancias" value={addIntolerances} onChange={(e) => setAddIntolerances(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
-              <Input placeholder="Notas" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
-              <Button onClick={handleAddManual} disabled={!addName.trim()} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />Añadir
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs de curso */}
+      {courses.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {courses.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+              className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${selectedCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={selectedCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+              {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+            </button>
+          ))}
+        </div>
       )}
 
-      {/* Excel import */}
+      {/* Botón añadir alumno + formulario colapsable */}
       {selectedCourseId && (
+        <div>
+          {!showAddForm ? (
+            <Button variant="outline" className="rounded-2xl text-sm" onClick={() => setShowAddForm(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />Añadir alumno manualmente
+            </Button>
+          ) : (
+            <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-semibold text-zinc-700">Añadir alumno manualmente</div>
+                  <Button variant="ghost" size="sm" className="rounded-xl text-xs text-zinc-500" onClick={() => setShowAddForm(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <Input placeholder="Nombre *" value={addName} onChange={(e) => setAddName(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+                  <Input placeholder="Apellidos" value={addSurname} onChange={(e) => setAddSurname(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+                  <Input placeholder="Alergias" value={addAllergies} onChange={(e) => setAddAllergies(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+                  <Input placeholder="Intolerancias" value={addIntolerances} onChange={(e) => setAddIntolerances(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+                  <Input placeholder="Notas" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} className="h-11 rounded-2xl border-zinc-200" />
+                  <Button onClick={handleAddManual} disabled={!addName.trim()} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />Añadir
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Excel import preview — aparece tras seleccionar archivo */}
+      {xlsxPreview && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-zinc-700">Importar desde Excel</div>
-              <label className="flex cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
-                <Upload className="h-3.5 w-3.5" />Seleccionar archivo
-                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
-              </label>
+              <div className="text-sm font-semibold text-zinc-700">Vista previa del archivo</div>
+              <Button variant="ghost" size="sm" className="rounded-xl text-xs text-zinc-500" onClick={() => setXlsxPreview(null)}>
+                <X className="mr-1 h-3.5 w-3.5" />Cancelar
+              </Button>
             </div>
-            {xlsxPreview && (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(FIELD_SYNONYMS).map(([field]) => {
-                    const found = xlsxPreview.mapping[field] !== undefined;
-                    return (
-                      <Badge key={field} variant="outline" className={`rounded-xl text-xs ${found ? "border-green-400 text-green-700" : "border-zinc-300 text-zinc-400"}`}>
-                        {found ? "✓" : "✗"} {field} {found ? `(col: ${xlsxPreview.headers[xlsxPreview.mapping[field]]})` : ""}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                {xlsxPreview.mapping.nombre === undefined && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                    <AlertCircle className="h-3.5 w-3.5" />No se detectó columna de nombre. Verifica los encabezados.
-                  </div>
-                )}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-100 bg-zinc-50">
-                        {xlsxPreview.headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
-                        <tr key={ri} className="border-b border-zinc-50">
-                          {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-3 py-2 text-zinc-700">{String(r[ci] || "")}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {xlsxPreview.rows.length > 5 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.rows.length - 5} filas más</div>}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleImport}
-                    disabled={importing || xlsxPreview.mapping.nombre === undefined}
-                    className="h-11 rounded-2xl text-white text-xs"
-                    style={{ backgroundColor: CORPORATE_RED }}
-                  >
-                    {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
-                  </Button>
-                  <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
-                </div>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(FIELD_SYNONYMS).map(([field]) => {
+                  const found = xlsxPreview.mapping[field] !== undefined;
+                  return (
+                    <Badge key={field} variant="outline" className={`rounded-xl text-xs ${found ? "border-green-400 text-green-700" : "border-zinc-300 text-zinc-400"}`}>
+                      {found ? "✓" : "✗"} {field} {found ? `(col: ${xlsxPreview.headers[xlsxPreview.mapping[field]]})` : ""}
+                    </Badge>
+                  );
+                })}
               </div>
-            )}
+              {xlsxPreview.mapping.nombre === undefined && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                  <AlertCircle className="h-3.5 w-3.5" />No se detectó columna de nombre. Verifica los encabezados.
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-100 bg-zinc-50">
+                      {xlsxPreview.headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
+                      <tr key={ri} className="border-b border-zinc-50">
+                        {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-3 py-2 text-zinc-700">{String(r[ci] || "")}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {xlsxPreview.rows.length > 5 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.rows.length - 5} filas más</div>}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleImport}
+                  disabled={importing || xlsxPreview.mapping.nombre === undefined}
+                  className="h-11 rounded-2xl text-white text-xs"
+                  style={{ backgroundColor: CORPORATE_RED }}
+                >
+                  {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
+                </Button>
+                <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -3329,7 +4712,7 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
                         <td className="px-3 py-2 text-zinc-700">{s.intolerances || "—"}</td>
                         <td className="px-3 py-2 text-zinc-700">{s.notes || "—"}</td>
                         <td className="px-3 py-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)} className="h-7 w-7 text-zinc-400 hover:bg-red-50 hover:text-red-600">
+                          <Button variant="ghost" size="icon" onClick={() => setStudentToDelete(s)} className="h-7 w-7 text-zinc-400 hover:bg-red-50 hover:text-red-600">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </td>
@@ -3342,17 +4725,75 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={!!studentToDelete} onOpenChange={(open) => { if (!open) setStudentToDelete(null); }}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar alumno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará a <strong>{studentToDelete?.name} {studentToDelete?.surname}</strong> de la lista. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-2xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl text-white"
+              style={{ backgroundColor: "#dc2626" }}
+              onClick={() => { handleDelete(studentToDelete.id); setStudentToDelete(null); }}
+            >Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 function SchoolAllergies({ courses, students }) {
-  const withAllergies = students.filter((s) => s.allergies?.trim() || s.intolerances?.trim());
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const filteredStudents = selectedCourseId
+    ? students.filter((s) => s.school_course_id === selectedCourseId && (s.allergies?.trim() || s.intolerances?.trim()))
+    : students.filter((s) => s.allergies?.trim() || s.intolerances?.trim());
+  const withAllergies = filteredStudents;
   const getCourse = (id) => courses.find((c) => c.id === id);
+
+  const handleExportAlergiasPDF = () => {
+    const rows = withAllergies.map((s, i) => {
+      const course = getCourse(s.school_course_id);
+      return `<tr>
+        <td>${i + 1}</td>
+        <td style="font-weight:600">${[s.name, s.surname].filter(Boolean).join(" ")}</td>
+        <td>${course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td>
+        <td>${s.allergies ? `<span class="badge badge-red">${s.allergies}</span>` : "—"}</td>
+        <td>${s.intolerances ? `<span class="badge badge-amber">${s.intolerances}</span>` : "—"}</td>
+        <td>${s.diet_notes || s.notes || "—"}</td>
+      </tr>`;
+    }).join("");
+    exportListToPDF(
+      "Alergias e intolerancias",
+      `${withAllergies.length} alumno(s) con restricciones`,
+      withAllergies.length === 0
+        ? "<p style='color:#71717a;font-size:13px'>Ningún alumno tiene alergias o intolerancias registradas.</p>"
+        : `<table><thead><tr><th>#</th><th>Alumno</th><th>Curso / Grupo</th><th>Alergia</th><th>Intolerancia</th><th>Notas dietéticas</th></tr></thead><tbody>${rows}</tbody></table>`
+    );
+  };
 
   return (
     <div className="space-y-4">
       <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Alumnos con restricciones alimentarias." />
+      {/* Filtro de curso */}
+      {courses.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setSelectedCourseId("")}
+            className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${!selectedCourseId ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+            style={!selectedCourseId ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
+          {courses.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+              className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${selectedCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={selectedCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+              {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
       {withAllergies.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
           <CheckCircle2 className="mb-3 h-10 w-10 opacity-40" />
@@ -3395,17 +4836,52 @@ function SchoolAllergies({ courses, students }) {
   );
 }
 
-function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
-  const handleUpload = async (docId, file) => {
+function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify, school, schoolTrips }) {
+  const [progress, setProgress] = useState({}); // docId → pct (0-100)
+  const [localFileNames, setLocalFileNames] = useState({}); // docId → filename
+  const [movingDoc, setMovingDoc] = useState(null); // docId being reassigned
+
+  const handleMoveDoc = async (docId, newCourseId) => {
+    setMovingDoc(docId);
+    const { error } = await supabase.from("school_documents").update({ school_course_id: newCourseId }).eq("id", docId);
+    if (error) { notify("Error moviendo el documento.", { variant: "destructive" }); }
+    else {
+      setSchoolDocuments((prev) => prev.map((d) => d.id === docId ? { ...d, school_course_id: newCourseId } : d));
+      notify("Documento reasignado al curso correctamente.");
+    }
+    setMovingDoc(null);
+  };
+
+  const handleUpload = async (docId, courseId, file) => {
     if (!file) return;
-    const path = `school-docs/${docId}/${file.name}`;
-    const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { upsert: true });
-    if (upErr) { notify("Error subiendo documento: " + upErr.message, { variant: "destructive" }); return; }
-    const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
-    const { error: dbErr } = await supabase.from("school_documents").update({ file_url: urlData.publicUrl, status: "uploaded" }).eq("id", docId);
-    if (dbErr) { notify("Error actualizando estado del documento.", { variant: "destructive" }); return; }
-    setSchoolDocuments((prev) => prev.map((d) => d.id === docId ? { ...d, file_url: urlData.publicUrl, status: "uploaded" } : d));
-    notify("Documento subido correctamente.");
+    // Feedback inmediato
+    setLocalFileNames((n) => ({ ...n, [docId]: file.name }));
+    setProgress((p) => ({ ...p, [docId]: 0 }));
+
+    const course = courses.find((c) => c.id === courseId);
+    const schoolTrip = schoolTrips?.find((st) => st.id === course?.school_trip_id);
+    const tripName = schoolTrip?.trips?.name || "colegio";
+    const courseName = [course?.course_name, course?.group_name].filter(Boolean).join(" - ");
+    const participantName = school?.name ? `${school.name}${courseName ? ` · ${courseName}` : ""}` : courseName || "colegio";
+
+    try {
+      const json = await uploadFileToDrive(
+        file, participantName, "documentación",
+        (pct) => setProgress((p) => ({ ...p, [docId]: pct })),
+        tripName
+      );
+      const fileUrl = json.webViewLink || json.fileId;
+      setProgress((p) => ({ ...p, [docId]: 100 }));
+      const { error: dbErr } = await supabase.from("school_documents").update({ file_url: fileUrl, status: "uploaded", uploaded_file_name: file.name }).eq("id", docId);
+      if (dbErr) { notify("Error actualizando estado del documento."); }
+      setSchoolDocuments((prev) => prev.map((d) => d.id === docId ? { ...d, file_url: fileUrl, status: "uploaded", uploaded_file_name: file.name } : d));
+      notify("✅ Documento subido correctamente.");
+      setTimeout(() => setProgress((p) => { const n = { ...p }; delete n[docId]; return n; }), 1800);
+    } catch (err) {
+      setLocalFileNames((n) => { const m = { ...n }; delete m[docId]; return m; });
+      setProgress((p) => { const m = { ...p }; delete m[docId]; return m; });
+      notify("Error subiendo documento: " + err.message);
+    }
   };
 
   if (!courses.length) {
@@ -3414,7 +4890,35 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
 
   return (
     <div className="space-y-6">
-      <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Documentos requeridos por curso." />
+      <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Documentos y recursos de tu viaje." />
+
+      {/* ── Recursos subidos por GIMELOOS para el colegio ─────────────────── */}
+      {schoolTrips?.some(st => st.admin_docs?.length) && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5 space-y-3">
+            <div className="font-semibold text-zinc-950">Recursos del viaje</div>
+            <p className="text-sm text-zinc-500">Documentos e información compartidos por el equipo de GIMELOOS para tu colegio.</p>
+            <div className="space-y-2">
+              {schoolTrips.flatMap(st => (st.admin_docs || []).map(doc => (
+                <div key={doc.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-5 w-5 shrink-0 text-zinc-400" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-zinc-900 truncate">{doc.name}</div>
+                      {doc.created_at && <div className="text-xs text-zinc-400">{new Date(doc.created_at).toLocaleDateString("es-ES")}</div>}
+                    </div>
+                  </div>
+                  {doc.file_url && (
+                    <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 ml-3 shrink-0" onClick={() => window.open(doc.file_url, "_blank", "noopener,noreferrer")}>
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" />Ver / Descargar
+                    </Button>
+                  )}
+                </div>
+              )))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {courses.map((course) => {
         const courseDocs = schoolDocuments.filter((d) => d.school_course_id === course.id);
         return (
@@ -3429,31 +4933,67 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
                 <p className="text-xs text-zinc-400">Sin documentos requeridos.</p>
               ) : (
                 <div className="space-y-2">
-                  {courseDocs.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between rounded-2xl border border-zinc-100 px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <FileCheck2 className="h-4 w-4 shrink-0 text-zinc-400" />
-                        <div>
-                          <div className="text-xs font-medium text-zinc-900">{doc.name}</div>
-                          <div className="mt-0.5">
-                            {doc.status === "uploaded"
-                              ? <Badge className="bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-medium">Subido</Badge>
-                              : <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">Pendiente</Badge>
-                            }
+                  {courseDocs.map((doc) => {
+                    const pct = progress[doc.id];
+                    const uploading = pct !== undefined && pct < 100;
+                    const displayFileName = localFileNames[doc.id] || doc.uploaded_file_name;
+                    return (
+                      <div key={doc.id} className="rounded-2xl border border-zinc-100 px-4 py-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <FileCheck2 className="h-4 w-4 shrink-0 text-zinc-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium text-zinc-900">{doc.name}</div>
+                              {displayFileName && (
+                                <div className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
+                                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                                  <span className="truncate">Subido: {displayFileName}</span>
+                                </div>
+                              )}
+                              {!displayFileName && (
+                                <div className="mt-0.5">
+                                  {doc.status === "uploaded"
+                                    ? <Badge className="bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-medium">Subido</Badge>
+                                    : <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">Pendiente</Badge>
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {doc.file_url && (
+                              <a href={doc.file_url} target="_blank" rel="noreferrer" download
+                                className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition">
+                                <Download className="h-3 w-3" />Descargar
+                              </a>
+                            )}
+                            {courses.length > 1 && (
+                              <select
+                                value={doc.school_course_id}
+                                disabled={movingDoc === doc.id}
+                                onChange={(e) => handleMoveDoc(doc.id, e.target.value)}
+                                className="rounded-xl border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 focus:outline-none"
+                                title="Mover a otro curso"
+                              >
+                                {courses.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>
+                                ))}
+                              </select>
+                            )}
+                            <label className={`flex cursor-pointer items-center gap-1 rounded-2xl border px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 ${uploading ? "cursor-not-allowed opacity-60" : ""}`} style={{ backgroundColor: CORPORATE_RED, borderColor: CORPORATE_RED }}>
+                              <Upload className="h-3 w-3" />{uploading ? `${Math.round(pct)}%` : "Subir"}
+                              <input type="file" className="hidden" disabled={uploading} onChange={(e) => handleUpload(doc.id, doc.school_course_id, e.target.files?.[0])} />
+                            </label>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {doc.file_url && (
-                          <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">Ver</a>
+                        {pct !== undefined && (
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                            <div className="h-full rounded-full transition-all duration-200" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "#16a34a" : CORPORATE_RED }} />
+                          </div>
                         )}
-                        <label className="flex cursor-pointer items-center gap-1 rounded-2xl border px-3 py-1.5 text-xs font-medium text-white hover:opacity-90" style={{ backgroundColor: CORPORATE_RED, borderColor: CORPORATE_RED }}>
-                          <Upload className="h-3 w-3" />Subir
-                          <input type="file" className="hidden" onChange={(e) => handleUpload(doc.id, e.target.files?.[0])} />
-                        </label>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -3464,12 +5004,32 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify }) {
   );
 }
 
-function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
-  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
-  const [importing, setImporting] = useState(false);
+function fmtExcelTime(v) {
+  const n = parseFloat(v);
+  if (!isNaN(n) && n > 0 && n < 1) {
+    const totalMins = Math.round(n * 24 * 60);
+    const h = Math.floor(totalMins / 60) % 24;
+    const m = totalMins % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+  return String(v);
+}
 
-  const selectedTrip = schoolTrips.find((st) => st.id === selectedTripId);
+function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
+  const allCourses = schoolTrips.flatMap((st) => (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" })));
+  const [selectedCourseId, setSelectedCourseId] = useState(allCourses[0]?.id || "");
+  const [importing, setImporting] = useState(false);
+  const [confirmClearRooming, setConfirmClearRooming] = useState(false);
+
+  const selectedTrip = schoolTrips.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId));
+  const selectedTripId = selectedTrip?.id || "";
   const rooming = selectedTrip?.rooming || [];
+
+  const handleClearRooming = async () => {
+    const { error } = await supabase.from("school_trips").update({ rooming: [] }).eq("id", selectedTripId);
+    if (!error) { setSchoolTrips((prev) => prev.map((st) => st.id === selectedTripId ? { ...st, rooming: [] } : st)); notify("Rooming eliminado."); }
+    else notify("Error eliminando rooming: " + error.message, { variant: "destructive" });
+  };
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -3483,9 +5043,9 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
       const raw = XLSX2.utils.sheet_to_json(ws, { header: 1, defval: "" });
       const rooms = [];
       raw.forEach((row) => {
-        if (!row[0]) return;
-        const roomName = String(row[0]).trim();
-        const studentNames = row.slice(1).map((c) => String(c).trim()).filter(Boolean);
+        if (!row[0] && row[0] !== 0) return;
+        const roomName = fmtExcelTime(row[0]);
+        const studentNames = row.slice(1).map((c) => (c === "" || c == null) ? "" : fmtExcelTime(c)).filter(Boolean);
         if (roomName) rooms.push({ room: roomName, students: studentNames });
       });
       const { error } = await supabase.from("school_trips").update({ rooming: rooms }).eq("id", selectedTripId);
@@ -3502,23 +5062,48 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
     e.target.value = "";
   };
 
+  const handleExportRoomingPDF = () => {
+    if (!rooming.length) return;
+    const selCourse = allCourses.find((c) => c.id === selectedCourseId);
+    const tripName = selCourse ? `${selCourse.course_name}${selCourse.group_name ? ` · ${selCourse.group_name}` : ""}` : "";
+    const blocks = rooming.map((r) =>
+      `<div class="room-block">
+        <div class="room-title">🛏️ ${r.room} <span style="font-weight:400;font-size:11px;color:#71717a">(${r.students.length} alumnos)</span></div>
+        <table style="width:100%"><tbody>
+          ${r.students.map((s, i) => `<tr><td style="width:28px;color:#a1a1aa">${i + 1}</td><td>${s}</td></tr>`).join("")}
+        </tbody></table>
+      </div>`
+    ).join("<hr style='border:none;border-top:1px solid #f4f4f5;margin:12px 0'>");
+    exportListToPDF("Rooming", tripName, blocks);
+  };
+
   return (
     <div className="space-y-6">
-      <SectionTitle icon={LayoutGrid} title="Rooming" subtitle="Asignación de habitaciones. Importa desde Excel." />
+      <SectionTitle icon={Home} title="Rooming" subtitle="Asignación de habitaciones. Importa desde Excel." />
+      {/* Tabs de curso */}
+      {allCourses.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {allCourses.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+              className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${selectedCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={selectedCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+              {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedTripId}
-              onChange={(e) => setSelectedTripId(e.target.value)}
-              className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
-            >
-              {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-            </select>
-            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
-              <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-sm font-medium text-white hover:opacity-90 transition ${importing ? "opacity-50" : ""}`} style={{ backgroundColor: "#FF3131", borderColor: "#FF3131" }}>
+              <FolderUp className="h-4 w-4" />{importing ? "Importando..." : "Importar documento"}
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} disabled={importing} />
             </label>
+            {rooming.length > 0 && (
+              <Button variant="outline" className="h-11 rounded-2xl text-sm text-red-600 hover:bg-red-50 border-red-200" onClick={() => setConfirmClearRooming(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />Borrar rooming
+              </Button>
+            )}
           </div>
           <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
         </CardContent>
@@ -3528,9 +5113,9 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
           {rooming.map((r, i) => (
             <Card key={i} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="p-5">
-                <div className="mb-2 font-semibold text-zinc-900">{r.room}</div>
+                <div className="mb-2 font-semibold text-zinc-900">{fmtExcelTime(r.room)}</div>
                 <div className="space-y-1">
-                  {r.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{s}</div>)}
+                  {r.students.map((s, j) => <div key={j} className="flex items-center gap-1.5 text-xs text-zinc-600"><User className="h-3 w-3 shrink-0 text-zinc-400" />{fmtExcelTime(s)}</div>)}
                 </div>
                 <Badge variant="outline" className="mt-3 rounded-xl text-xs">{r.students.length} alumnos</Badge>
               </CardContent>
@@ -3543,15 +5128,30 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
           <p className="text-sm">Importa un Excel para ver las habitaciones aquí.</p>
         </div>
       )}
+
+      <AlertDialog open={confirmClearRooming} onOpenChange={setConfirmClearRooming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar rooming?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminarán todas las habitaciones y asignaciones de alumnos de este viaje. Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction style={{ backgroundColor: CORPORATE_RED }} onClick={() => { setConfirmClearRooming(false); handleClearRooming(); }}>Borrar rooming</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
-  const [selectedTripId, setSelectedTripId] = useState(schoolTrips[0]?.id || "");
+  const allCourses = schoolTrips.flatMap((st) => (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" })));
+  const [selectedCourseId, setSelectedCourseId] = useState(allCourses[0]?.id || "");
   const [importing, setImporting] = useState(false);
 
-  const selectedTrip = schoolTrips.find((st) => st.id === selectedTripId);
+  const selectedTrip = schoolTrips.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId));
+  const selectedTripId = selectedTrip?.id || "";
   const groups = selectedTrip?.activity_groups || [];
 
   const handleFileChange = async (e) => {
@@ -3568,9 +5168,8 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
       raw.forEach((row) => {
         if (!row[0]) return;
         const group = String(row[0]).trim();
-        const monitor = String(row[1] || "").trim();
-        const students = row.slice(2).map((c) => String(c).trim()).filter(Boolean);
-        if (group) parsed.push({ group, monitor, students });
+        const students = row.slice(1).map((c) => String(c).trim()).filter(Boolean);
+        if (group) parsed.push({ group, students });
       });
       const { error } = await supabase.from("school_trips").update({ activity_groups: parsed }).eq("id", selectedTripId);
       if (error) { notify("Error guardando grupos.", { variant: "destructive" }); }
@@ -3586,25 +5185,45 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
     e.target.value = "";
   };
 
+  const handleExportGroupsPDF = () => {
+    if (!groups.length) return;
+    const selCourse = allCourses.find((c) => c.id === selectedCourseId);
+    const tripName = selCourse ? `${selCourse.course_name}${selCourse.group_name ? ` · ${selCourse.group_name}` : ""}` : "";
+    const blocks = groups.map((g) =>
+      `<div class="room-block">
+        <div class="room-title">👥 ${g.group}${g.monitor ? ` <span style="font-weight:400;font-size:11px;color:#71717a">· Monitor: ${g.monitor}</span>` : ""} <span style="font-weight:400;font-size:11px;color:#a1a1aa">(${g.students.length} alumnos)</span></div>
+        <table style="width:100%"><tbody>
+          ${g.students.map((s, i) => `<tr><td style="width:28px;color:#a1a1aa">${i + 1}</td><td>${s}</td></tr>`).join("")}
+        </tbody></table>
+      </div>`
+    ).join("<hr style='border:none;border-top:1px solid #f4f4f5;margin:12px 0'>");
+    exportListToPDF("Grupos de actividades", tripName, blocks);
+  };
+
   return (
     <div className="space-y-6">
-      <SectionTitle icon={ListChecks} title="Grupos de actividades" subtitle="Grupos y monitores. Importa desde Excel." />
+      <SectionTitle icon={Grid2x2} title="Grupos de actividades" subtitle="Grupos de actividades. Importa desde Excel." />
+      {/* Tabs de curso */}
+      {allCourses.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {allCourses.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+              className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${selectedCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={selectedCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+              {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedTripId}
-              onChange={(e) => setSelectedTripId(e.target.value)}
-              className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 focus:outline-none"
-            >
-              {schoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-            </select>
-            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 ${importing ? "opacity-50" : ""}`}>
-              <Upload className="h-4 w-4" />{importing ? "Importando..." : "Importar Excel"}
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} disabled={importing} />
+            <label className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-sm font-medium text-white hover:opacity-90 transition ${importing ? "opacity-50" : ""}`} style={{ backgroundColor: "#FF3131", borderColor: "#FF3131" }}>
+              <FolderUp className="h-4 w-4" />{importing ? "Importando..." : "Importar documento"}
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} disabled={importing} />
             </label>
           </div>
-          <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columna 2 = monitor, columnas siguientes = alumnos.</div>
+          <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columnas siguientes = alumnos.</div>
         </CardContent>
       </Card>
       {groups.length > 0 ? (
@@ -3632,6 +5251,305 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
   );
 }
 
+function SchoolHeroBanner({ school, schoolTrips, students, schoolDocuments, onNavigate }) {
+  // Ordenar por fecha de salida; empezar por el más próximo futuro
+  const now = new Date();
+  const sorted = [...schoolTrips].sort((a, b) => {
+    const da = new Date(a.trips?.departure_date || "9999-01-01");
+    const db = new Date(b.trips?.departure_date || "9999-01-01");
+    return da - db;
+  });
+  const defaultIdx = Math.max(0, sorted.findIndex((st) => new Date(st.trips?.departure_date || "0") >= now));
+  const [activeIdx, setActiveIdx] = useState(defaultIdx);
+  const trip = sorted[activeIdx] || sorted[0];
+  if (!trip) return null;
+
+  const heroImages = (() => {
+    const imgs = trip.trips?.hero_images;
+    if (Array.isArray(imgs) && imgs.length) return imgs;
+    const img = trip.trips?.hero_image;
+    return img ? [img, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
+  })();
+  const remaining = daysRemaining(trip.trips?.departure_date);
+
+  const pendingDocs = schoolDocuments.filter((d) => d.status !== "approved").length;
+  const pendingRooming = schoolTrips.filter((st) => !(st.rooming?.length)).length;
+  const pendingGroups = schoolTrips.filter((st) => !(st.activity_groups?.length)).length;
+  const pendingPayments = schoolTrips.filter((st) => st.payment_info?.status !== "completed").length;
+  const totalPending = pendingDocs + pendingRooming + pendingGroups + pendingPayments;
+
+  return (
+    <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_70px_rgba(0,0,0,0.12)] mb-6">
+      <img src={heroImages[0]} alt={trip.trips?.name} className="absolute inset-0 block h-full w-full object-cover object-center" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.80),rgba(0,0,0,0.45),rgba(255,49,49,0.16))]" />
+      <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_260px] lg:gap-8 lg:p-10">
+        {/* Columna izquierda */}
+        <div className="flex flex-col justify-between">
+          <div>
+            <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">Viaje escolar</Badge>
+            <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              {trip.trips?.name?.toUpperCase()}
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 font-medium text-white sm:text-lg">
+              Hola, coordinador/a de <span className="font-bold">{school?.name}</span> 👋
+            </p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-300">
+              Aquí tienes toda la información del viaje.
+            </p>
+            {/* Selector de viaje cuando hay más de uno */}
+            {sorted.length > 1 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {sorted.map((st, i) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setActiveIdx(i)}
+                    className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition border ${
+                      i === activeIdx
+                        ? "bg-white text-zinc-950 border-white/80"
+                        : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                    }`}
+                  >
+                    {st.trips?.name || st.trip_id}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3 text-sm text-white">
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 backdrop-blur-sm">
+              <Users className="h-4 w-4" /> {students.length} alumno{students.length !== 1 ? "s" : ""}
+            </div>
+            {schoolTrips.length > 1 && (
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 backdrop-blur-sm">
+                <Map className="h-4 w-4" /> {schoolTrips.length} viajes
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Columna derecha: cuenta atrás */}
+        <div className="flex items-end lg:items-center">
+          <div className="w-full rounded-[26px] border border-white/10 bg-black/35 p-5 text-white shadow-2xl backdrop-blur-xl">
+            <div className="text-xs uppercase tracking-[0.24em] text-zinc-300">Cuenta atrás</div>
+            <div className="mt-3 text-5xl font-semibold leading-none sm:text-6xl">{remaining}</div>
+            <div className="mt-2 text-zinc-200">días para el viaje</div>
+            <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-zinc-200">
+              <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Salida</div>
+              <div className="mt-2 font-medium text-white">
+                {trip.trips?.departure_date
+                  ? (() => { const s = new Date(trip.trips.departure_date).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); return s.charAt(0).toUpperCase() + s.slice(1); })()
+                  : "-"}
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300 mb-3">Tareas pendientes</div>
+              {totalPending === 0 ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4" /> ¡Todo al día!
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {pendingDocs > 0 && (
+                    <button type="button" onClick={() => onNavigate?.("docs")}
+                      className="relative flex flex-col items-center gap-1 cursor-pointer">
+                      <div className="relative rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm transition hover:bg-white/20">
+                        <FileCheck2 className="h-5 w-5 text-white" />
+                        <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>{pendingDocs}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-300 text-center leading-tight max-w-[52px]">Docs</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SchoolPortalQuestions({ school, questions, setQuestions, notify }) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!message.trim() || sending || !school?.id) return;
+    setSending(true);
+    const tempId = `sq-${Date.now()}`;
+    const newQ = { id: tempId, message: message.trim(), school_id: school.id, reply: null, created_at: new Date().toISOString(), source: "school" };
+    setQuestions((prev) => [...prev, newQ]);
+    setMessage("");
+    try {
+      const { data, error } = await supabase.from("school_questions").insert([{ message: newQ.message, school_id: school.id, source: "school" }]).select().maybeSingle();
+      if (error) throw new Error(error.message);
+      setQuestions((prev) => prev.map((q) => q.id === tempId ? { ...q, id: data.id } : q));
+      sendNotification("admin_school_question", null, null, { schoolName: school.name || "Colegio", question: newQ.message });
+    } catch (err) {
+      setQuestions((prev) => prev.filter((q) => q.id !== tempId));
+      notify("Error enviando la duda: " + err.message);
+    } finally { setSending(false); }
+  };
+
+  const pendingCount = questions.filter((q) => !q.reply).length;
+  const repliedCount = questions.filter((q) => q.reply).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-zinc-200 bg-white p-5">
+        <div className="text-lg font-semibold text-zinc-950">¿Tienes alguna duda?</div>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          Escríbenos cualquier pregunta sobre el viaje, documentación, alumnos o cualquier otra gestión y te responderemos lo antes posible.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Escribe tu duda aquí… (Enter para enviar)"
+            className="flex-1 min-h-[72px] rounded-2xl border-zinc-200 bg-white text-sm resize-none"
+          />
+          <Button
+            onClick={handleSend}
+            disabled={!message.trim() || sending}
+            className="h-auto self-end rounded-2xl px-4 py-3 text-sm text-white"
+            style={{ backgroundColor: CORPORATE_RED }}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {questions.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            {pendingCount > 0 && <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">{pendingCount} sin respuesta</Badge>}
+            {repliedCount > 0 && <Badge className="bg-green-100 text-green-800 hover:bg-green-100">{repliedCount} respondidas</Badge>}
+          </div>
+          {[...questions].reverse().map((q) => (
+            <div key={q.id} className={`rounded-3xl border p-5 ${q.reply ? "border-zinc-200 bg-white" : "border-amber-200 bg-amber-50"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-zinc-400">{new Date(q.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+                  <p className="mt-1 text-sm text-zinc-900">{q.message}</p>
+                </div>
+                <Badge className={q.reply ? "bg-green-100 text-green-800 hover:bg-green-100 shrink-0" : "bg-amber-100 text-amber-800 hover:bg-amber-100 shrink-0"}>
+                  {q.reply ? "Respondida" : "Pendiente"}
+                </Badge>
+              </div>
+              {q.reply && (
+                <div className="mt-3 rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                  <span className="mr-2 font-medium text-zinc-500">Respuesta:</span>{q.reply}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SchoolChecklist({ schoolTrips }) {
+  const allCourses = schoolTrips.flatMap((st) =>
+    (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" }))
+  );
+  const [selectedCourseId, setSelectedCourseId] = useState(allCourses[0]?.id || "");
+  const selectedTrip = schoolTrips.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId));
+  const checklist = selectedTrip?.checklist || [];
+
+  const storageKey = selectedTrip ? `school_checklist_state_${selectedTrip.id}` : null;
+  const [checked, setChecked] = useState(() => {
+    if (!storageKey || typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+  });
+
+  useEffect(() => {
+    if (!storageKey || typeof window === "undefined") { setChecked({}); return; }
+    try { setChecked(JSON.parse(window.localStorage.getItem(storageKey) || "{}")); } catch { setChecked({}); }
+  }, [storageKey]);
+
+  const toggleItem = (item) => {
+    const next = { ...checked, [item]: !checked[item] };
+    setChecked(next);
+    if (storageKey) { try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch {} }
+  };
+
+  const completedCount = checklist.filter((item) => !!checked[item]).length;
+
+  const exportChecklist = () => {
+    const selectedCourse = allCourses.find((c) => c.id === selectedCourseId);
+    const title = selectedCourse
+      ? `Checklist — ${selectedCourse.course_name}${selectedCourse.group_name ? ` · ${selectedCourse.group_name}` : ""}`
+      : "Checklist de equipaje";
+    const subtitle = selectedTrip?.trips?.name || "";
+    const rows = checklist.map((item) =>
+      `<tr><td style="padding:6px 8px">${item}</td><td style="padding:6px 8px;text-align:center">${checked[item] ? "✓" : ""}</td></tr>`
+    ).join("");
+    exportListToPDF(title, subtitle,
+      `<table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f4f4f4"><th style="padding:6px 8px;text-align:left">Ítem</th><th style="padding:6px 8px;width:60px">Listo</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <SectionTitle icon={CheckCircle2} title="Checklist de equipaje" subtitle="Marca los ítems que ya tienes listos para el viaje." />
+        {checklist.length > 0 && (
+          <Button variant="outline" className="shrink-0 rounded-2xl text-sm" onClick={exportChecklist}>
+            <Download className="mr-2 h-4 w-4" />Exportar PDF
+          </Button>
+        )}
+      </div>
+      {allCourses.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {allCourses.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+              className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${selectedCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              style={selectedCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
+              {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
+      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+        <CardContent className="p-5 space-y-4">
+          {checklist.length > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-500">{completedCount} de {checklist.length} preparados</span>
+              <div className="h-2 w-32 overflow-hidden rounded-full bg-zinc-100">
+                <div className="h-full rounded-full transition-all"
+                  style={{ width: `${checklist.length ? Math.round((completedCount / checklist.length) * 100) : 0}%`, backgroundColor: CORPORATE_RED }} />
+              </div>
+            </div>
+          )}
+          {checklist.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-400">
+              El equipo de GIMELOOS publicará el checklist de equipaje próximamente.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {checklist.map((item, i) => (
+                <div key={i} onClick={() => toggleItem(item)}
+                  className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 transition select-none ${checked[item] ? "border-green-200 bg-green-50" : "border-zinc-200 bg-white hover:bg-zinc-50"}`}>
+                  <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${checked[item] ? "border-green-500 bg-green-500 text-white" : "border-zinc-300"}`}>
+                    {checked[item] && <span className="text-[10px] font-bold leading-none">✓</span>}
+                  </div>
+                  <span className={`text-sm ${checked[item] ? "text-green-700 line-through" : "text-zinc-800"}`}>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const [activeTab, setActiveTab] = useState("trips");
   const [school, setSchool] = useState(null);
@@ -3639,6 +5557,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [schoolDocuments, setSchoolDocuments] = useState([]);
+  const [schoolQuestions, setSchoolQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
 
@@ -3647,11 +5566,13 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
       setLoading(true);
       setLoadErr(null);
       try {
-        // 1. Get school — by auth_uid (normal) or by id (admin preview)
+        // 1. Get school — by previewSchoolId (admin) > schoolId (participant.school_id) > auth_uid
         const query = supabase.from("schools").select("*");
         const { data: schoolData, error: schoolErr } = previewSchoolId
           ? await query.eq("id", previewSchoolId).maybeSingle()
-          : await query.eq("auth_uid", user.authUid).maybeSingle();
+          : user.schoolId
+            ? await query.eq("id", user.schoolId).maybeSingle()
+            : await query.eq("auth_uid", user.authUid).maybeSingle();
         if (schoolErr) throw new Error(schoolErr.message);
         if (!schoolData) { setLoadErr("No se encontró un colegio asociado a este usuario."); setLoading(false); return; }
         setSchool(schoolData);
@@ -3659,7 +5580,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
         // 2. School trips
         const { data: tripsData, error: tripsErr } = await supabase
           .from("school_trips")
-          .select("*, trips(name, departure_date)")
+          .select("*, trips(name, departure_date, hero_image, hero_images)")
           .eq("school_id", schoolData.id);
         if (tripsErr) throw new Error(tripsErr.message);
         const tripsArr = tripsData || [];
@@ -3696,6 +5617,11 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
         if (docsErr) throw new Error(docsErr.message);
         setSchoolDocuments(docsData || []);
 
+        // 6. Questions
+        const { data: qData, error: qErr } = await supabase.from("school_questions").select("*").eq("school_id", schoolData.id).order("created_at");
+        if (qErr) throw new Error(qErr.message);
+        setSchoolQuestions(qData || []);
+
         // Attach courses to trips for display
         setSchoolTrips(tripsArr.map((st) => ({ ...st, courses: coursesArr.filter((c) => c.school_trip_id === st.id) })));
       } catch (err) {
@@ -3709,13 +5635,18 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
     else { setLoadErr("No se pudo identificar el usuario del colegio."); setLoading(false); }
   }, [user?.authUid, previewSchoolId]);
 
+  const repliedQuestions = schoolQuestions.filter((q) => q.reply).length;
+  const pendingQuestions = schoolQuestions.filter((q) => !q.reply).length; // sent by school, no reply yet
+
   const tabs = [
     { key: "trips",     label: "Mis viajes",    icon: CalendarDays },
     { key: "students",  label: "Alumnos",       icon: Users },
     { key: "allergies", label: "Alergias",      icon: AlertCircle },
     { key: "docs",      label: "Documentación", icon: FileCheck2 },
-    { key: "rooming",   label: "Rooming",       icon: LayoutGrid },
-    { key: "groups",    label: "Grupos",        icon: ListChecks },
+    { key: "rooming",   label: "Rooming",       icon: Home },
+    { key: "groups",    label: "Grupos",        icon: Grid2x2 },
+    { key: "checklist", label: "Checklist",     icon: CheckCircle2 },
+    { key: "questions", label: "Dudas",         icon: MessageCircleQuestion, badge: (pendingQuestions + repliedQuestions) > 0 ? pendingQuestions + repliedQuestions : null },
   ];
 
   return (
@@ -3758,33 +5689,55 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
           </div>
         ) : (
           <>
+            {/* Hero banner */}
+            <SchoolHeroBanner
+              school={school}
+              schoolTrips={schoolTrips}
+              students={students}
+              schoolDocuments={schoolDocuments}
+              onNavigate={setActiveTab}
+            />
+
             {/* Tab nav */}
-            <div className="mb-6 flex flex-wrap gap-2">
-              {tabs.map(({ key, label, icon: Icon }) => {
+            <div className="mb-6 flex gap-1.5">
+              {tabs.map(({ key, label, icon: Icon, badge }) => {
                 const active = activeTab === key;
                 return (
                   <button
                     key={key}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setActiveTab(key)}
-                    className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-2xl px-2 py-2 text-sm font-medium transition ${
                       active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
                     }`}
                     style={active ? { backgroundColor: CORPORATE_RED } : {}}
                   >
                     <Icon className="h-4 w-4" />{label}
+                    {badge != null && (
+                      <span className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: active ? "rgba(255,255,255,0.3)" : CORPORATE_RED }}>{badge}</span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
             {/* Tab content */}
-            {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} />}
+            {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} courses={courses} students={students} schoolDocuments={schoolDocuments} onNavigate={setActiveTab} />}
             {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} students={students} setStudents={setStudents} notify={notify} />}
             {activeTab === "allergies" && <SchoolAllergies courses={courses} students={students} />}
-            {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} />}
+            {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} school={school} schoolTrips={schoolTrips} />}
             {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
             {activeTab === "groups"    && <SchoolGroups schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
+            {activeTab === "checklist" && <SchoolChecklist schoolTrips={schoolTrips} />}
+            {activeTab === "questions" && (
+              <SchoolPortalQuestions
+                school={school}
+                questions={schoolQuestions}
+                setQuestions={setSchoolQuestions}
+                notify={notify}
+              />
+            )}
           </>
         )}
       </div>
@@ -3794,8 +5747,9 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
 
 // ─── Admin Schools ────────────────────────────────────────────────────────────
 
-function CoverImageInput({ value, onChange, onBlur, tripId }) {
+function CoverImageInput({ value, onChange, onBlur, tripId, notify }) {
   const [uploading, setUploading] = useState(false);
+  const [pct, setPct] = useState(undefined);
   const inputRef = useRef(null);
 
   const handleFile = async (e) => {
@@ -3803,30 +5757,43 @@ function CoverImageInput({ value, onChange, onBlur, tripId }) {
     if (!file) return;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `covers/trip-${tripId || Date.now()}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
-      onChange(urlData.publicUrl);
-      onBlur(urlData.publicUrl);
+      const result = await uploadFileToDrive(file, `trip-${tripId || Date.now()}`, "covers", (p) => setPct(p), "GIMELOOS Portadas");
+      const url = result.webContentLink || result.webViewLink || "";
+      onChange(url);
+      onBlur(url);
     } catch (err) {
       console.error(err);
+      notify("No se pudo subir la imagen de portada. Inténtalo de nuevo.", { variant: "destructive" });
     } finally {
       setUploading(false);
+      setPct(undefined);
       e.target.value = "";
     }
   };
 
   return (
-    <div className="flex gap-3">
-      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={(e) => onBlur(e.target.value)} placeholder="https://..." className="rounded-2xl" />
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      <Button type="button" variant="outline" className="h-11 shrink-0 rounded-2xl" onClick={() => inputRef.current?.click()} disabled={uploading}>
-        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-      </Button>
-      {value && (
-        <img src={value} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
+    <div className="space-y-2">
+      <div className="flex gap-3">
+        <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={(e) => onBlur(e.target.value)} placeholder="https://..." className="rounded-2xl" />
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <Button type="button" variant="outline" className="h-11 shrink-0 rounded-2xl" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+        </Button>
+        {value && (
+          <img src={value} alt="portada" className="h-11 w-20 rounded-2xl object-cover border border-zinc-200" onError={(e) => { e.target.style.display = "none"; }} />
+        )}
+      </div>
+      {pct !== undefined && (
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-zinc-500">
+            <span>{pct < 100 ? "Subiendo imagen…" : "¡Lista!"}</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+            <div className="h-full rounded-full transition-all duration-200"
+              style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "#16a34a" : CORPORATE_RED }} />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -3916,7 +5883,7 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
 
   if (!allSchoolTrips.length) return (
     <div className="space-y-5">
-      <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados.</CardContent>
       </Card>
@@ -3925,7 +5892,7 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={Map} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -3977,6 +5944,7 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
                 onChange={(v) => syncTripField("heroImage", v)}
                 onBlur={(v) => saveTripField("hero_image", v)}
                 tripId={selectedTrip.id}
+                notify={notify}
               />
             </div>
             <div className="space-y-2">
@@ -3990,11 +5958,11 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
   );
 }
 
-function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
+function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTripIds, setSchoolTripIds }) {
   const tab = {
     "colegios": "schools", "alumnos": "students", "alergias": "allergies",
     "docs": "docs", "preguntas": "questions", "rooming": "rooming", "grupos": "groups",
-    "seguimiento": "tracking", "checklist": "checklist",
+    "seguimiento": "tracking", "checklist": "checklist", "pagos": "pagos",
     "itinerario": "itinerary", "logistica": "logistics", "viajes": "school_viajes",
   }[section] || "schools";
   const [schools, setSchools] = useState([]);
@@ -4019,6 +5987,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
   const [filterTripId, setFilterTripId] = useState("");
   const [filterCourseId, setFilterCourseId] = useState("all");
   const [schoolSearch, setSchoolSearch] = useState("");
+  const [pagosSchoolSearch, setPagosSchoolSearch] = useState("");
   // Manual student entry
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: "", surname: "", allergies: "", intolerances: "", diet_notes: "", notes: "" });
@@ -4027,10 +5996,18 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDoc, setNewDoc] = useState({ name: "", description: "", required: true });
   const [savingDoc, setSavingDoc] = useState(false);
+  const [docFile, setDocFile] = useState(null);
+  // Selectores propios del formulario de nuevo documento (independientes del filtro global)
+  const [docFormSchoolId, setDocFormSchoolId] = useState("");
+  const [docFormTripId, setDocFormTripId] = useState("");
+  const [docFormCourseId, setDocFormCourseId] = useState("all");
   // Manual question entry
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ message: "", school_id: "" });
   const [savingQuestion, setSavingQuestion] = useState(false);
+  // Inline reply in tracking
+  const [schoolReplyTexts, setSchoolReplyTexts] = useState({});
+  const [schoolSendingReply, setSchoolSendingReply] = useState({});
   // Rooming manual entry
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [newRoom, setNewRoom] = useState({ room: "", students: "" });
@@ -4041,6 +6018,33 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
   const [newGroup, setNewGroup] = useState({ group: "", monitor: "", students: "" });
   const [savingGroup, setSavingGroup] = useState(false);
   const [groupTripId, setGroupTripId] = useState("");
+  // Admin resource upload (docs tab)
+  const [resName, setResName] = useState("");
+  const [resFile, setResFile] = useState(null);
+  const [resUploading, setResUploading] = useState(false);
+  const [resPct, setResPct] = useState(undefined);
+  // School Excel import
+  const [isImportingSchool, setIsImportingSchool] = useState(false);
+  const [schoolImportMsg, setSchoolImportMsg] = useState("");
+  // Confirmaciones destructivas en pagos
+  const [pendingDeleteInvoiceId, setPendingDeleteInvoiceId] = useState(null);
+  const [pendingResetPaymentId, setPendingResetPaymentId] = useState(null);
+  const [libraryDocToDelete, setLibraryDocToDelete] = useState(null);
+  // Alumnos export column selector (hoisted to avoid hooks-in-IIFE)
+  const STUDENT_FIXED_COLS = [
+    { key: "nombre",        label: "Nombre completo" },
+    { key: "curso",         label: "Curso / Grupo" },
+    { key: "colegio",       label: "Colegio" },
+  ];
+  const STUDENT_COLS_DEF = [
+    { key: "alergias",      label: "Alergias",         default: false },
+    { key: "intolerancias", label: "Intolerancias",    default: false },
+    { key: "dieta",         label: "Notas dietéticas", default: false },
+    { key: "rooming",       label: "Habitación",       default: false },
+    { key: "grupo",         label: "Grupo",            default: false },
+    { key: "notas",         label: "Observaciones",    default: false },
+  ];
+  const [exportCols, setExportCols] = useState(() => Object.fromEntries(STUDENT_COLS_DEF.map(c => [c.key, c.default])));
 
   useEffect(() => {
     const load = async () => {
@@ -4048,10 +6052,10 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
       try {
         const [schoolsRes, schoolTripsRes, coursesRes, studentsRes, docsRes] = await Promise.all([
           supabase.from("schools").select("*").order("name"),
-          supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, description)").order("created_at"),
-          supabase.from("school_courses").select("*").order("course_name"),
+          supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, hero_images, description, transfer_info)").order("created_at"),
+          supabase.from("school_courses").select("id,course_name,group_name,school_trip_id,created_at").order("course_name"),
           supabase.from("students").select("*").order("name"),
-          supabase.from("school_documents").select("*").order("created_at"),
+          supabase.from("school_documents").select("id,name,file_url,file_name,school_course_id,status,required,created_at").order("created_at"),
         ]);
         setSchools(schoolsRes.data || []);
         setAllSchoolTrips(schoolTripsRes.data || []);
@@ -4088,6 +6092,9 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
     setSavingAssign(true);
     const { data: stData, error: stErr } = await supabase.from("school_trips").insert([{ school_id: schoolId, trip_id: assignTripId }]).select().maybeSingle();
     if (stErr) { notify("Error asignando viaje: " + stErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
+    // Marcar el viaje como tipo colegio para separarlo de campamentos
+    const { error: tipoErr } = await supabase.from("trips").update({ tipo: "colegio" }).eq("id", assignTripId);
+    if (tipoErr) { notify("Error actualizando tipo de viaje: " + tipoErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
     const { error: scErr } = await supabase.from("school_courses").insert([{ school_trip_id: stData.id, course_name: assignCourse.trim(), group_name: assignGroup.trim() }]);
     if (scErr) { notify("Error creando curso: " + scErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
     notify("Viaje asignado con curso.");
@@ -4095,11 +6102,14 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
     setAssignCourse(""); setAssignGroup("");
     // Reload
     const [stRes, scRes] = await Promise.all([
-      supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, description)").order("created_at"),
-      supabase.from("school_courses").select("*").order("course_name"),
+      supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, hero_images, description, transfer_info)").order("created_at"),
+      supabase.from("school_courses").select("id,course_name,group_name,school_trip_id,created_at").order("course_name"),
     ]);
     setAllSchoolTrips(stRes.data || []);
     setAllCourses(scRes.data || []);
+    if (setSchoolTripIds && stRes.data) {
+      setSchoolTripIds(new Set(stRes.data.map((r) => r.trip_id)));
+    }
     setSavingAssign(false);
   };
 
@@ -4131,6 +6141,40 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
     return allStudents.filter((s) => courseIds.includes(s.school_course_id));
   })();
 
+  const exportActiveCols = [...STUDENT_FIXED_COLS, ...STUDENT_COLS_DEF.filter(c => exportCols[c.key])];
+  const handleStudentExport = () => {
+    const schoolName = filterSchoolId ? (schools.find(s => s.id === filterSchoolId)?.name || "") : "Todos los colegios";
+    const selectedCourse = filterCourseId !== "all" ? visibleCourses.find(c => c.id === filterCourseId) : null;
+    const courseLabel = selectedCourse ? ` · ${selectedCourse.course_name}${selectedCourse.group_name ? ` · ${selectedCourse.group_name}` : ""}` : "";
+    const rows = filteredStudents.map((s, i) => {
+      const course = allCourses.find(c => c.id === s.school_course_id);
+      const school = schools.find(sc => {
+        const st = allSchoolTrips.find(t => t.id === course?.school_trip_id);
+        return sc.id === st?.school_id;
+      });
+      const schoolTrip = allSchoolTrips.find(t => t.id === course?.school_trip_id);
+      const fullName = [s.name, s.surname].filter(Boolean).join(" ");
+      const getCell = (key) => {
+        if (key === "nombre")        return fullName;
+        if (key === "curso")         return course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—";
+        if (key === "colegio")       return school?.name || "—";
+        if (key === "rooming")       return (schoolTrip?.rooming || []).find(r => (r.students || []).includes(fullName))?.room || "—";
+        if (key === "grupo")         return (schoolTrip?.groups  || []).find(g => (g.students || []).includes(fullName))?.group || "—";
+        if (key === "alergias")      return s.allergies || "—";
+        if (key === "intolerancias") return s.intolerances || "—";
+        if (key === "dieta")         return s.diet_notes || "—";
+        if (key === "notas")         return s.notes || "—";
+        return "—";
+      };
+      return `<tr><td style="color:#a1a1aa;width:24px">${i+1}</td>${exportActiveCols.map(c => `<td>${getCell(c.key)}</td>`).join("")}</tr>`;
+    }).join("");
+    exportListToPDF(
+      `Alumnos — ${schoolName}${courseLabel}`,
+      `${filteredStudents.length} alumnos`,
+      `<table><thead><tr><th>#</th>${exportActiveCols.map(c => `<th>${c.label}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`
+    );
+  };
+
   const handleSaveStudent = async () => {
     if (!newStudent.name.trim()) { notify("El nombre del alumno es obligatorio."); return; }
     const targetCourseId = filterCourseId !== "all" ? filterCourseId : visibleCourses[0]?.id;
@@ -4149,12 +6193,43 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
 
   const handleSaveDoc = async () => {
     if (!newDoc.name.trim()) { notify("El nombre del documento es obligatorio."); return; }
-    const targetCourseId = filterCourseId !== "all" ? filterCourseId : visibleCourses[0]?.id;
-    if (!targetCourseId) { notify("Selecciona un colegio y curso primero."); return; }
+    // Determinar curso destino: puede ser un curso específico o todos los cursos del viaje
+    const formCourses = docFormCourseId !== "all"
+      ? allCourses.filter(c => c.id === docFormCourseId)
+      : allCourses.filter(c => {
+          const st = allSchoolTrips.find(t => t.id === docFormTripId);
+          return st ? c.school_trip_id === st.id : false;
+        });
+    if (!docFormTripId) { notify("Selecciona colegio y viaje primero."); return; }
+    if (formCourses.length === 0) { notify("No hay cursos disponibles para asignar."); return; }
     setSavingDoc(true);
-    const { data, error } = await supabase.from("school_documents").insert([{ ...newDoc, school_course_id: targetCourseId, status: "pending" }]).select().maybeSingle();
-    if (error) notify("Error añadiendo documento: " + error.message, { variant: "destructive" });
-    else { setAllSchoolDocs((prev) => [...prev, data]); setNewDoc({ name: "", description: "", required: true }); setShowAddDoc(false); notify("Documento añadido."); }
+    try {
+      let driveUrl = ""; let driveFileName = "";
+      if (docFile) {
+        const school = schools.find(s => s.id === docFormSchoolId);
+        const trip = allSchoolTrips.find(t => t.id === docFormTripId);
+        const result = await uploadFileToDrive(docFile, school?.name || "colegio", "documentos", null, trip?.trips?.name || "colegio");
+        driveUrl = result.webViewLink; driveFileName = result.fileName;
+      }
+      const { description, ...newDocBase } = newDoc;
+      // Crear un registro por cada curso seleccionado
+      const inserts = formCourses.map(c => ({
+        ...newDocBase,
+        school_course_id: c.id,
+        status: "pending",
+        ...(driveUrl ? { file_url: driveUrl, file_name: driveFileName } : {}),
+      }));
+      const { data, error } = await supabase.from("school_documents").insert(inserts).select();
+      if (error) notify("Error añadiendo documento: " + error.message, { variant: "destructive" });
+      else {
+        setAllSchoolDocs((prev) => [...prev, ...(data || [])]);
+        setNewDoc({ name: "", description: "", required: true });
+        setDocFile(null);
+        setDocFormCourseId("all");
+        setShowAddDoc(false);
+        notify(docFormCourseId === "all" ? `Documento asignado a ${formCourses.length} curso(s).` : "Documento asignado al curso.");
+      }
+    } catch(err) { notify("Error al subir el archivo: " + err.message); }
     setSavingDoc(false);
   };
 
@@ -4170,9 +6245,20 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
   };
 
   const handleReplyQuestion = async (qId, reply) => {
+    setSchoolSendingReply((s) => ({ ...s, [qId]: true }));
     const { error } = await supabase.from("school_questions").update({ reply }).eq("id", qId);
     if (error) notify("Error guardando respuesta.", { variant: "destructive" });
-    else { setAllSchoolQuestions((prev) => prev.map((q) => q.id === qId ? { ...q, reply } : q)); notify("Respuesta guardada."); }
+    else {
+      const q = allSchoolQuestions.find((q) => q.id === qId);
+      setAllSchoolQuestions((prev) => prev.map((q) => q.id === qId ? { ...q, reply } : q));
+      setSchoolReplyTexts((t) => { const n = { ...t }; delete n[qId]; return n; });
+      notify("Respuesta guardada.");
+      if (q) {
+        const school = schools.find((s) => s.id === q.school_id);
+        if (school?.email) sendNotification("school_question_replied", school.email, null, { schoolName: school.name || "", contactName: school.contact_name || "", question: q.message, reply });
+      }
+    }
+    setSchoolSendingReply((s) => { const n = { ...s }; delete n[qId]; return n; });
   };
 
   const handleSaveRoom = async () => {
@@ -4217,9 +6303,44 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
             <CardContent className="p-5">
               <div className="flex flex-wrap items-center gap-3 justify-between">
                 <Input placeholder="Buscar colegio..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="h-9 w-48 rounded-xl text-sm" />
-                <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
-                  <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
-                </Button>
+                <div className="flex gap-2">
+                  <label className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 ${isImportingSchool ? "pointer-events-none opacity-60" : ""}`}>
+                    <FolderUp className="h-3.5 w-3.5" />
+                    {isImportingSchool ? schoolImportMsg || "Importando..." : "Importar Excel"}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={isImportingSchool}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]; if (!file) return;
+                        e.target.value = "";
+                        setIsImportingSchool(true); setSchoolImportMsg("Leyendo archivo...");
+                        try {
+                          const ab = await file.arrayBuffer();
+                          const wb = XLSX.read(ab, { type: "array" });
+                          const ws = wb.Sheets[wb.SheetNames[0]];
+                          const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+                          const getVal = (row, ...keys) => { for (const k of keys) { const v = Object.entries(row).find(([rk]) => rk.toLowerCase().replace(/[^a-záéíóúñ0-9]/gi, "") === k.toLowerCase().replace(/[^a-záéíóúñ0-9]/gi, ""))?.[1]; if (v !== undefined && v !== "") return v; } return ""; };
+                          let created = 0, skipped = 0;
+                          for (const row of rows) {
+                            const name = String(getVal(row, "nombre", "colegio", "centro", "name", "school") || "").trim();
+                            if (!name) { skipped++; continue; }
+                            const existing = schools.find(s => s.name.toLowerCase() === name.toLowerCase());
+                            if (existing) { skipped++; continue; }
+                            const contact_name = String(getVal(row, "coordinador", "contacto", "contact", "responsable") || "").trim();
+                            const email = String(getVal(row, "email", "correo", "mail") || "").trim();
+                            const phone = String(getVal(row, "telefono", "teléfono", "phone", "tel") || "").trim();
+                            setSchoolImportMsg(`Guardando ${name}...`);
+                            const { data, error } = await supabase.from("schools").insert([{ name, contact_name, email, phone }]).select().maybeSingle();
+                            if (!error && data) { setSchools(prev => [...prev, data]); created++; }
+                          }
+                          notify(`Importación completada: ${created} colegio(s) creado(s)${skipped ? `, ${skipped} omitido(s)` : ""}.`);
+                        } catch(err) { notify("Error al importar: " + err.message); }
+                        finally { setIsImportingSchool(false); setSchoolImportMsg(""); }
+                      }}
+                    />
+                  </label>
+                  <Button className="rounded-2xl text-sm text-white h-9" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
+                    <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -4307,24 +6428,46 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
             </Button>
           } />
 
-          {/* Filtros colegio + viaje */}
+          {/* ── Exportar listado de alumnos ─────────────────────────────── */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5 space-y-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {STUDENT_COLS_DEF.map(({ key, label }) => (
+                  <div key={key} onClick={() => setExportCols(p => ({ ...p, [key]: !p[key] }))}
+                    className={`flex cursor-pointer select-none items-center gap-3 rounded-2xl border p-3 text-sm transition-all ${exportCols[key] ? "border-zinc-900 bg-zinc-950 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${exportCols[key] ? "border-white bg-white text-zinc-950" : "border-zinc-300"}`}>
+                      {exportCols[key] ? "✓" : ""}
+                    </div>
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={() => setExportCols(Object.fromEntries(STUDENT_COLS_DEF.map(c => [c.key, true])))}>
+                  Seleccionar todo
+                </Button>
+                <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={() => setExportCols(Object.fromEntries(STUDENT_COLS_DEF.map(c => [c.key, false])))}>
+                  Borrar selección
+                </Button>
+                <Button onClick={handleStudentExport} disabled={filteredStudents.length === 0 || exportActiveCols.length === 0}
+                  className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                  <FileText className="mr-2 h-4 w-4" />Exportar PDF — {filteredStudents.length} alumno(s)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Filtro colegio */}
           <div className="flex flex-wrap gap-3">
             <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            {filterSchoolId && (
-              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-                <option value="">Todos los viajes</option>
-                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-              </select>
-            )}
           </div>
 
-          {/* Tabs de curso */}
-          {visibleCourses.length > 0 && (
+          {/* Tabs de curso — solo si hay colegio seleccionado */}
+          {filterSchoolId && visibleCourses.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setFilterCourseId("all")}
                 className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
@@ -4410,36 +6553,43 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
               </CardContent>
             </Card>
           )}
+
         </div>
       )}
 
       {/* Rooming tab */}
       {tab === "rooming" && (
         <div className="space-y-5">
-          <SectionTitle icon={LayoutGrid} title="Rooming" subtitle="Distribución de habitaciones por colegio y viaje." extra={
-            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddRoom(!showAddRoom)}>
-              <Plus className="mr-1.5 h-4 w-4" />Añadir habitación
-            </Button>
+          <SectionTitle icon={Home} title="Rooming" subtitle="Distribución de habitaciones por colegio y viaje." extra={
+            <div className="flex gap-2">
+              <Button variant="outline" className="rounded-2xl text-sm" onClick={() => {
+                const stList = (filterSchoolId ? filteredSchoolTrips : allSchoolTrips).filter(st => (!filterTripId || st.id === filterTripId) && st.rooming?.length);
+                const schoolName = filterSchoolId ? (schools.find(s => s.id === filterSchoolId)?.name || "") : "Todos los colegios";
+                const rows = stList.flatMap(st => {
+                  const sch = schools.find(s => s.id === st.school_id);
+                  return (st.rooming||[]).map(r => `<tr><td style="font-weight:600">${r.room}</td><td>${sch?.name||"—"}</td><td>${st.trips?.name||st.trip_id||"—"}</td><td>${(r.students||[]).join(", ")||"—"}</td></tr>`);
+                }).join("");
+                exportListToPDF(`Rooming — ${schoolName}`, `${stList.reduce((n,st)=>n+(st.rooming||[]).length,0)} habitaciones`, rows ? `<table><thead><tr><th>Habitación</th><th>Colegio</th><th>Viaje</th><th>Alumnos</th></tr></thead><tbody>${rows}</tbody></table>` : "<p style='color:#71717a'>Sin datos de rooming.</p>");
+              }}>
+                <FileText className="mr-2 h-4 w-4" />Exportar PDF
+              </Button>
+              <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddRoom(!showAddRoom)}>
+                <Plus className="mr-1.5 h-4 w-4" />Añadir habitación
+              </Button>
+            </div>
           } />
 
-          {/* Filtro colegio */}
+          {/* Filtro colegio + tabs curso */}
           <div className="flex flex-wrap gap-3">
             <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setRoomingTripId(""); }}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            {filterSchoolId && (
-              <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-                <option value="">Todos los viajes</option>
-                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-              </select>
-            )}
           </div>
 
-          {/* Tabs de curso */}
-          {visibleCourses.length > 0 && (
+          {/* Tabs de curso — solo si hay colegio seleccionado */}
+          {filterSchoolId && visibleCourses.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setFilterCourseId("all")}
                 className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
@@ -4515,10 +6665,23 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
       {/* Groups tab */}
       {tab === "groups" && (
         <div className="space-y-5">
-          <SectionTitle icon={ListChecks} title="Grupos de actividades" subtitle="Grupos y monitores por colegio y viaje." extra={
-            <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddGroup(!showAddGroup)}>
-              <Plus className="mr-1.5 h-4 w-4" />Añadir grupo
-            </Button>
+          <SectionTitle icon={Grid2x2} title="Grupos de actividades" subtitle="Grupos y monitores por colegio y viaje." extra={
+            <div className="flex gap-2">
+              <Button variant="outline" className="rounded-2xl text-sm" onClick={() => {
+                const stList = (filterSchoolId ? filteredSchoolTrips : allSchoolTrips).filter(st => (!filterTripId || st.id === filterTripId) && st.activity_groups?.length);
+                const schoolName = filterSchoolId ? (schools.find(s => s.id === filterSchoolId)?.name || "") : "Todos los colegios";
+                const rows = stList.flatMap(st => {
+                  const sch = schools.find(s => s.id === st.school_id);
+                  return (st.activity_groups||[]).map(g => `<tr><td style="font-weight:600">${g.group}</td><td>${g.monitor||"—"}</td><td>${sch?.name||"—"}</td><td>${st.trips?.name||st.trip_id||"—"}</td><td>${(g.students||[]).join(", ")||"—"}</td></tr>`);
+                }).join("");
+                exportListToPDF(`Grupos — ${schoolName}`, `${stList.reduce((n,st)=>n+(st.activity_groups||[]).length,0)} grupos`, rows ? `<table><thead><tr><th>Grupo</th><th>Monitor</th><th>Colegio</th><th>Viaje</th><th>Alumnos</th></tr></thead><tbody>${rows}</tbody></table>` : "<p style='color:#71717a'>Sin grupos registrados.</p>");
+              }}>
+                <FileText className="mr-2 h-4 w-4" />Exportar PDF
+              </Button>
+              <Button className="rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowAddGroup(!showAddGroup)}>
+                <Plus className="mr-1.5 h-4 w-4" />Añadir grupo
+              </Button>
+            </div>
           } />
 
           {/* Filtro colegio */}
@@ -4528,17 +6691,10 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            {filterSchoolId && (
-              <select value={filterTripId} onChange={(e) => setFilterTripId(e.target.value)}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-                <option value="">Todos los viajes</option>
-                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-              </select>
-            )}
           </div>
 
-          {/* Tabs de curso */}
-          {visibleCourses.length > 0 && (
+          {/* Tabs de curso — solo si hay colegio seleccionado */}
+          {filterSchoolId && visibleCourses.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setFilterCourseId("all")}
                 className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
@@ -4613,29 +6769,267 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
         </div>
       )}
 
+      {/* Pagos tab */}
+      {tab === "pagos" && (
+        <div className="space-y-5">
+          <SectionTitle icon={CreditCard} title="Pagos" subtitle="Seguimiento económico de cada colegio por viaje." />
+
+          {/* Datos bancarios globales */}
+          {(() => {
+            const ti = allSchoolTrips[0]?.trips?.transfer_info || {};
+            const saveSchoolGlobalTi = async (field, value) => {
+              const updated = { ...ti, [field]: value };
+              const uniqueTripIds = [...new Set(allSchoolTrips.map((s) => s.trip_id).filter(Boolean))];
+              if (!uniqueTripIds.length) return;
+              const { error } = await supabase.from("trips").update({ transfer_info: updated }).in("id", uniqueTripIds);
+              if (!error) setAllSchoolTrips((prev) => prev.map((s) => ({ ...s, trips: { ...s.trips, transfer_info: updated } })));
+              else notify("Error guardando datos bancarios: " + error.message);
+            };
+            return (
+              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-zinc-400" />
+                    <span className="text-sm font-semibold uppercase tracking-[0.15em] text-zinc-500">Datos bancarios</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[["Banco", "bank"], ["Titular", "accountHolder"], ["IBAN", "iban"], ["Concepto", "concept"]].map(([label, field]) => (
+                      <div key={field} className="space-y-1">
+                        <Label className="text-xs">{label}</Label>
+                        <Input
+                          defaultValue={ti[field] || ""}
+                          placeholder={field === "concept" ? "Nombre del participante + viaje" : field === "iban" ? "ES00 0000 0000 0000 0000 0000" : ""}
+                          className="rounded-xl text-sm h-9"
+                          onBlur={(e) => saveSchoolGlobalTi(field, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Buscador de colegio */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="space-y-2">
+                <Label>Buscar colegio</Label>
+                <Input value={pagosSchoolSearch} onChange={(e) => setPagosSchoolSearch(e.target.value)} placeholder="Busca por nombre de colegio o viaje" className="rounded-2xl" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {(() => {
+            const q = pagosSchoolSearch.toLowerCase();
+            const visibleTrips = allSchoolTrips.filter((st) => {
+              if (!q) return true;
+              const schoolName = (schools.find((s) => s.id === st.school_id)?.name || "").toLowerCase();
+              const tripName = (st.trips?.name || "").toLowerCase();
+              return schoolName.includes(q) || tripName.includes(q);
+            });
+            return visibleTrips.length === 0 ? (
+              <p className="text-sm text-zinc-400">No hay viajes asignados.</p>
+            ) : (
+              <div className="space-y-4">
+              {visibleTrips.map((st) => {
+                const school = schools.find(s => s.id === st.school_id);
+                const pi = st.payment_info || { total: 0, paid: 0, status: "pending", notes: "" };
+                const pending = Math.max(0, (pi.total || 0) - (pi.paid || 0));
+                const pct = pi.total > 0 ? Math.round((pi.paid / pi.total) * 100) : 0;
+                const statusLabel = { pending: "Pendiente", partial: "Parcial", completed: "Pagado" }[pi.status] || "Pendiente";
+                const statusColor = { pending: "bg-red-50 text-red-700", partial: "bg-amber-50 text-amber-700", completed: "bg-green-50 text-green-700" }[pi.status] || "bg-zinc-100 text-zinc-600";
+                const fmt = (v) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v || 0);
+                return (
+                  <Card key={st.id} className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+                    <CardContent className="p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-zinc-950">{school?.name || "Colegio"}</div>
+                          <div className="text-xs text-zinc-500">{st.trips?.name || st.trip_id}</div>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColor}`}>{statusLabel}</span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        {[["Total", fmt(pi.total)], ["Pagado", fmt(pi.paid)], ["Pendiente", fmt(pending)]].map(([label, val]) => (
+                          <div key={label} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                            <div className="text-xs uppercase tracking-[0.15em] text-zinc-500">{label}</div>
+                            <div className="mt-1.5 text-base font-semibold text-zinc-950">{val}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {pi.total > 0 && (
+                        <div className="h-2 w-full rounded-full bg-zinc-100">
+                          <div className="h-2 rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {st.invoice_url ? (
+                          <Button variant="outline" className="h-9 rounded-2xl text-sm" onClick={() => window.open(st.invoice_url, "_blank", "noopener,noreferrer")}>
+                            <Download className="mr-2 h-4 w-4" />Ver factura
+                          </Button>
+                        ) : null}
+                        <InvoiceUploadButton existing={!!st.invoice_url} size="md" onUpload={async (file, onProgress) => {
+                          try {
+                            const result = await uploadFileToDrive(file, school?.name || "colegio", "facturas", onProgress, "GIMELOOS Facturas");
+                            const { error } = await supabase.from("school_trips").update({ invoice_url: result.webViewLink }).eq("id", st.id);
+                            if (!error) { setAllSchoolTrips(prev => prev.map(s => s.id === st.id ? { ...s, invoice_url: result.webViewLink } : s)); notify("Factura subida correctamente."); }
+                            else notify("Error guardando factura: " + error.message);
+                          } catch (err) { notify("Error subiendo factura: " + err.message); }
+                        }} />
+                        {st.invoice_url && (
+                          <Button variant="outline" className="h-9 rounded-2xl text-sm text-red-600 hover:bg-red-50 border-red-200" onClick={() => setPendingDeleteInvoiceId(st.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />Borrar factura
+                          </Button>
+                        )}
+                        <Button variant="outline" className="h-9 rounded-2xl text-sm text-red-600 hover:bg-red-50 border-red-200" onClick={() => setPendingResetPaymentId(st.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />Borrar datos de pago
+                        </Button>
+                      </div>
+
+                      {/* Edición inline */}
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {[["Importe total (€)", "total", pi.total], ["Importe pagado (€)", "paid", pi.paid]].map(([label, field, val]) => (
+                          <div key={field} className="space-y-1">
+                            <Label className="text-xs">{label}</Label>
+                            <Input type="number" defaultValue={val || ""} className="rounded-xl text-sm h-9"
+                              onBlur={async (e) => {
+                                const num = Number(e.target.value || 0);
+                                const updated = { ...pi, [field]: num, status: (() => { const t = field === "total" ? num : (pi.total||0); const p2 = field === "paid" ? num : (pi.paid||0); if (p2 <= 0) return "pending"; if (p2 >= t) return "completed"; return "partial"; })() };
+                                const { error } = await supabase.from("school_trips").update({ payment_info: updated }).eq("id", st.id);
+                                if (!error) setAllSchoolTrips(prev => prev.map(s => s.id === st.id ? { ...s, payment_info: updated } : s));
+                                else notify("Error guardando pago: " + error.message);
+                              }}
+                            />
+                          </div>
+                        ))}
+                        <div className="space-y-1">
+                          <Label className="text-xs">Estado</Label>
+                          <select defaultValue={pi.status || "pending"}
+                            onChange={async (e) => {
+                              const updated = { ...pi, status: e.target.value };
+                              const { error } = await supabase.from("school_trips").update({ payment_info: updated }).eq("id", st.id);
+                              if (!error) setAllSchoolTrips(prev => prev.map(s => s.id === st.id ? { ...s, payment_info: updated } : s));
+                              else notify("Error guardando estado: " + error.message);
+                            }}
+                            className="h-9 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm">
+                            <option value="pending">Pendiente</option>
+                            <option value="partial">Parcial</option>
+                            <option value="completed">Pagado</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                          <Label className="text-xs">Notas</Label>
+                          <Input defaultValue={pi.notes || ""} placeholder="Ej. Factura enviada" className="rounded-xl text-sm h-9"
+                            onBlur={async (e) => {
+                              const updated = { ...pi, notes: e.target.value };
+                              const { error } = await supabase.from("school_trips").update({ payment_info: updated }).eq("id", st.id);
+                              if (!error) setAllSchoolTrips(prev => prev.map(s => s.id === st.id ? { ...s, payment_info: updated } : s));
+                              else notify("Error guardando notas: " + error.message);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              </div>
+            );
+          })()}
+          {/* Confirmación: borrar factura */}
+          <AlertDialog open={!!pendingDeleteInvoiceId} onOpenChange={(o) => { if (!o) setPendingDeleteInvoiceId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Borrar factura?</AlertDialogTitle>
+                <AlertDialogDescription>Se eliminará el enlace a la factura. El archivo en Google Drive no se borrará.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction style={{ backgroundColor: CORPORATE_RED }} onClick={async () => {
+                  const id = pendingDeleteInvoiceId;
+                  setPendingDeleteInvoiceId(null);
+                  const { error } = await supabase.from("school_trips").update({ invoice_url: null }).eq("id", id);
+                  if (!error) { setAllSchoolTrips(prev => prev.map(s => s.id === id ? { ...s, invoice_url: null } : s)); notify("Factura eliminada."); }
+                  else notify("Error eliminando factura: " + error.message, { variant: "destructive" });
+                }}>Borrar factura</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Confirmación: borrar documento de biblioteca */}
+          <AlertDialog open={!!libraryDocToDelete} onOpenChange={(o) => { if (!o) setLibraryDocToDelete(null); }}>
+            <AlertDialogContent className="rounded-3xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar documento?</AlertDialogTitle>
+                <AlertDialogDescription>Se eliminará <strong>{libraryDocToDelete?.name}</strong> de la biblioteca. Esta acción no se puede deshacer.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-2xl">Cancelar</AlertDialogCancel>
+                <AlertDialogAction className="rounded-2xl text-white" style={{ backgroundColor: "#dc2626" }} onClick={async () => {
+                  const doc = libraryDocToDelete;
+                  setLibraryDocToDelete(null);
+                  const { error } = await supabase.from("school_documents").delete().eq("id", doc.id);
+                  if (!error) { setAllSchoolDocs(prev => prev.filter(d => d.id !== doc.id)); notify("Documento eliminado de la biblioteca."); }
+                  else notify("Error eliminando documento: " + error.message, { variant: "destructive" });
+                }}>Eliminar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Confirmación: borrar datos de pago */}
+          <AlertDialog open={!!pendingResetPaymentId} onOpenChange={(o) => { if (!o) setPendingResetPaymentId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Borrar datos de pago?</AlertDialogTitle>
+                <AlertDialogDescription>Se eliminarán el importe total, pagado, estado y notas de este viaje escolar. Esta acción no se puede deshacer.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction style={{ backgroundColor: CORPORATE_RED }} onClick={async () => {
+                  const id = pendingResetPaymentId;
+                  setPendingResetPaymentId(null);
+                  const { error } = await supabase.from("school_trips").update({ payment_info: {} }).eq("id", id);
+                  if (!error) { setAllSchoolTrips(prev => prev.map(s => s.id === id ? { ...s, payment_info: {} } : s)); notify("Datos de pago eliminados."); }
+                  else notify("Error eliminando datos: " + error.message, { variant: "destructive" });
+                }}>Borrar datos</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
       {/* Alergias tab */}
       {tab === "allergies" && (
         <div className="space-y-5">
-          <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Control de necesidades alimentarias por alumno y curso." />
+          <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Control de necesidades alimentarias por alumno y curso." extra={
+            <Button variant="outline" className="rounded-2xl text-sm" onClick={() => {
+              const withIssues = filteredStudents.filter(s => s.allergies?.trim() || s.intolerances?.trim() || s.diet_notes?.trim());
+              const schoolName = filterSchoolId ? (schools.find(s => s.id === filterSchoolId)?.name || "") : "Todos los colegios";
+              const rows = withIssues.map((s, i) => {
+                const course = allCourses.find(c => c.id === s.school_course_id);
+                return `<tr><td style="color:#a1a1aa">${i+1}</td><td style="font-weight:600">${s.name} ${s.surname||""}</td><td>${course ? `${course.course_name}${course.group_name ? ` · ${course.group_name}` : ""}` : "—"}</td><td style="color:#b91c1c">${s.allergies||"—"}</td><td style="color:#b45309">${s.intolerances||"—"}</td><td>${s.diet_notes||s.notes||"—"}</td></tr>`;
+              }).join("");
+              exportListToPDF(`Alergias — ${schoolName}`, `${withIssues.length} alumno(s) con restricciones`, withIssues.length===0 ? "<p style='color:#71717a;font-size:13px'>Ningún alumno tiene alergias o intolerancias registradas.</p>" : `<table><thead><tr><th>#</th><th>Alumno</th><th>Curso</th><th>Alergia</th><th>Intolerancia</th><th>Dieta / Notas</th></tr></thead><tbody>${rows}</tbody></table>`);
+            }}>
+              <FileText className="mr-2 h-4 w-4" />Exportar PDF
+            </Button>
+          } />
 
-          {/* Filtros colegio + viaje */}
+          {/* Filtro colegio */}
           <div className="flex flex-wrap gap-3">
             <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
               <option value="">Todos los colegios</option>
               {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            {filterSchoolId && (
-              <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-                <option value="">Todos los viajes</option>
-                {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-              </select>
-            )}
           </div>
 
-          {/* Tabs de curso */}
-          {visibleCourses.length > 0 && (
+          {/* Tabs de curso — solo si hay colegio seleccionado */}
+          {filterSchoolId && visibleCourses.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setFilterCourseId("all")}
                 className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
@@ -4694,74 +7088,102 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
       {/* Documentación tab */}
       {tab === "docs" && (
         <div className="space-y-5">
-          <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Crea documentos requeridos y asígnalos a cada curso por colegio." />
+          <SectionTitle icon={FileCheck2} title="Documentación" subtitle="Sube documentos a la biblioteca y arrástralos al curso para asignarlos." />
           <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-            {/* Left: nuevo documento */}
+            {/* LEFT: biblioteca global */}
             <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="space-y-4 p-5">
-                <div className="font-medium text-zinc-950">Nuevo documento requerido</div>
-                <div className="space-y-2">
-                  <Label>Nombre del documento</Label>
-                  <Input value={newDoc.name} onChange={(e) => setNewDoc(p => ({ ...p, name: e.target.value }))} placeholder="Ej. Autorización de salida" className="rounded-2xl" />
+                <div className="font-semibold text-zinc-950">Biblioteca de documentos</div>
+                <p className="text-sm text-zinc-500">Sube los documentos aquí y arrástralos al panel derecho para asignarlos al curso seleccionado.</p>
+                <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-4">
+                  <div className="flex-1 min-w-[160px] space-y-1.5">
+                    <Label>Nombre del documento</Label>
+                    <Input value={resName} onChange={e => setResName(e.target.value)} placeholder="Ej. Autorización de salida" className="rounded-xl" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Archivo (opcional)</Label>
+                    <label className="cursor-pointer">
+                      <input type="file" className="hidden" onChange={e => setResFile(e.target.files?.[0] || null)} />
+                      <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 text-sm text-zinc-700">
+                        <Upload className="h-4 w-4" />{resFile ? resFile.name.slice(0, 18) + (resFile.name.length > 18 ? "…" : "") : "Subir archivo"}
+                      </span>
+                    </label>
+                  </div>
+                  <Button onClick={async () => {
+                    if (!resName.trim() && !resFile) return;
+                    setResUploading(true);
+                    try {
+                      let fileUrl = ""; let fileName = resName;
+                      if (resFile) {
+                        const result = await uploadFileToDrive(resFile, "biblioteca", "documentos", (p) => setResPct(p), "GIMELOOS Colegios");
+                        fileUrl = result.webViewLink; fileName = result.fileName;
+                      }
+                      const { data, error } = await supabase.from("school_documents").insert([{ name: resName || fileName, file_url: fileUrl, file_name: fileName, school_course_id: null, status: "library" }]).select().single();
+                      if (error) notify("Error guardando documento: " + error.message);
+                      else { setAllSchoolDocs(prev => [...prev, data]); setResName(""); setResFile(null); notify("Documento añadido a la biblioteca."); }
+                    } catch(err) { notify("Error al subir el archivo: " + err.message); }
+                    finally { setResUploading(false); setResPct(undefined); }
+                  }} disabled={resUploading || (!resName.trim() && !resFile)} className="h-11 rounded-xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                    {resUploading ? "Subiendo…" : <><Upload className="mr-2 h-4 w-4" />Añadir</>}
+                  </Button>
                 </div>
+                {resPct !== undefined && (
+                  <div>
+                    <div className="mb-1 flex justify-between text-xs text-zinc-500">
+                      <span>{resPct < 100 ? "Subiendo a Google Drive…" : "¡Listo!"}</span>
+                      <span>{resPct}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                      <div className="h-full rounded-full transition-all duration-200"
+                        style={{ width: `${resPct}%`, backgroundColor: resPct === 100 ? "#16a34a" : CORPORATE_RED }} />
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label>Descripción / instrucciones</Label>
-                  <Input value={newDoc.description} onChange={(e) => setNewDoc(p => ({ ...p, description: e.target.value }))} placeholder="Ej. Firmada por tutor legal" className="rounded-2xl" />
-                </div>
-                <Button onClick={handleSaveDoc} disabled={savingDoc || !newDoc.name.trim()} className="h-11 rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
-                  <FileCheck2 className="mr-2 h-4 w-4" />{savingDoc ? "Guardando…" : "Crear documento"}
-                </Button>
-                <Separator />
-                <div className="space-y-3">
-                  {allSchoolDocs.filter((d, i, arr) => arr.findIndex(x => x.name === d.name) === i).map((d) => (
-                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-zinc-950">{d.name}</div>
-                        {d.description && <div className="text-sm text-zinc-500">{d.description}</div>}
+                  {allSchoolDocs.filter(d => !d.school_course_id).length === 0 ? (
+                    <p className="text-sm text-zinc-400">La biblioteca está vacía. Sube un documento para empezar.</p>
+                  ) : allSchoolDocs.filter(d => !d.school_course_id).map(doc => (
+                    <div key={doc.id} draggable
+                      onDragStart={e => { e.dataTransfer.setData("docId", doc.id); e.dataTransfer.effectAllowed = "copy"; }}
+                      className="flex cursor-grab items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 active:cursor-grabbing select-none">
+                      <GripVertical className="h-5 w-5 shrink-0 text-zinc-300" />
+                      <FileText className="h-4 w-4 shrink-0 text-zinc-400" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-zinc-900 truncate">{doc.name}</div>
+                        {doc.file_name && <div className="text-xs text-zinc-400 truncate">{doc.file_name}</div>}
                       </div>
-                      <Button variant="ghost" size="icon" onClick={async () => {
-                        const { error } = await supabase.from("school_documents").delete().eq("name", d.name);
-                        if (error) { notify("Error eliminando documento: " + error.message); return; }
-                        setAllSchoolDocs((prev) => prev.filter((x) => x.name !== d.name));
-                        notify("Documento eliminado.");
-                      }}>
-                        <Trash2 className="h-4 w-4 text-zinc-700" />
-                      </Button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {doc.file_url && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={e => { e.stopPropagation(); window.open(doc.file_url, "_blank", "noopener,noreferrer"); }}>
+                            <Eye className="h-3.5 w-3.5 text-zinc-500" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={e => { e.stopPropagation(); setLibraryDocToDelete(doc); }}>
+                          <Trash2 className="h-3.5 w-3.5 text-zinc-500" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Right: asignar a curso */}
+            {/* RIGHT: selector colegio + tags de cursos + zona de drop */}
             <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
               <CardContent className="space-y-4 p-5">
-                <div className="font-medium text-zinc-950">Asignar a curso</div>
-                <div className="space-y-2">
+                <div className="font-semibold text-zinc-950">Asignar a curso</div>
+                <div className="space-y-1.5">
                   <Label>Colegio</Label>
-                  <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+                  <select value={filterSchoolId} onChange={e => { setFilterSchoolId(e.target.value); setFilterCourseId("all"); }}
                     className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                    <option value="">Todos los colegios</option>
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="">Selecciona un colegio</option>
+                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
-                {filterSchoolId && (
-                  <div className="space-y-2">
-                    <Label>Viaje</Label>
-                    <select value={filterTripId} onChange={(e) => { setFilterTripId(e.target.value); setFilterCourseId("all"); }}
-                      className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                      <option value="">Todos los viajes</option>
-                      {filteredSchoolTrips.map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.trip_id}</option>)}
-                    </select>
-                  </div>
-                )}
-                {visibleCourses.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setFilterCourseId("all")}
-                      className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === "all" ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
-                      style={filterCourseId === "all" ? { backgroundColor: CORPORATE_RED } : {}}>Todos</button>
-                    {visibleCourses.map((c) => (
-                      <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id)}
+                {filterSchoolId && visibleCourses.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {visibleCourses.map(c => (
+                      <button key={c.id} type="button" onClick={() => setFilterCourseId(c.id === filterCourseId ? "all" : c.id)}
                         className={`rounded-2xl px-3 py-1.5 text-xs font-medium transition ${filterCourseId === c.id ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
                         style={filterCourseId === c.id ? { backgroundColor: CORPORATE_RED } : {}}>
                         {c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}
@@ -4769,33 +7191,67 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                     ))}
                   </div>
                 )}
-                {(() => {
-                  const filteredDocs = allSchoolDocs.filter((d) => {
-                    if (filterCourseId !== "all") return d.school_course_id === filterCourseId;
-                    if (filterSchoolId) return visibleCourses.map((c) => c.id).includes(d.school_course_id);
-                    return true;
-                  });
-                  if (!filterSchoolId) return <p className="text-sm text-zinc-400">Selecciona un colegio para ver sus documentos.</p>;
-                  if (filteredDocs.length === 0) return <p className="text-sm text-zinc-400">No hay documentos en la selección actual.</p>;
-                  return (
-                    <div className="space-y-2">
-                      {filteredDocs.map((d) => {
-                        const course = allCourses.find((c) => c.id === d.school_course_id);
-                        return (
-                          <div key={d.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-zinc-900">{d.name}</div>
-                              {course && <div className="text-xs text-zinc-500">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>}
-                            </div>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.status === "confirmed" ? "bg-green-100 text-green-700" : d.status === "uploaded" ? "bg-blue-100 text-blue-700" : d.status === "rejected" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-600"}`}>
-                              {d.status === "confirmed" ? "Confirmado" : d.status === "uploaded" ? "Subido" : d.status === "rejected" ? "Rechazado" : "Pendiente"}
-                            </span>
+                {filterCourseId !== "all" ? (
+                  <div
+                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                    onDrop={async e => {
+                      e.preventDefault();
+                      const docId = e.dataTransfer.getData("docId");
+                      if (!docId) return;
+                      const libDoc = allSchoolDocs.find(d => d.id === docId);
+                      if (!libDoc) return;
+                      if (allSchoolDocs.some(d => d.school_course_id === filterCourseId && d.name === libDoc.name)) { notify("Este documento ya está asignado a este curso."); return; }
+                      const { data, error } = await supabase.from("school_documents").insert([{ name: libDoc.name, file_url: libDoc.file_url || "", file_name: libDoc.file_name || "", school_course_id: filterCourseId, status: "pending", required: true }]).select().single();
+                      if (error) notify("Error asignando documento: " + error.message);
+                      else { setAllSchoolDocs(prev => [...prev, data]); notify(`"${libDoc.name}" asignado al curso.`); }
+                    }}
+                    className="min-h-[140px] rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 p-4 transition-colors hover:border-zinc-300">
+                    {(() => {
+                      const courseDocs = allSchoolDocs.filter(d => d.school_course_id === filterCourseId);
+                      const course = visibleCourses.find(c => c.id === filterCourseId);
+                      return (
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">
+                            {course?.course_name}{course?.group_name ? ` · ${course.group_name}` : ""}
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+                          {courseDocs.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-6 text-center">
+                              <FileText className="mb-2 h-8 w-8 text-zinc-200" />
+                              <p className="text-sm text-zinc-400">Arrastra documentos desde la izquierda para asignarlos</p>
+                            </div>
+                          ) : courseDocs.map(d => (
+                            <div key={d.id} className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="h-4 w-4 shrink-0 text-zinc-400" />
+                                <span className="text-sm font-medium text-zinc-900 truncate">{d.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                {d.file_url && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(d.file_url, "_blank", "noopener,noreferrer")}>
+                                    <Eye className="h-3.5 w-3.5 text-zinc-500" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
+                                  const { error } = await supabase.from("school_documents").delete().eq("id", d.id);
+                                  if (!error) { setAllSchoolDocs(prev => prev.filter(x => x.id !== d.id)); notify("Documento desasignado."); }
+                                }}>
+                                  <X className="h-3.5 w-3.5 text-zinc-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-200 py-10 text-center">
+                    <FileCheck2 className="mb-2 h-8 w-8 text-zinc-200" />
+                    <p className="text-sm text-zinc-400">
+                      {filterSchoolId ? "Selecciona un curso para asignar documentos" : "Selecciona un colegio para empezar"}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -4809,10 +7265,10 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
 
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label>Filtrar por colegio</Label>
                 <select value={filterSchoolId} onChange={(e) => setFilterSchoolId(e.target.value)}
-                  className="mt-2 h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  className="mt-1 h-11 w-full max-w-sm rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                   <option value="">Todos los colegios</option>
                   {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -4821,20 +7277,32 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
           </Card>
 
           {(() => {
-            const qs = allSchoolQuestions.filter((q) => !filterSchoolId || q.school_id === filterSchoolId);
+            const qs = allSchoolQuestions
+              .filter((q) => !filterSchoolId || q.school_id === filterSchoolId)
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            const pending  = qs.filter(q => !q.reply);
+            const answered = qs.filter(q => q.reply);
             if (qs.length === 0) return (
-              <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-                <CardContent className="p-8 text-center text-sm text-zinc-400">
-                  Aún no hay preguntas de colegios.
-                </CardContent>
-              </Card>
+              <div className="rounded-3xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-400">Aún no hay preguntas de colegios.</div>
             );
             return (
-              <div className="space-y-3">
-                {qs.map((q) => {
-                  const school = schools.find((s) => s.id === q.school_id);
-                  return <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />;
-                })}
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Pendientes ({pending.length})</div>
+                  {pending.length === 0 && <div className="rounded-3xl border border-zinc-200 bg-white p-6 text-sm text-zinc-400 text-center">Todo respondido ✓</div>}
+                  {pending.map((q) => {
+                    const school = schools.find((s) => s.id === q.school_id);
+                    return <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />;
+                  })}
+                </div>
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Respondidas ({answered.length})</div>
+                  {answered.length === 0 && <div className="rounded-3xl border border-zinc-200 bg-white p-6 text-sm text-zinc-400 text-center">Sin respuestas aún.</div>}
+                  {answered.map((q) => {
+                    const school = schools.find((s) => s.id === q.school_id);
+                    return <SchoolQuestionCard key={q.id} q={q} schoolName={school?.name} onReply={handleReplyQuestion} />;
+                  })}
+                </div>
               </div>
             );
           })()}
@@ -4882,8 +7350,56 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
               const tripsWithoutRooming = stList.filter((st) => !st.rooming?.length).length;
               const tripsWithoutGroups = stList.filter((st) => !st.activity_groups?.length).length;
               const allOk = totalStudents > 0 && missingDocs === 0 && tripsWithoutRooming === 0 && tripsWithoutGroups === 0;
+              const schoolQuestionsUnanswered = allSchoolQuestions.filter((q) => q.school_id === school.id && !q.reply).length;
 
               const getSummaryTone = (ok, warn) => ok ? "bg-emerald-100 text-emerald-700" : warn ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+
+              const tripName = stList[0]?.trips?.name || "viaje";
+              const sendSchoolReminder = async (reminderType) => {
+                const email = school.email;
+                if (!email) { notify("Este colegio no tiene email registrado."); return; }
+                const base = { schoolName: school.name, contactName: school.contact_name, tripName };
+                const typeMap = {
+                  listado:  { type: "school_reminder_listado",  data: base },
+                  alergias: { type: "school_reminder_alergias", data: base },
+                  docs:     { type: "school_doc_reminder",      data: { ...base, pendingCount: missingDocs } },
+                  rooming:  { type: "school_reminder_rooming",  data: base },
+                  grupos:   { type: "school_reminder_grupos",   data: base },
+                  todo: {
+                    type: "school_reminder_todo",
+                    data: (() => {
+                      const pendingItems = [
+                        { icon: "📋", label: "Listado de alumnos", detail: totalStudents > 0 ? `${totalStudents} alumnos registrados` : "Sin listado todavía" },
+                        { icon: "📄", label: "Documentación",      detail: missingDocs > 0 ? `${missingDocs} documentos pendientes` : "Al día ✓" },
+                        { icon: "🛏️", label: "Rooming",            detail: tripsWithoutRooming > 0 ? "Pendiente de asignar" : "Completado ✓" },
+                        { icon: "👥", label: "Grupos de actividad", detail: tripsWithoutGroups > 0 ? "Pendiente de definir" : "Completado ✓" },
+                      ];
+                      const pendingCount = [totalStudents === 0, missingDocs > 0, tripsWithoutRooming > 0, tripsWithoutGroups > 0].filter(Boolean).length;
+                      return { ...base, pendingItems, pendingCount };
+                    })(),
+                  },
+                };
+                const payload = typeMap[reminderType];
+                if (!payload) return;
+                try {
+                  const token = await getAuthToken();
+                  const res = await fetch("/api/notify", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ ...payload, to: email }),
+                  });
+                  if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Error ${res.status}`); }
+                  notify(`Recordatorio enviado a ${email}`);
+                } catch (err) {
+                  const isDomainErr = err.message?.toLowerCase().includes("verify a domain") || err.message?.toLowerCase().includes("testing emails") || err.message?.toLowerCase().includes("your own email");
+                  notify(isDomainErr
+                    ? "⚠️ Email no verificado — verifica el dominio gimeloos.com en resend.com/domains y actualiza NOTIFY_FROM en .env.local"
+                    : "Error enviando recordatorio: " + err.message);
+                }
+              };
 
               return (
                 <AccordionSection
@@ -4893,6 +7409,9 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                   icon={Users}
                   meta={
                     <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+                      {schoolQuestionsUnanswered > 0 && (
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>{schoolQuestionsUnanswered}</span>
+                      )}
                       <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(totalStudents > 0, false)}`}>
                         {totalStudents > 0 ? `${totalStudents} alumnos` : "Sin alumnos"}
                       </div>
@@ -4908,6 +7427,31 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                     </div>
                   }
                 >
+                  {/* Bloque de recordatorios */}
+                  {school.email && (
+                    <div className="mb-5 rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Enviar recordatorio al coordinador</div>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: "listado",  Icon: Users,       label: "Listados" },
+                          { key: "alergias", Icon: AlertCircle, label: "Alergias" },
+                          { key: "docs",     Icon: FileCheck2,  label: "Documentación" },
+                          { key: "rooming",  Icon: LayoutGrid,  label: "Rooming" },
+                          { key: "grupos",   Icon: ListChecks,  label: "Grupos" },
+                          { key: "todo",     Icon: Bell,        label: "Recordatorio completo", highlight: true },
+                        ].map(({ key, Icon, label, highlight }) => (
+                          <Button key={key} variant={highlight ? "default" : "outline"}
+                            onClick={() => sendSchoolReminder(key)}
+                            className={`h-9 rounded-2xl text-xs font-medium ${highlight ? "text-white" : ""}`}
+                            style={highlight ? { backgroundColor: CORPORATE_RED } : {}}
+                          >
+                            <Icon className="mr-1.5 h-3.5 w-3.5" />{label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {stList.length === 0 ? (
                     <p className="text-sm text-zinc-400">Sin viajes asignados.</p>
                   ) : stList.map((st) => {
@@ -4938,12 +7482,18 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                               return (
                                 <div key={course.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/60 p-4">
                                   <div className="mb-2 text-xs font-semibold text-zinc-700">{course.course_name}{course.group_name ? ` · ${course.group_name}` : ""}</div>
-                                  <div className="grid gap-1.5 sm:grid-cols-3">
-                                    {[
-                                      { label: "Listado alumnos", ok: cStudents.length > 0, detail: cStudents.length > 0 ? `${cStudents.length} alumnos` : "Sin listado" },
-                                      { label: "Alergias", ok: cWithAllergies.length > 0 || cStudents.length > 0, neutral: cWithAllergies.length === 0 && cStudents.length > 0, detail: cWithAllergies.length > 0 ? `${cWithAllergies.length} con alergia` : cStudents.length > 0 ? "Sin alergias ✓" : "Sin datos" },
-                                      { label: "Documentación", ok: cDocs.length > 0 && cDocsUploaded === cDocs.length, warn: cDocs.length > 0 && cDocsUploaded < cDocs.length, detail: cDocs.length === 0 ? "Sin docs requeridos" : cDocsUploaded === cDocs.length ? `Completa (${cDocs.length})` : `Faltan ${cDocs.length - cDocsUploaded} de ${cDocs.length}` },
-                                    ].map((item) => (
+                                  <div className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+                                    {(() => {
+                                      const cRooming = st.rooming || [];
+                                      const cGroups = st.activity_groups || [];
+                                      return [
+                                        { label: "Listado alumnos", ok: cStudents.length > 0, detail: cStudents.length > 0 ? `${cStudents.length} alumnos` : "Sin listado" },
+                                        { label: "Alergias", ok: cWithAllergies.length > 0 || cStudents.length > 0, neutral: cWithAllergies.length === 0 && cStudents.length > 0, detail: cWithAllergies.length > 0 ? `${cWithAllergies.length} con alergia` : cStudents.length > 0 ? "Sin alergias ✓" : "Sin datos" },
+                                        { label: "Documentación", ok: cDocs.length > 0 && cDocsUploaded === cDocs.length, warn: cDocs.length > 0 && cDocsUploaded < cDocs.length, detail: cDocs.length === 0 ? "Sin docs requeridos" : cDocsUploaded === cDocs.length ? `Completa (${cDocs.length})` : `Faltan ${cDocs.length - cDocsUploaded} de ${cDocs.length}` },
+                                        { label: "Rooming", ok: cRooming.length > 0, detail: cRooming.length > 0 ? `${cRooming.length} hab.` : "Sin rooming" },
+                                        { label: "Grupos", ok: cGroups.length > 0, detail: cGroups.length > 0 ? `${cGroups.length} grupos` : "Sin grupos" },
+                                      ];
+                                    })().map((item) => (
                                       <div key={item.label} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${item.ok && !item.neutral ? "bg-emerald-50 text-emerald-700" : item.warn ? "bg-amber-50 text-amber-700" : item.neutral ? "bg-zinc-50 text-zinc-500" : "bg-red-50 text-red-600"}`}>
                                         <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.ok && !item.neutral ? "bg-emerald-500" : item.warn ? "bg-amber-400" : item.neutral ? "bg-zinc-300" : "bg-red-400"}`} />
                                         <div>
@@ -4961,6 +7511,63 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                       </div>
                     );
                   })}
+
+                  {/* Dudas del colegio */}
+                  {(() => {
+                    const schoolQs = allSchoolQuestions.filter((q) => q.school_id === school.id);
+                    if (schoolQs.length === 0) return null;
+                    return (
+                      <div className="mt-5 space-y-3">
+                        <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Dudas del coordinador</div>
+                        {[...schoolQs].reverse().map((q) => (
+                          <div key={q.id} className={`rounded-2xl border p-4 space-y-2 ${!q.reply ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-zinc-900">{q.message}</p>
+                              </div>
+                              <Badge className={`shrink-0 ${q.reply ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}>
+                                {q.reply ? "Respondida" : "Pendiente"}
+                              </Badge>
+                            </div>
+                            {q.reply ? (
+                              <div className="rounded-xl bg-green-50 px-3 py-2 text-xs text-zinc-700">↳ {q.reply}</div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={schoolReplyTexts[q.id] || ""}
+                                  onChange={(e) => setSchoolReplyTexts((t) => ({ ...t, [q.id]: e.target.value }))}
+                                  onKeyDown={async (e) => {
+                                    if (e.key === "Enter" && schoolReplyTexts[q.id]?.trim()) {
+                                      setSchoolSendingReply((s) => ({ ...s, [q.id]: true }));
+                                      await handleReplyQuestion(q.id, schoolReplyTexts[q.id]);
+                                      setSchoolReplyTexts((t) => { const n = { ...t }; delete n[q.id]; return n; });
+                                      setSchoolSendingReply((s) => { const n = { ...s }; delete n[q.id]; return n; });
+                                    }
+                                  }}
+                                  placeholder="Escribe la respuesta y pulsa Enter o Enviar…"
+                                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none"
+                                />
+                                <Button
+                                  disabled={!schoolReplyTexts[q.id]?.trim() || !!schoolSendingReply[q.id]}
+                                  onClick={async () => {
+                                    setSchoolSendingReply((s) => ({ ...s, [q.id]: true }));
+                                    await handleReplyQuestion(q.id, schoolReplyTexts[q.id]);
+                                    setSchoolReplyTexts((t) => { const n = { ...t }; delete n[q.id]; return n; });
+                                    setSchoolSendingReply((s) => { const n = { ...s }; delete n[q.id]; return n; });
+                                  }}
+                                  className="h-8 shrink-0 rounded-xl px-3 text-xs text-white"
+                                  style={{ backgroundColor: CORPORATE_RED }}
+                                >
+                                  <Send className="mr-1.5 h-3 w-3" />{schoolSendingReply[q.id] ? "…" : "Enviar"}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </AccordionSection>
               );
             })}
@@ -5078,10 +7685,27 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                       <div className="font-semibold text-zinc-950">Itinerario día a día</div>
                       <div className="text-sm text-zinc-500">Arrastra las filas para reordenar.</div>
                     </div>
-                    <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
-                      onClick={() => updateItinerary([...itinerary, { day: `Día ${itinerary.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
-                      <Plus className="mr-2 h-4 w-4" />Añadir tramo
-                    </Button>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500">Visible al colegio</span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = selectedST.show_itinerary === false;
+                            const { error } = await supabase.from("school_trips").update({ show_itinerary: next }).eq("id", filterTripId);
+                            if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, show_itinerary: next } : t));
+                            else notify("Error guardando visibilidad.");
+                          }}
+                          className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedST.show_itinerary === false ? "bg-zinc-300" : "bg-green-500"}`}
+                        >
+                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedST.show_itinerary === false ? "left-0.5" : "left-5"}`} />
+                        </button>
+                      </div>
+                      <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                        onClick={() => updateItinerary([...itinerary, { day: `Día ${itinerary.length + 1}`, title: "Nuevo tramo", description: "Detalle", time: "10:00" }])}>
+                        <Plus className="mr-2 h-4 w-4" />Añadir tramo
+                      </Button>
+                    </div>
                   </div>
                   <Reorder.Group axis="y" values={itinerary} onReorder={updateItinerary} className="space-y-3">
                     {itinerary.map((item, index) => (
@@ -5166,10 +7790,27 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
                       <div className="font-semibold text-zinc-950">Puntos logísticos</div>
                       <div className="text-sm text-zinc-500">Punto de encuentro, hora de salida, qué traer, contacto de emergencia...</div>
                     </div>
-                    <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
-                      onClick={() => updateLogistics([...logistics, { title: "Nuevo punto", description: "" }])}>
-                      <Plus className="mr-2 h-4 w-4" />Añadir punto
-                    </Button>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500">Visible al colegio</span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = selectedST.show_logistics === false;
+                            const { error } = await supabase.from("school_trips").update({ show_logistics: next }).eq("id", filterTripId);
+                            if (!error) setAllSchoolTrips((prev) => prev.map((t) => t.id === filterTripId ? { ...t, show_logistics: next } : t));
+                            else notify("Error guardando visibilidad.");
+                          }}
+                          className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedST.show_logistics === false ? "bg-zinc-300" : "bg-green-500"}`}
+                        >
+                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${selectedST.show_logistics === false ? "left-0.5" : "left-5"}`} />
+                        </button>
+                      </div>
+                      <Button className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}
+                        onClick={() => updateLogistics([...logistics, { title: "Nuevo punto", description: "" }])}>
+                        <Plus className="mr-2 h-4 w-4" />Añadir punto
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-3">
                     {logistics.map((item, index) => (
@@ -5209,6 +7850,276 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios" }) {
 
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 
+// ─── AdminEmailTemplates ──────────────────────────────────────────────────────
+const EMAIL_TEMPLATE_DEFS = {
+  campamentos: [
+    {
+      id: "doc_reminder",
+      label: "Recordatorio documentación",
+      icon: "📄",
+      vars: ["nombre", "viaje", "documento"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", documento: "Nombre(s) del documento pendiente" },
+    },
+    {
+      id: "payment_reminder",
+      label: "Recordatorio pago",
+      icon: "💳",
+      vars: ["nombre", "viaje", "pago", "importe", "fecha", "dias"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", pago: "Nombre del pago (Reserva, 1ª cuota…)", importe: "Importe en €", fecha: "Fecha límite", dias: "Días restantes" },
+    },
+    {
+      id: "doc_confirmed",
+      label: "Documento aprobado",
+      icon: "✅",
+      vars: ["nombre", "viaje", "documento"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", documento: "Nombre del documento aprobado" },
+    },
+    {
+      id: "doc_rejected",
+      label: "Documento rechazado",
+      icon: "❌",
+      vars: ["nombre", "viaje", "documento"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", documento: "Nombre del documento rechazado" },
+    },
+    {
+      id: "payment_confirmed",
+      label: "Pago confirmado",
+      icon: "🎉",
+      vars: ["nombre", "viaje", "pago", "importe"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", pago: "Nombre del pago confirmado", importe: "Importe en €" },
+    },
+    {
+      id: "question_replied",
+      label: "Respuesta a consulta",
+      icon: "💬",
+      vars: ["nombre", "pregunta", "respuesta"],
+      hints: { nombre: "Nombre del participante", pregunta: "Pregunta original", respuesta: "Tu respuesta" },
+    },
+    {
+      id: "general_reminder",
+      label: "Recordatorio general",
+      icon: "⏰",
+      vars: ["nombre", "viaje", "pendientes"],
+      hints: { nombre: "Nombre del participante", viaje: "Nombre del campamento", pendientes: "Nº de elementos pendientes" },
+    },
+  ],
+  colegios: [
+    {
+      id: "school_reminder_listado",
+      label: "Recordatorio listados",
+      icon: "📋",
+      vars: ["nombre", "viaje", "coordinador"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)" },
+    },
+    {
+      id: "school_reminder_alergias",
+      label: "Recordatorio alergias",
+      icon: "🍽️",
+      vars: ["nombre", "viaje", "coordinador"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)" },
+    },
+    {
+      id: "school_doc_reminder",
+      label: "Recordatorio documentación",
+      icon: "📄",
+      vars: ["nombre", "viaje", "coordinador", "pendientes"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)", pendientes: "Nº de documentos pendientes" },
+    },
+    {
+      id: "school_reminder_rooming",
+      label: "Recordatorio rooming",
+      icon: "🛏️",
+      vars: ["nombre", "viaje", "coordinador"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)" },
+    },
+    {
+      id: "school_reminder_grupos",
+      label: "Recordatorio grupos",
+      icon: "👥",
+      vars: ["nombre", "viaje", "coordinador"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)" },
+    },
+    {
+      id: "school_reminder_todo",
+      label: "Recordatorio general (todo)",
+      icon: "⏰",
+      vars: ["nombre", "viaje", "coordinador", "pendientes"],
+      hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)", pendientes: "Nº total de pendientes" },
+    },
+  ],
+};
+
+const TEMPLATE_ICON_MAP = {
+  doc_reminder:              FileText,
+  payment_reminder:          CreditCard,
+  doc_confirmed:             CheckCircle2,
+  doc_rejected:              X,
+  payment_confirmed:         BadgeCheck,
+  question_replied:          MessageCircleQuestion,
+  school_reminder_listado:   Users,
+  school_reminder_alergias:  AlertCircle,
+  school_doc_reminder:       FileCheck2,
+  school_reminder_rooming:   LayoutGrid,
+  school_reminder_grupos:    ListChecks,
+  school_reminder_todo:      Bell,
+  general_reminder:          Bell,
+};
+
+function AdminEmailTemplates({ category, notify }) {
+  const defs = EMAIL_TEMPLATE_DEFS[category];
+  const [selectedId, setSelectedId] = useState(defs[0].id);
+  const [templates, setTemplates] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setTemplates({});
+      setLoading(true);
+      const ids = defs.map((d) => d.id);
+      const { data, error } = await supabase
+        .from("email_templates")
+        .select("id, subject, body")
+        .in("id", ids);
+      if (!error && data) {
+        const map = {};
+        data.forEach((row) => { map[row.id] = { subject: row.subject, body: row.body }; });
+        setTemplates(map);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [category]);
+
+  const selected = defs.find((d) => d.id === selectedId);
+  const current = templates[selectedId] || { subject: "", body: "" };
+
+  const handleChange = (field, value) => {
+    setTemplates((prev) => ({ ...prev, [selectedId]: { ...current, [field]: value } }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("email_templates")
+      .upsert({ id: selectedId, subject: current.subject, body: current.body, category }, { onConflict: "id" });
+    setSaving(false);
+    if (error) { notify("Error guardando la plantilla: " + error.message); return; }
+    notify("✅ Plantilla guardada correctamente");
+  };
+
+  const insertVar = (v) => {
+    handleChange("body", current.body + `{${v}}`);
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-zinc-950">
+          Plantillas de email — {category === "campamentos" ? "Campamentos" : "Colegios"}
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Edita el asunto y el cuerpo de cada correo automático. Usa <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">{"{variable}"}</code> para insertar datos dinámicos.
+        </p>
+      </div>
+
+      <div className="flex gap-5 min-h-[500px]">
+        {/* Left list */}
+        <div className="w-52 shrink-0 space-y-1">
+          {defs.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => setSelectedId(d.id)}
+              className={`flex w-full items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition-all ${
+                selectedId === d.id
+                  ? "text-white shadow-sm"
+                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+              }`}
+              style={selectedId === d.id ? { backgroundColor: CORPORATE_RED } : {}}
+            >
+              {(() => { const I = TEMPLATE_ICON_MAP[d.id] || FileText; return <I className="h-4 w-4 shrink-0" />; })()}
+              <span className="leading-snug">{d.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Right editor */}
+        <div className="flex-1 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm space-y-5">
+          <div className="flex items-center gap-2">
+            {(() => { const I = TEMPLATE_ICON_MAP[selected.id] || FileText; return <I className="h-5 w-5 text-zinc-500" />; })()}
+            <h3 className="font-semibold text-zinc-950">{selected.label}</h3>
+          </div>
+
+          {/* Subject */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Asunto del correo</Label>
+            <Input
+              value={current.subject}
+              onChange={(e) => handleChange("subject", e.target.value)}
+              placeholder="Escribe el asunto..."
+              className="h-11 rounded-2xl border-zinc-200 bg-zinc-50 text-sm"
+            />
+          </div>
+
+          {/* Body */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Cuerpo del correo</Label>
+            <Textarea
+              value={current.body}
+              onChange={(e) => handleChange("body", e.target.value)}
+              placeholder="Escribe el texto del correo. Cada línea será un párrafo."
+              className="min-h-[220px] rounded-2xl border-zinc-200 bg-zinc-50 text-sm leading-relaxed"
+            />
+          </div>
+
+          {/* Variables */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Variables disponibles</div>
+            <div className="flex flex-wrap gap-2">
+              {selected.vars.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => insertVar(v)}
+                  title={selected.hints?.[v] || `Insertar {${v}}`}
+                  className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs text-zinc-700 hover:border-zinc-400 hover:bg-white transition group"
+                >
+                  <Plus className="h-3 w-3 text-zinc-400 shrink-0" />
+                  <span className="font-mono">{`{${v}}`}</span>
+                  {selected.hints?.[v] && (
+                    <span className="text-zinc-400 hidden group-hover:inline">— {selected.hints[v]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-zinc-400">Haz clic en una variable para añadirla al final del cuerpo, o escríbela directamente.</p>
+          </div>
+
+          {/* Save */}
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="h-11 rounded-2xl px-6 text-sm font-semibold text-white shadow-sm"
+              style={{ backgroundColor: CORPORATE_RED }}
+            >
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Guardar plantilla
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminSchoolPreviewButton({ onPreview }) {
   const [schools, setSchools] = useState([]);
   const [open, setOpen] = useState(false);
@@ -5243,46 +8154,221 @@ function AdminSchoolPreviewButton({ onPreview }) {
   );
 }
 
-function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates, onLogout, notify }) {
+function AdminClientPreviewButton({ users, onPreview }) {
+  const [open, setOpen] = useState(false);
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
+
+  return (
+    <div className="mt-1">
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
+          <Eye className="h-4 w-4 shrink-0" />Vista previa cliente
+        </button>
+      ) : (
+        <div className="space-y-1 px-1">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un cliente</div>
+          {clients.slice(0, 8).map((u) => (
+            <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
+              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
+              <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{u.participantName || u.username}
+            </button>
+          ))}
+          {!clients.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin clientes registrados</div>}
+          <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminDashboard({ users, trips, setActiveSection }) {
+  const clients = users.filter((u) => u.role === "client" && !u.schoolId);
+  const pendingDocs = clients.reduce((sum, u) => sum + (u.documents || []).filter((d) => d.status === "pending_confirmation").length, 0);
+  const pendingPayments = clients.reduce((sum, u) => {
+    const p = u.payments || {};
+    return sum + ["reservation", "firstInstallment", "secondInstallment"].filter((k) => p[k]?.status === "sent").length;
+  }, 0);
+  const pendingQuestions = clients.reduce((sum, u) => sum + (u.questions || []).filter((q) => !q.reply).length, 0);
+
+  const [schoolStats, setSchoolStats] = useState({ schools: 0, trips: 0, students: 0, pendingDocs: 0 });
+  useEffect(() => {
+    Promise.all([
+      supabase.from("schools").select("id", { count: "exact", head: true }),
+      supabase.from("school_trips").select("id", { count: "exact", head: true }),
+      supabase.from("students").select("id", { count: "exact", head: true }),
+      supabase.from("school_documents").select("id", { count: "exact", head: true }).not("status", "in", '("approved","library")'),
+    ]).then(([sc, st, stu, docs]) => {
+      setSchoolStats({
+        schools: sc.count || 0,
+        trips: st.count || 0,
+        students: stu.count || 0,
+        pendingDocs: docs.count || 0,
+      });
+    });
+  }, []);
+
+  const stats = [
+    { label: "Clientes campamentos", value: clients.length, icon: Users, section: "clients" },
+    { label: "Documentos por revisar", value: pendingDocs, icon: FileCheck2, section: "tracking", highlight: pendingDocs > 0 },
+    { label: "Pagos por confirmar", value: pendingPayments, icon: CreditCard, section: "tracking", highlight: pendingPayments > 0 },
+    { label: "Preguntas sin responder", value: pendingQuestions, icon: MessageCircleQuestion, section: "questions", highlight: pendingQuestions > 0 },
+    { label: "Campamentos activos", value: trips.length, icon: MapIcon, section: "trips" },
+  ];
+
+  const quickCamp = [
+    { key: "clients", label: "Clientes", icon: Users },
+    { key: "tracking", label: "Seguimiento", icon: BarChart2 },
+    { key: "payments", label: "Pagos", icon: CreditCard },
+    { key: "docs", label: "Documentación", icon: FileCheck2 },
+    { key: "email_camp", label: "Emails", icon: Mail },
+  ];
+  const quickCol = [
+    { key: "school_colegios", label: "Colegios", icon: Users },
+    { key: "school_seguimiento", label: "Seguimiento", icon: BarChart2 },
+    { key: "school_alumnos", label: "Alumnos", icon: Users },
+    { key: "school_docs", label: "Documentación", icon: FileCheck2 },
+    { key: "email_col", label: "Emails", icon: Mail },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SectionTitle icon={Home} title="Inicio" subtitle="Resumen general del portal de administración." />
+      <div className="space-y-2">
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 px-1">Campamentos</div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {stats.map(({ label, value, icon: Icon, section, highlight }) => (
+            <button key={label} type="button" onClick={() => setActiveSection(section)}
+              className="rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${highlight ? "text-white" : "bg-zinc-100 text-zinc-500"}`}
+                  style={highlight ? { backgroundColor: CORPORATE_RED } : {}}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className={`text-2xl font-bold ${highlight ? "" : "text-zinc-950"}`}
+                  style={highlight ? { color: CORPORATE_RED } : {}}>{value}</span>
+              </div>
+              <div className="mt-3 text-xs font-medium text-zinc-500">{label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 px-1">Colegios</div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Colegios", value: schoolStats.schools, icon: Building2, section: "school_colegios" },
+            { label: "Viajes escolares", value: schoolStats.trips, icon: MapIcon, section: "school_colegios" },
+            { label: "Alumnos", value: schoolStats.students, icon: Users, section: "school_alumnos" },
+            { label: "Documentos pendientes", value: schoolStats.pendingDocs, icon: FileCheck2, section: "school_docs", highlight: schoolStats.pendingDocs > 0 },
+          ].map(({ label, value, icon: Icon, section, highlight }) => (
+            <button key={label} type="button" onClick={() => setActiveSection(section)}
+              className="rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${highlight ? "text-white" : "bg-zinc-100 text-zinc-500"}`}
+                  style={highlight ? { backgroundColor: CORPORATE_RED } : {}}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className={`text-2xl font-bold ${highlight ? "" : "text-zinc-950"}`}
+                  style={highlight ? { color: CORPORATE_RED } : {}}>{value}</span>
+              </div>
+              <div className="mt-3 text-xs font-medium text-zinc-500">{label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-400">Acceso rápido — Campamentos</div>
+            <div className="flex flex-wrap gap-2">
+              {quickCamp.map(({ key, label, icon: Icon }) => (
+                <button key={key} type="button" onClick={() => setActiveSection(key)}
+                  className="flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition">
+                  <Icon className="h-3.5 w-3.5" />{label}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-400">Acceso rápido — Colegios</div>
+            <div className="flex flex-wrap gap-2">
+              {quickCol.map(({ key, label, icon: Icon }) => (
+                <button key={key} type="button" onClick={() => setActiveSection(key)}
+                  className="flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition">
+                  <Icon className="h-3.5 w-3.5" />{label}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(), setSchoolTripIds, templates, setTemplates, onLogout, notify }) {
   const [activeSection, setActiveSection] = useState(() => {
-    if (typeof window === "undefined") return "clients";
-    return window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || "clients";
+    if (typeof window === "undefined") return "home";
+    return window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || "home";
   });
   useEffect(() => { if (typeof window !== "undefined") window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, activeSection); }, [activeSection]);
-  const totalParticipants = users.filter((u) => u.role === "client").length;
+  const totalParticipants = users.filter((u) => u.role === "client" && !u.schoolId).length;
+  const campTrips = trips.filter((t) => t.tipo !== "colegio");
 
-  usePaymentReminders(users, trips);
 
-  const [campExpanded, setCampExpanded] = useState(true);
-  const [colExpanded, setColExpanded] = useState(true);
+  const [campExpanded, setCampExpanded] = useState(false);
+  const [colExpanded, setColExpanded] = useState(false);
   const [previewSchoolId, setPreviewSchoolId] = useState(null);
+  const [previewClientUser, setPreviewClientUser] = useState(null);
 
   const campamentosItems = [
-    { key: "clients",     label: "Clientes",       icon: Users },
-    { key: "tracking",    label: "Seguimiento",     icon: BarChart2 },
-    { key: "payments",    label: "Pagos",           icon: CreditCard },
-    { key: "docs",        label: "Documentación",   icon: FileCheck2 },
-    { key: "questions",   label: "Preguntas",       icon: MessageCircleQuestion },
-    { key: "checklists",  label: "Checklists",      icon: ListChecks },
-    { key: "itinerario",  label: "Itinerario",      icon: CalendarDays },
-    { key: "logistica",   label: "Logística",       icon: MapPinned },
-    { key: "trips",       label: "Viajes",          icon: Map },
+    { key: "clients",        label: "Clientes",         icon: Users },
+    { key: "tracking",       label: "Seguimiento",       icon: BarChart2 },
+    { key: "participants_export", label: "Participantes", icon: FileText },
+    { key: "payments",       label: "Pagos",             icon: CreditCard },
+    { key: "docs",           label: "Documentación",     icon: FileCheck2 },
+    { key: "questions",      label: "Preguntas",         icon: MessageCircleQuestion },
+    { key: "checklists",     label: "Checklists",        icon: ListChecks },
+    { key: "itinerario",     label: "Itinerario",        icon: CalendarDays },
+    { key: "logistica",      label: "Logística",         icon: MapPinned },
+    { key: "trips",          label: "Campamentos",       icon: MapIcon },
+    { key: "email_camp",     label: "Plantillas email",  icon: Mail },
   ];
   const colegiosItems = [
-    { key: "school_colegios",    label: "Colegios",      icon: Users },
-    { key: "school_seguimiento", label: "Seguimiento",   icon: BarChart2 },
-    { key: "school_alumnos",     label: "Alumnos",       icon: Users },
-    { key: "school_alergias",    label: "Alergias",      icon: AlertCircle },
-    { key: "school_docs",        label: "Documentación", icon: FileCheck2 },
-    { key: "school_preguntas",   label: "Preguntas",     icon: MessageCircleQuestion },
-    { key: "school_rooming",     label: "Rooming",       icon: LayoutGrid },
-    { key: "school_grupos",      label: "Grupos",        icon: ListChecks },
-    { key: "school_checklist",   label: "Checklist",     icon: CheckCircle2 },
-    { key: "school_itinerario",  label: "Itinerario",    icon: CalendarDays },
-    { key: "school_logistica",   label: "Logística",     icon: MapPinned },
-    { key: "school_viajes",      label: "Viajes",        icon: Map },
+    { key: "school_colegios",    label: "Colegios",         icon: Users },
+    { key: "school_seguimiento", label: "Seguimiento",      icon: BarChart2 },
+    { key: "school_alumnos",     label: "Alumnos",          icon: Users },
+    { key: "school_alergias",    label: "Alergias",         icon: AlertCircle },
+    { key: "school_docs",        label: "Documentación",    icon: FileCheck2 },
+    { key: "school_pagos",       label: "Pagos",            icon: CreditCard },
+    { key: "school_rooming",     label: "Rooming",          icon: Home },
+    { key: "school_grupos",      label: "Grupos",           icon: Grid2x2 },
+    { key: "school_preguntas",   label: "Preguntas",        icon: MessageCircleQuestion },
+    { key: "school_checklist",   label: "Checklist",        icon: CheckCircle2 },
+    { key: "school_itinerario",  label: "Itinerario",       icon: CalendarDays },
+    { key: "school_logistica",   label: "Logística",        icon: MapPinned },
+    { key: "school_viajes",      label: "Viajes",           icon: MapIcon },
+    { key: "email_col",          label: "Plantillas email", icon: Mail },
   ];
   const navItems = [...campamentosItems, ...colegiosItems, { key: "calculadora", label: "Calculadora", icon: Calculator }];
+
+  // ── Vista previa del portal de cliente (admin-only) ─────────────────────────
+  if (previewClientUser) {
+    return (
+      <div className="relative">
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-3 bg-amber-50 border-b border-amber-200 px-5 py-2.5 text-sm">
+          <span className="font-medium text-amber-800">👁 Vista previa — Portal de cliente: {previewClientUser.participantName || previewClientUser.username}</span>
+          <Button size="sm" variant="outline" className="rounded-xl border-amber-300 text-amber-800 hover:bg-amber-100" onClick={() => setPreviewClientUser(null)}>
+            Volver al admin
+          </Button>
+        </div>
+        <ClientPortal user={previewClientUser} trips={trips} templates={templates} setUsers={setUsers} onLogout={() => setPreviewClientUser(null)} notify={notify} />
+      </div>
+    );
+  }
 
   // ── Vista previa del portal de colegio (admin-only) ──────────────────────────
   if (previewSchoolId) {
@@ -5305,11 +8391,11 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
       <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
-              <Sparkles className="h-4 w-4" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
+              <img src="/logo-gimeloos.svg" alt="GIMELOOS" className="h-8 w-8 object-contain" style={{ filter: "invert(1)" }} />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel interno</div>
+              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel administrador</div>
               <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
             </div>
             <div className="ml-2 hidden rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-500 sm:block">
@@ -5327,6 +8413,14 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: "calc(100vh - 7rem)" }}>
             <nav className="space-y-1">
+              {/* Inicio */}
+              <button type="button" onClick={() => setActiveSection("home")}
+                className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${activeSection === "home" ? "text-white shadow-sm" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
+                style={activeSection === "home" ? { backgroundColor: CORPORATE_RED } : {}}>
+                <Home className="h-4 w-4 shrink-0" />Inicio
+                {activeSection === "home" && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
+              </button>
+              <div className="border-t border-zinc-100 my-1" />
               {/* CAMPAMENTOS colapsable */}
               <button type="button" onClick={() => setCampExpanded(!campExpanded)}
                 className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-zinc-500 hover:bg-zinc-50 transition">
@@ -5345,6 +8439,8 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                   </button>
                 );
               })}
+              {/* Vista previa portal cliente — al final de Campamentos */}
+              {campExpanded && <AdminClientPreviewButton users={users} onPreview={setPreviewClientUser} />}
 
               {/* COLEGIOS colapsable */}
               <div className="pt-1">
@@ -5367,8 +8463,8 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
                 })}
               </div>
 
-              {/* Vista previa portal colegio */}
-              <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} />
+              {/* Vista previa portal colegio — al final de Colegios */}
+              {colExpanded && <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} />}
 
               {/* Calculadora separada al fondo */}
               <div className="border-t border-zinc-200 pt-2 mt-2">
@@ -5442,20 +8538,23 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          {activeSection === "clients"             && <AdminClients users={users} trips={trips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
-          {activeSection === "tracking"            && <AdminTracking users={users} trips={trips} templates={templates} setUsers={setUsers} notify={notify} />}
-          {activeSection === "payments"            && <AdminPayments users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "docs"                && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={trips} notify={notify} />}
+          {activeSection === "home"                && <AdminDashboard users={users} trips={campTrips} setActiveSection={setActiveSection} />}
+          {activeSection === "clients"             && <AdminClients users={users} trips={campTrips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
+          {activeSection === "tracking"            && <AdminTracking users={users} trips={campTrips} templates={templates} setUsers={setUsers} notify={notify} />}
+          {activeSection === "participants_export" && <AdminParticipantsExport users={users} trips={campTrips} />}
+          {activeSection === "payments"            && <AdminPayments users={users} setUsers={setUsers} trips={campTrips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "docs"                && <AdminDocs templates={templates} setTemplates={setTemplates} users={users} setUsers={setUsers} trips={campTrips} notify={notify} />}
           {activeSection === "questions"           && <AdminQuestions users={users} setUsers={setUsers} notify={notify} />}
-          {activeSection === "checklists"          && <AdminChecklists trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "itinerario"          && <AdminItinerary trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "logistica"           && <AdminLogistica trips={trips} setTrips={setTrips} notify={notify} />}
-          {activeSection === "trips"               && <AdminTrips trips={trips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "checklists"          && <AdminChecklists trips={campTrips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "itinerario"          && <AdminItinerary trips={campTrips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "logistica"           && <AdminLogistica trips={campTrips} setTrips={setTrips} notify={notify} />}
+          {activeSection === "trips"               && <AdminTrips trips={campTrips} setTrips={setTrips} notify={notify} />}
           {activeSection === "calculadora"         && <CalculadoraCampamento />}
-          {activeSection === "school_colegios"     && <AdminSchools trips={trips} notify={notify} section="colegios" />}
+          {activeSection === "school_colegios"     && <AdminSchools trips={trips} schoolTripIds={schoolTripIds} setSchoolTripIds={setSchoolTripIds} notify={notify} section="colegios" />}
           {activeSection === "school_alumnos"      && <AdminSchools trips={trips} notify={notify} section="alumnos" />}
           {activeSection === "school_alergias"     && <AdminSchools trips={trips} notify={notify} section="alergias" />}
           {activeSection === "school_docs"         && <AdminSchools trips={trips} notify={notify} section="docs" />}
+          {activeSection === "school_pagos"        && <AdminSchools trips={trips} notify={notify} section="pagos" />}
           {activeSection === "school_preguntas"    && <AdminSchools trips={trips} notify={notify} section="preguntas" />}
           {activeSection === "school_rooming"      && <AdminSchools trips={trips} notify={notify} section="rooming" />}
           {activeSection === "school_grupos"       && <AdminSchools trips={trips} notify={notify} section="grupos" />}
@@ -5464,6 +8563,8 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
           {activeSection === "school_itinerario"   && <AdminSchools trips={trips} notify={notify} section="itinerario" />}
           {activeSection === "school_logistica"    && <AdminSchools trips={trips} notify={notify} section="logistica" />}
           {activeSection === "school_viajes"       && <AdminSchools trips={trips} setTrips={setTrips} notify={notify} section="viajes" />}
+          {activeSection === "email_camp"           && <AdminEmailTemplates category="campamentos" notify={notify} />}
+          {activeSection === "email_col"            && <AdminEmailTemplates category="colegios" notify={notify} />}
         </main>
       </div>
     </div>
@@ -5475,6 +8576,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, templates, setTemplates,
 export default function GIMELOOSPortalApp() {
   const [users, setUsers] = useState(initialUsers);
   const [trips, setTrips] = useState(initialTrips);
+  const [schoolTripIds, setSchoolTripIds] = useState(new Set());
   const [templates, setTemplates] = useState(initialDocumentTemplates);
   // [CRÍTICO-1/2/3] auth guarda el userId que viene del token de Supabase Auth
   const [auth, setAuth] = useState({ userId: null, error: "", isLoading: false });
@@ -5485,6 +8587,20 @@ export default function GIMELOOSPortalApp() {
   const [loadError, setLoadError] = useState(null);
   // Clave para forzar recarga de datos tras login (RLS requiere sesión activa)
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
+
+  // Detectar enlace de recuperación de contraseña (hash #type=recovery)
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    return hash.get("type") === "recovery";
+  });
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setIsRecoveryMode(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const currentUser = useMemo(
     () => users.find((u) => u.id === auth.userId) || null,
@@ -5518,15 +8634,26 @@ export default function GIMELOOSPortalApp() {
     const loadSupabaseData = async () => {
       setLoadError(null);
       try {
-        const [tripsRes, templatesRes, participantsRes, docsRes, paymentsRes, pricingRes, questionsRes] = await Promise.all([
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) {
+          setIsBootstrapping(false);
+          return;
+        }
+
+        const [tripsRes, templatesRes, participantsRes, docsRes, paymentsRes, pricingRes, questionsRes, schoolTripIdsRes] = await Promise.all([
           supabase.from("trips").select("*").order("created_at", { ascending: true }),
           supabase.from("document_templates").select("*").order("created_at", { ascending: true }),
           supabase.from("participants").select("*").order("created_at", { ascending: true }),
-          supabase.from("participant_documents").select("*").order("created_at", { ascending: true }),
-          supabase.from("participant_payments").select("*").order("created_at", { ascending: true }),
-          supabase.from("participant_pricing").select("*").order("created_at", { ascending: true }),
-          supabase.from("participant_questions").select("*").order("created_at", { ascending: true }),
+          supabase.from("participant_documents").select("participant_id,template_id,status,uploaded_file_name,file_path,storage_path,drive_url").order("created_at", { ascending: true }),
+          supabase.from("participant_payments").select("participant_id,payment_key,name,amount,status,proof_name,proof_path,due_date").order("created_at", { ascending: true }),
+          supabase.from("participant_pricing").select("participant_id,initial_price,final_price,discount").order("created_at", { ascending: true }),
+          supabase.from("participant_questions").select("id,participant_id,message,created_at,status,reply,replied_at").order("created_at", { ascending: true }),
+          supabase.from("school_trips").select("trip_id"),
         ]);
+
+        if (!schoolTripIdsRes.error && schoolTripIdsRes.data?.length) {
+          setSchoolTripIds(new Set(schoolTripIdsRes.data.map((r) => r.trip_id)));
+        }
 
         if (!tripsRes.error && tripsRes.data?.length) {
           setTrips(tripsRes.data.map((t) => ({
@@ -5541,6 +8668,7 @@ export default function GIMELOOSPortalApp() {
             itinerary: t.itinerary || [],
             logistics: Array.isArray(t.logistics) ? t.logistics : [],
             checklist: t.checklist || [],
+            tipo: t.tipo || "campamento",
           })));
         }
 
@@ -5565,11 +8693,29 @@ export default function GIMELOOSPortalApp() {
             return {
               id: p.id, role: p.role || "client", username: p.username,
               authUid: p.auth_uid || "",
+              schoolId: p.school_id || "",
               participantName: p.participant_name || "", motherName: p.mother_name || "",
               fatherName: p.father_name || "", parentName: p.parent_name || "",
               email: p.email || "", contactEmails: p.contact_emails || [],
+              dni: p.dni || "",
+              birthDate: p.birth_date || "",
+              gender: p.gender || "",
+              address: p.address || "",
+              school: p.school || "",
+              phoneFather: p.phone_father || "",
+              phoneMother: p.phone_mother || "",
+              dniFather: p.dni_father || "",
+              dniMother: p.dni_mother || "",
+              imageAuth: p.image_auth || false,
+              allergies: p.allergies || "",
+              healthNotes: p.health_notes || "",
+              shirtSize: p.shirt_size || "",
+              notes: p.notes || "",
+              modality: p.modality || "",
+              howKnown: p.how_known || "",
               // [CRÍTICO-1] Sin campo password en el estado React
               tripId: p.trip_id || "",
+              invoiceUrl: p.invoice_url || "",
               documents: pDocs.length > 0
                 ? pDocs.map((d) => ({ id: d.template_id, status: d.status, uploadedFileName: d.uploaded_file_name || "", filePath: d.file_path || d.storage_path || "", driveUrl: d.drive_url || "" }))
                 : fallbackTemplates.map((t) => ({ id: t.id, status: "pending_upload", uploadedFileName: "", filePath: "", driveUrl: "" })),
@@ -5623,20 +8769,30 @@ export default function GIMELOOSPortalApp() {
   }, [users, auth.userId, sessionBootstrapped, isBootstrapping, dataRefreshKey]);
 
   // [CRÍTICO-1/2/3] Login vía Supabase Auth — la comparación de contraseña ocurre en el servidor
+  // Acepta: nombre de usuario (slug) O email directamente
   const handleLogin = async (username, password) => {
     setAuth((prev) => ({ ...prev, isLoading: true, error: "" }));
     try {
-      // Lookup email via SECURITY DEFINER RPC para saltarse RLS antes de autenticar
-      const { data: email, error: lookupErr } = await supabase
-        .rpc("get_login_email", { p_username: username.trim().toLowerCase() });
+      const input = username.trim().toLowerCase();
+      let loginEmail = null;
 
-      if (lookupErr || !email) {
+      // Si el input tiene @ intentamos usarlo directamente como email
+      if (input.includes("@")) {
+        loginEmail = input;
+      } else {
+        // Lookup email via SECURITY DEFINER RPC para saltarse RLS antes de autenticar
+        const { data: email, error: lookupErr } = await supabase
+          .rpc("get_login_email", { p_username: input });
+        if (!lookupErr && email) loginEmail = email;
+      }
+
+      if (!loginEmail) {
         setAuth({ userId: null, error: "Usuario o contraseña incorrectos.", isLoading: false });
         return;
       }
 
       const { data: session, error: authErr } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
 
@@ -5672,7 +8828,7 @@ export default function GIMELOOSPortalApp() {
   // [MEDIO-2] Pantalla de carga con estado de error y botón de reintento
   if (isBootstrapping || !sessionBootstrapped) {
     return (
-      <div style={{ fontFamily: "Arial, sans-serif" }}>
+      <div>
         <ActionToast notifications={notifications} removeNotification={removeNotification} />
         <div className="min-h-screen bg-white text-zinc-950">
           <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-4 p-6">
@@ -5694,14 +8850,26 @@ export default function GIMELOOSPortalApp() {
     );
   }
 
+  if (isRecoveryMode) {
+    return (
+      <div className="[&_button]:cursor-pointer">
+        <ActionToast notifications={notifications} removeNotification={removeNotification} />
+        <ResetPasswordScreen onDone={() => {
+          setIsRecoveryMode(false);
+          window.history.replaceState(null, "", window.location.pathname);
+        }} />
+      </div>
+    );
+  }
+
   return (
-    <div style={{ fontFamily: "Arial, sans-serif" }} className="[&_button]:cursor-pointer [&_label]:cursor-pointer [&_select]:cursor-pointer [&_summary]:cursor-pointer">
+    <div className="[&_button]:cursor-pointer [&_label]:cursor-pointer [&_select]:cursor-pointer [&_summary]:cursor-pointer">
       <ActionToast notifications={notifications} removeNotification={removeNotification} />
       {!currentUser ? (
         <LoginScreen onLogin={handleLogin} loginError={auth.error} isLoading={auth.isLoading} />
       ) : currentUser.role === "admin" ? (
-        <AdminPanel users={users} setUsers={setUsers} trips={trips} setTrips={setTrips} templates={templates} setTemplates={setTemplates} onLogout={handleLogout} notify={notify} />
-      ) : currentUser.role === "school" ? (
+        <AdminPanel users={users} setUsers={setUsers} trips={trips} setTrips={setTrips} schoolTripIds={schoolTripIds} setSchoolTripIds={setSchoolTripIds} templates={templates} setTemplates={setTemplates} onLogout={handleLogout} notify={notify} />
+      ) : (currentUser.role === "school" || currentUser.schoolId) ? (
         <SchoolPortal user={currentUser} trips={trips} onLogout={handleLogout} notify={notify} />
       ) : (
         <ClientPortal user={currentUser} trips={trips} templates={templates} setUsers={setUsers} onLogout={handleLogout} notify={notify} />

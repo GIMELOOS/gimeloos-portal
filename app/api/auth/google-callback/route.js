@@ -10,15 +10,21 @@ const TOKEN_PATH = join(process.cwd(), ".google-token.json");
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
 
   if (!code) {
     return NextResponse.json({ error: "No se recibió código de autorización" }, { status: 400 });
   }
 
+  if (!process.env.GOOGLE_SETUP_SECRET || state !== process.env.GOOGLE_SETUP_SECRET) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    "http://localhost:3000/api/auth/google-callback"
+    `${appUrl}/api/auth/google-callback`
   );
 
   const { tokens } = await oauth2Client.getToken(code);

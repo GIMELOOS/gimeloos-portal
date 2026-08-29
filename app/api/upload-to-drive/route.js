@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAdmin } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -14,17 +14,18 @@ function getDriveClient() {
     throw new Error("Google Drive no está autorizado. Visita /api/auth/google-setup para conectarlo.");
   }
   const tokens = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    "http://localhost:3000/api/auth/google-callback"
+    `${appUrl}/api/auth/google-callback`
   );
   oauth2Client.setCredentials(tokens);
 
   // Actualiza el token si se refresca automáticamente
   oauth2Client.on("tokens", (newTokens) => {
     const updated = { ...tokens, ...newTokens };
-    require("fs").writeFileSync(TOKEN_PATH, JSON.stringify(updated, null, 2));
+    try { require("fs").writeFileSync(TOKEN_PATH, JSON.stringify(updated, null, 2)); } catch (_) {}
   });
 
   return google.drive({ version: "v3", auth: oauth2Client });
@@ -48,7 +49,7 @@ async function findOrCreateFolder(drive, name, parentId) {
 // POST /api/upload-to-drive
 // body: FormData { file, username, subfolder ("documentos" | "pagos") }
 export async function POST(request) {
-  const { error: authError } = await requireAuth(request);
+  const { error: authError } = await requireAdmin(request);
   if (authError) return authError;
 
   try {
@@ -59,6 +60,23 @@ export async function POST(request) {
 
     if (!file || !participantNameRaw) {
       return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
+    }
+
+    const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+    const ALLOWED_TYPES = new Set([
+      "application/pdf",
+      "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]);
+
+    if (!ALLOWED_TYPES.has(file.type)) {
+      return NextResponse.json({ error: `Tipo de archivo no permitido: ${file.type}` }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: "El archivo supera el límite de 20 MB" }, { status: 400 });
     }
 
     const drive = getDriveClient();
@@ -87,12 +105,24 @@ export async function POST(request) {
         mimeType: file.type || "application/octet-stream",
         body: stream,
       },
-      fields: "id, webViewLink, name",
+      fields: "id, webViewLink, webContentLink, name",
     });
 
+    const fileId = uploaded.data.id;
+
+    // Hacer el archivo público para que la URL funcione como imagen directa
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+
+    // URL directa de imagen (sustituye el &export=download por thumbnail o direct)
+    const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+
     return NextResponse.json({
-      fileId: uploaded.data.id,
+      fileId,
       webViewLink: uploaded.data.webViewLink,
+      webContentLink: directUrl,
       fileName: uploaded.data.name,
     });
   } catch (err) {

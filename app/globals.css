@@ -1,17 +1,64 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aptos';
+  src: url('/fonts/Aptos-Bold-Italic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --font-heading: var(--font-poppins);
-  --font-body: var(--font-open-sans);
+  --font-heading: 'Aptos', sans-serif;
+  --font-body: 'Aptos', sans-serif;
+  --brand: #FF3131;
+  --radius-card: 24px;
+  --radius-input: 16px;
+  --radius-chip: 8px;
 }
 
 html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), sans-serif;
+  font-family: 'Aptos', var(--font-body), sans-serif;
 }
 
 h1,
@@ -24,5 +71,12 @@ h6,
 button,
 label,
 .font-heading {
-  font-family: var(--font-heading), sans-serif;
+  font-family: 'Aptos', var(--font-heading), sans-serif;
+}
+
+.sidebar-sticky {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  height: fit-content;
 }
