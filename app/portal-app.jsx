@@ -6283,29 +6283,45 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
     if (!setTrips) return;
     setTrips((prev) => prev.map((t) => t.id === selectedTrip?.id ? { ...t, [field]: value } : t));
   };
+  const callUpdateTrip = async (id, fields) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch("/api/update-trip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Error guardando");
+  };
   const saveTripField = async (dbField, value) => {
     if (!selectedTrip) return;
     const stateField = dbField === "hero_image" ? "heroImage" : dbField === "departure_date" ? "departureDate" : dbField;
     syncTripField(stateField, value);
-    const { data: updated, error } = await supabase.from("trips").update({ [dbField]: value }).eq("id", selectedTrip.id).select("id");
-    if (error) { notify("Error guardando cambios: " + error.message); return; }
-    if (!updated?.length) notify("⚠️ Cambio no guardado — sin permisos de escritura en viajes.");
+    try {
+      await callUpdateTrip(selectedTrip.id, { [dbField]: value });
+    } catch (err) {
+      notify("Error guardando cambios: " + err.message);
+    }
   };
   const handleSaveAll = async () => {
     if (!selectedTrip) return;
     setSaving(true);
     const dateValue = selectedTrip.departureDate || null;
-    const { data: updated, error } = await supabase.from("trips").update({
-      name: selectedTrip.name,
-      departure_date: dateValue ? (dateValue.length === 16 ? dateValue + ":00" : dateValue) : null,
-      hero_image: selectedTrip.heroImage || null,
-      description: selectedTrip.description || null,
-    }).eq("id", selectedTrip.id).select("id");
-    setSaving(false);
-    if (error) { notify("Error guardando: " + error.message); return; }
-    if (!updated?.length) { notify("⚠️ No se guardaron los cambios. Puede que falten permisos de escritura en la tabla trips."); return; }
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      await callUpdateTrip(selectedTrip.id, {
+        name: selectedTrip.name,
+        departure_date: dateValue ? (dateValue.length === 16 ? dateValue + ":00" : dateValue) : null,
+        hero_image: selectedTrip.heroImage || null,
+        description: selectedTrip.description || null,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      notify("Error guardando: " + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
   const handleDeleteSchoolTrip = async () => {
     if (!selectedSt) return;
