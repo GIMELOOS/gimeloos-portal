@@ -110,7 +110,7 @@ import {
   Settings,
   ChevronRight,
   Sparkles,
-  MapPinned as MapIcon,
+  MapPinned,
   ListChecks,
   Plus,
   Luggage,
@@ -127,6 +127,7 @@ import {
   Grid2x2,
   Building2,
 } from "lucide-react";
+const MapIcon = MapPinned;
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
