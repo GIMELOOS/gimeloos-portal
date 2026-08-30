@@ -2111,6 +2111,15 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
       if (!rows.length) { notify("El Excel está vacío o no tiene filas de datos."); setIsImporting(false); return; }
       console.log("[Import] Columnas detectadas:", Object.keys(rows[0] || {}));
+      // Debug pagos: muestra los valores raw de las columnas de pago de la primera fila
+      if (rows[0]) {
+        const r0 = rows[0];
+        console.log("[Import] Valores pago fila 1:", {
+          pago1: r0["1er pago"] ?? r0["Pago1_Cantidad"] ?? "(no encontrado)",
+          pago2: r0["2do pago"] ?? r0["Pago2_Cantidad"] ?? "(no encontrado)",
+          pago3: r0["3er pago"] ?? r0["Pago3_Cantidad"] ?? "(no encontrado)",
+        });
+      }
 
       setImportTotal(rows.length);
 
@@ -2462,6 +2471,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       for (const p of (existingPayments || [])) {
         paymentStatusMap.set(`${p.participant_id}__${p.payment_key}`, { id: p.id, status: p.status });
       }
+
+      console.log("[Import] Pagos parseados (primeros 3):", parsedRows.slice(0, 3).map(r => ({ username: r.finalUsername, payments: r.payments })));
 
       const paymentsToInsertMap = new Map(); // clave: "participantId__paymentKey"
       const paymentsToUpdate = [];
