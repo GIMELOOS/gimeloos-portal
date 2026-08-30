@@ -2332,9 +2332,9 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           },
           pricing: { initial_price: initialPrice, discount, final_price: finalPrice },
           payments: [
-            { key: "reservation",       name: safeString(getRowValue(row, "Pago1_Nombre"), "Reserva"),        amount: parseAmount(getRowValue(row, "Pago1_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago1_Fecha")) },
-            { key: "firstInstallment",  name: safeString(getRowValue(row, "Pago2_Nombre"), "Primera cuota"),  amount: parseAmount(getRowValue(row, "Pago2_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago2_Fecha")) },
-            { key: "secondInstallment", name: safeString(getRowValue(row, "Pago3_Nombre"), "Segunda cuota"),  amount: parseAmount(getRowValue(row, "Pago3_Cantidad")), due_date: normalizeDateForDb(getRowValue(row, "Pago3_Fecha")) },
+            { key: "reservation",       name: safeString(getRowValue(row, "Pago1_Nombre"), "Reserva"),       amount: parseAmount(getRowValue(row, "Pago1_Cantidad", "1er pago", "1er Pago", "Primer pago", "Pago 1", "Reserva pago", "Importe reserva")), due_date: normalizeDateForDb(getRowValue(row, "Pago1_Fecha", "Fecha 1er pago", "Fecha reserva")) },
+            { key: "firstInstallment",  name: safeString(getRowValue(row, "Pago2_Nombre"), "Primera cuota"), amount: parseAmount(getRowValue(row, "Pago2_Cantidad", "2do pago", "2do Pago", "2º pago", "Segundo pago", "Pago 2", "1a cuota", "1ª cuota", "Primera cuota pago")), due_date: normalizeDateForDb(getRowValue(row, "Pago2_Fecha", "Fecha 2do pago", "Fecha primera cuota")) },
+            { key: "secondInstallment", name: safeString(getRowValue(row, "Pago3_Nombre"), "Segunda cuota"), amount: parseAmount(getRowValue(row, "Pago3_Cantidad", "3er pago", "3er Pago", "3º pago", "Tercer pago", "Pago 3", "2a cuota", "2ª cuota", "Segunda cuota pago")), due_date: normalizeDateForDb(getRowValue(row, "Pago3_Fecha", "Fecha 3er pago", "Fecha segunda cuota")) },
           ],
           participantName, motherName, fatherName,
           email: safeString(motherEmail, fatherEmail),
@@ -2463,22 +2463,25 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         paymentStatusMap.set(`${p.participant_id}__${p.payment_key}`, { id: p.id, status: p.status });
       }
 
-      const paymentsToInsert = [];
+      const paymentsToInsertMap = new Map(); // clave: "participantId__paymentKey"
       const paymentsToUpdate = [];
 
       for (const r of parsedRows) {
         const participantId = existingByUsername.get(r.finalUsername);
         if (!participantId) continue;
         for (const p of r.payments) {
-          const existing = paymentStatusMap.get(`${participantId}__${p.key}`);
+          const comboKey = `${participantId}__${p.key}`;
+          const existing = paymentStatusMap.get(comboKey);
           if (!existing) {
-            paymentsToInsert.push({ participant_id: participantId, payment_key: p.key, name: p.name, amount: p.amount, status: "pending", proof_name: "", proof_path: "", due_date: p.due_date });
+            // Deduplicar: si ya lo añadimos en este batch, sobreescribir con la última fila
+            paymentsToInsertMap.set(comboKey, { participant_id: participantId, payment_key: p.key, name: p.name, amount: p.amount, status: "pending", proof_name: "", proof_path: "", due_date: p.due_date });
           } else if (!PROTECTED.includes(existing.status)) {
             paymentsToUpdate.push({ id: existing.id, name: p.name, amount: p.amount, due_date: p.due_date });
           }
         }
       }
 
+      const paymentsToInsert = [...paymentsToInsertMap.values()];
       if (paymentsToInsert.length) {
         const { error: payInsertErr } = await supabase.from("participant_payments").insert(paymentsToInsert);
         if (payInsertErr) { console.error("Error insertando pagos:", payInsertErr); notify("Error guardando pagos del Excel. Revisa los datos manualmente.", { variant: "destructive" }); }
