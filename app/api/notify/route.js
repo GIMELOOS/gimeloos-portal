@@ -23,285 +23,254 @@ const supabaseAdmin = createClient(
 
 // ─── Plantillas de email ──────────────────────────────────────────────────────
 
-const baseStyle = `font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7`;
-const headerStyle = `background:#FF3131;padding:32px 32px 24px;text-align:center`;
-const bodyStyle = `padding:32px`;
-const footerStyle = `padding:16px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;font-size:12px;color:#71717a`;
-
-function emailWrapper(title, body) {
+// emailWrapper(eyebrow, heading, body, footerNote?)
+// eyebrow  → texto pequeño rojo en mayúsculas ("DOCUMENTACIÓN", "PAGOS"…)
+// heading  → título grande y bold
+// body     → HTML del contenido
+// footerNote → frase opcional sobre por qué se recibe el email
+function emailWrapper(eyebrow, heading, body, footerNote = "") {
   return `
-  <div style="${baseStyle}">
-    <div style="${headerStyle}">
-      <div style="color:white;font-size:22px;font-weight:700;letter-spacing:-0.5px">GIMELOOS</div>
-      <div style="color:rgba(255,255,255,0.85);font-size:13px;margin-top:4px">${title}</div>
+  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:1px solid #e4e4e7">
+    <div style="background:#18181b;padding:28px 40px">
+      <div style="color:white;font-size:20px;font-weight:700;letter-spacing:-0.3px">GIMELOOS</div>
+      <div style="color:#a1a1aa;font-size:11px;letter-spacing:0.15em;margin-top:4px;text-transform:uppercase">Área privada de clientes</div>
     </div>
-    <div style="${bodyStyle}">${body}</div>
-    <div style="${footerStyle}">
-      © GIMELOOS · Este es un mensaje automático, no respondas a este correo.
+    <div style="padding:40px;background:#fff">
+      <div style="color:#FF3131;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px">${eyebrow}</div>
+      <h1 style="color:#18181b;font-size:24px;font-weight:700;margin:0 0 24px;line-height:1.3">${heading}</h1>
+      ${body}
+    </div>
+    <div style="background:#f4f4f5;padding:24px 40px;text-align:center;font-size:12px;color:#71717a;border-top:1px solid #e4e4e7">
+      ${footerNote ? `<p style="margin:0 0 8px">${footerNote}</p>` : ""}
+      <p style="margin:0">© 2026 GIMELOOS EVENTOS Y ACTIVIDADES SL</p>
     </div>
   </div>`;
 }
 
+const btn = (url, label) =>
+  `<a href="${url}" style="display:inline-block;background:#FF3131;color:white;font-weight:600;font-size:15px;padding:14px 28px;border-radius:10px;text-decoration:none;margin:8px 0 24px">${label}</a>`;
+
+const infoBox = (content) =>
+  `<div style="margin:20px 0;padding:16px 20px;background:#fff7ed;border-radius:10px;border:1px solid #fed7aa;color:#92400e;font-size:14px;line-height:1.6">${content}</div>`;
+
 const templates = {
-  // Participante: documento confirmado
   doc_confirmed: ({ participantName, docName, tripName }) => ({
-    subject: `✅ Documento confirmado — ${docName}`,
-    html: emailWrapper("Documento confirmado", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Tu documento <strong>${docName}</strong> para <strong>${tripName}</strong> ha sido revisado y <strong style="color:#16a34a">confirmado</strong> por el equipo de GIMELOOS. ¡Perfecto!</p>
-      <div style="margin:24px 0;padding:16px;background:#f0fdf4;border-radius:12px;border-left:4px solid #16a34a">
-        <div style="color:#15803d;font-weight:600;font-size:14px">✓ ${docName}</div>
-        <div style="color:#52525b;font-size:13px;margin-top:4px">Estado: Confirmado</div>
+    subject: `Documento confirmado — ${docName}`,
+    html: emailWrapper("DOCUMENTACIÓN", `Documento confirmado`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${participantName}</strong>.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Tu documento <strong>${docName}</strong> para el viaje <strong>${tripName}</strong> ha sido revisado y <strong style="color:#16a34a">confirmado</strong> por el equipo de GIMELOOS.</p>
+      <div style="margin:20px 0;padding:16px 20px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;color:#15803d;font-size:14px">
+        ✓ <strong>${docName}</strong> — Estado: Confirmado
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al portal para ver el estado de todos tus documentos.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al portal para ver el estado de todos tus documentos.</p>
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Participante: documento rechazado
   doc_rejected: ({ participantName, docName, tripName }) => ({
-    subject: `❌ Documento rechazado — ${docName}`,
-    html: emailWrapper("Documento rechazado", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Tu documento <strong>${docName}</strong> para <strong>${tripName}</strong> ha sido revisado pero necesita correcciones.</p>
-      <div style="margin:24px 0;padding:16px;background:#fef2f2;border-radius:12px;border-left:4px solid #dc2626">
-        <div style="color:#dc2626;font-weight:600;font-size:14px">✗ ${docName}</div>
-        <div style="color:#52525b;font-size:13px;margin-top:4px">Estado: Rechazado — por favor sube una versión corregida</div>
+    subject: `Documento rechazado — ${docName}`,
+    html: emailWrapper("DOCUMENTACIÓN", `Revisa tu documento`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${participantName}</strong>.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Tu documento <strong>${docName}</strong> para <strong>${tripName}</strong> ha sido revisado pero necesita correcciones.</p>
+      <div style="margin:20px 0;padding:16px 20px;background:#fef2f2;border-radius:10px;border:1px solid #fecaca;color:#dc2626;font-size:14px">
+        ✗ <strong>${docName}</strong> — Por favor sube una versión corregida
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al portal para subir el documento corregido.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al portal para subir el documento corregido.</p>
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Participante: pago confirmado
   payment_confirmed: ({ participantName, paymentName, amount, tripName }) => ({
-    subject: `✅ Pago confirmado — ${paymentName}`,
-    html: emailWrapper("Pago confirmado", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Hemos confirmado tu pago de <strong>${paymentName}</strong> para <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:16px;background:#f0fdf4;border-radius:12px;border-left:4px solid #16a34a">
-        <div style="color:#15803d;font-weight:600;font-size:14px">✓ ${paymentName}</div>
-        <div style="color:#52525b;font-size:13px;margin-top:4px">Importe: ${amount} · Estado: Confirmado</div>
+    subject: `Pago confirmado — ${paymentName}`,
+    html: emailWrapper("PAGOS", `Pago confirmado`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${participantName}</strong>.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hemos confirmado tu pago de <strong>${paymentName}</strong> para el viaje <strong>${tripName}</strong>.</p>
+      <div style="margin:20px 0;padding:16px 20px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;color:#15803d;font-size:14px">
+        ✓ <strong>${paymentName}</strong> · Importe: <strong>${amount}</strong> · Estado: Confirmado
       </div>
-    `),
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Participante: respuesta a pregunta
   question_replied: ({ participantName, question, reply }) => ({
-    subject: `💬 Tienes una respuesta de GIMELOOS`,
-    html: emailWrapper("Respuesta a tu consulta", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px">El equipo de GIMELOOS ha respondido a tu consulta:</p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <div style="color:#71717a;font-size:12px;margin-bottom:6px">Tu pregunta</div>
-        <p style="color:#3f3f46;font-size:14px;margin:0">${question}</p>
+    subject: `Tienes una respuesta de GIMELOOS`,
+    html: emailWrapper("CONSULTAS", `El equipo GIMELOOS ha respondido`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Hola, <strong>${participantName}</strong>.</p>
+      <div style="margin:0 0 16px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#52525b">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#a1a1aa;text-transform:uppercase;margin-bottom:8px">Tu pregunta</div>
+        ${escapeHtml(question)}
       </div>
-      <div style="margin:16px 0;padding:16px;background:#fef3c7;border-radius:12px;border-left:4px solid #d97706">
-        <div style="color:#92400e;font-size:12px;margin-bottom:6px;font-weight:600">Respuesta del equipo</div>
-        <p style="color:#3f3f46;font-size:14px;margin:0">${reply}</p>
+      <div style="margin:0 0 20px;padding:16px 20px;background:#fef3c7;border-radius:10px;border-left:4px solid #d97706;font-size:14px;color:#3f3f46">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#92400e;text-transform:uppercase;margin-bottom:8px">Respuesta del equipo</div>
+        ${escapeHtml(reply)}
       </div>
-      <p style="color:#52525b;font-size:14px">Si tienes más dudas, accede al portal y envíanos otro mensaje.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Si tienes más dudas, accede al portal y envíanos otro mensaje.</p>
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Participante: recordatorio pago próximo
   payment_reminder: ({ participantName, paymentName, amount, dueDate, daysLeft, tripName }) => ({
-    subject: `⏰ Recordatorio de pago — ${paymentName} vence en ${daysLeft} días`,
-    html: emailWrapper("Recordatorio de pago", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Te recordamos que tienes un pago pendiente para <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#fff7ed;border-radius:12px;border-left:4px solid #f97316">
-        <div style="color:#c2410c;font-weight:700;font-size:16px">${paymentName}</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Importe: <strong>${amount}</strong></div>
-        <div style="color:#52525b;font-size:14px">Fecha límite: <strong>${dueDate}</strong></div>
-        <div style="margin-top:12px;padding:8px 12px;background:#fed7aa;border-radius:8px;color:#c2410c;font-weight:600;font-size:14px;display:inline-block">
-          Quedan ${daysLeft} días
-        </div>
+    subject: `Recordatorio de pago — ${paymentName} vence en ${daysLeft} días`,
+    html: emailWrapper("PAGOS", `Tienes un pago pendiente`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${participantName}</strong>.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Tienes un pago pendiente para el viaje <strong>${tripName}</strong>. Haz clic en el botón de abajo para acceder al portal y subir tu justificante. Si no realizas esta acción, tu plaza podría quedar sin confirmar.</p>
+      <div style="margin:0 0 24px;padding:20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#3f3f46">
+        <div style="font-weight:700;font-size:16px;color:#18181b;margin-bottom:8px">${paymentName}</div>
+        <div>Importe: <strong>${amount}</strong></div>
+        <div>Fecha límite: <strong>${dueDate}</strong></div>
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al portal para subir tu justificante de pago.</p>
-    `),
+      ${infoBox(`⏰ Este enlace es válido hasta el <strong>${dueDate}</strong>. Quedan <strong>${daysLeft} días</strong>.`)}
+      <p style="color:#71717a;font-size:13px;margin:0">Si ya has realizado el pago, puedes ignorar este correo.</p>
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Participante: documento pendiente de subir
   doc_reminder: ({ participantName, docName, tripName }) => ({
-    subject: `📄 Documentación pendiente — ${docName}`,
-    html: emailWrapper("Documentación pendiente", `
-      <p style="color:#18181b;font-size:16px">Hola, <strong>${participantName}</strong></p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Aún tienes documentación pendiente de subir para <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:16px;background:#fef2f2;border-radius:12px;border-left:4px solid #FF3131">
-        <div style="color:#FF3131;font-weight:600;font-size:14px">📄 ${docName}</div>
-        <div style="color:#52525b;font-size:13px;margin-top:4px">Estado: Pendiente de envío</div>
+    subject: `Documentación pendiente — ${docName}`,
+    html: emailWrapper("DOCUMENTACIÓN", `Tienes documentación pendiente`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${participantName}</strong>.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Aún tienes documentación pendiente de subir para el viaje <strong>${tripName}</strong>. Haz clic en el botón de abajo para acceder al portal y subir los documentos requeridos.</p>
+      <div style="margin:0 0 24px;padding:16px 20px;background:#fef2f2;border-radius:10px;border-left:4px solid #FF3131;font-size:14px;color:#FF3131">
+        <strong>${docName}</strong> — Pendiente de envío
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al portal para subir tu documentación lo antes posible.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Si ya has subido el documento, puedes ignorar este correo.</p>
+    `, `Recibes este correo porque tienes un viaje contratado con GIMELOOS. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio listado de alumnos
   school_reminder_listado: ({ schoolName, contactName, tripName }) => ({
-    subject: `📋 Listado de alumnos pendiente — ${tripName}`,
-    html: emailWrapper("Listado de alumnos pendiente", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Te recordamos que necesitamos el <strong>listado definitivo de alumnos</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#eff6ff;border-radius:12px;border-left:4px solid #3b82f6">
-        <div style="color:#1d4ed8;font-weight:700;font-size:15px">📋 Acción requerida: listado de alumnos</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Por favor, accede al portal escolar y sube el listado lo antes posible.</div>
-      </div>
-    `),
+    subject: `Listado de alumnos pendiente — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Listado de alumnos pendiente`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Necesitamos el <strong>listado definitivo de alumnos</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>. Por favor, accede al portal y sube el listado lo antes posible.</p>
+      ${infoBox(`📋 <strong>Acción requerida:</strong> sube el listado de alumnos en el Portal del Colegio GIMELOOS.`)}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio alergias e intolerancias
   school_reminder_alergias: ({ schoolName, contactName, tripName }) => ({
-    subject: `🍽️ Alergias e intolerancias pendientes — ${tripName}`,
-    html: emailWrapper("Alergias e intolerancias pendientes", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Es imprescindible que nos comuniquéis las <strong>alergias e intolerancias alimentarias</strong> de los alumnos del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#fef9c3;border-radius:12px;border-left:4px solid #eab308">
-        <div style="color:#854d0e;font-weight:700;font-size:15px">🍽️ Alergias e intolerancias</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Accede al portal y rellena la información médica de cada alumno. Es obligatorio para garantizar su seguridad.</div>
-      </div>
-    `),
+    subject: `Alergias e intolerancias pendientes — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Alergias e intolerancias pendientes`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Es imprescindible que nos comuniquéis las <strong>alergias e intolerancias alimentarias</strong> de los alumnos de <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>. Es obligatorio para garantizar su seguridad.</p>
+      ${infoBox(`🍽️ <strong>Acción requerida:</strong> rellena la información médica de cada alumno en el Portal del Colegio GIMELOOS.`)}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio documentación
   school_doc_reminder: ({ schoolName, contactName, tripName, pendingCount }) => ({
-    subject: `📄 Documentación pendiente — ${tripName}`,
-    html: emailWrapper("Documentación pendiente del viaje", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">El colegio <strong>${schoolName}</strong> tiene documentación pendiente de enviar para el viaje <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#fef2f2;border-radius:12px;border-left:4px solid #FF3131">
-        <div style="color:#FF3131;font-weight:700;font-size:16px">📄 ${pendingCount > 0 ? `${pendingCount} documento${pendingCount !== 1 ? "s" : ""} pendiente${pendingCount !== 1 ? "s" : ""}` : "Documentación pendiente"}</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Accede al portal escolar y sube los documentos requeridos lo antes posible.</div>
-      </div>
-    `),
+    subject: `Documentación pendiente — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Documentación pendiente del viaje`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">El colegio <strong>${schoolName}</strong> tiene documentación pendiente de enviar para el viaje <strong>${tripName}</strong>. Accede al portal y sube los documentos requeridos.</p>
+      ${infoBox(`📄 <strong>${pendingCount > 0 ? `${pendingCount} documento${pendingCount !== 1 ? "s" : ""} pendiente${pendingCount !== 1 ? "s" : ""}` : "Documentación pendiente"}</strong> — Accede al Portal del Colegio para completarla.`)}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio rooming
   school_reminder_rooming: ({ schoolName, contactName, tripName }) => ({
-    subject: `🛏️ Asignación de habitaciones pendiente — ${tripName}`,
-    html: emailWrapper("Rooming pendiente", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Necesitamos la <strong>asignación de habitaciones (rooming)</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#f0fdf4;border-radius:12px;border-left:4px solid #16a34a">
-        <div style="color:#15803d;font-weight:700;font-size:15px">🛏️ Rooming pendiente</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Accede al portal escolar → sección Rooming y completa la distribución de habitaciones.</div>
-      </div>
-    `),
+    subject: `Asignación de habitaciones pendiente — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Rooming pendiente`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Necesitamos la <strong>asignación de habitaciones</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>.</p>
+      ${infoBox(`🛏️ <strong>Acción requerida:</strong> accede al Portal del Colegio → sección Rooming y completa la distribución de habitaciones.`)}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio grupos
   school_reminder_grupos: ({ schoolName, contactName, tripName }) => ({
-    subject: `👥 Grupos de actividad pendientes — ${tripName}`,
-    html: emailWrapper("Grupos de actividad pendientes", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Los <strong>grupos de actividad</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong> están pendientes de definir.</p>
-      <div style="margin:24px 0;padding:20px;background:#faf5ff;border-radius:12px;border-left:4px solid #9333ea">
-        <div style="color:#7e22ce;font-weight:700;font-size:15px">👥 Grupos de actividad</div>
-        <div style="color:#52525b;font-size:14px;margin-top:8px">Accede al portal escolar → sección Grupos y define los grupos de actividad.</div>
-      </div>
-    `),
+    subject: `Grupos de actividad pendientes — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Grupos de actividad pendientes`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Los <strong>grupos de actividad</strong> del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong> están pendientes de definir.</p>
+      ${infoBox(`👥 <strong>Acción requerida:</strong> accede al Portal del Colegio → sección Grupos y define los grupos de actividad.`)}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio completo (todo)
   school_reminder_todo: ({ schoolName, contactName, tripName, pendingItems }) => ({
-    subject: `⏰ Resumen de pendientes — ${tripName}`,
-    html: emailWrapper("Resumen de pendientes del viaje", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">Aquí tienes un resumen de todo lo que está pendiente del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>:</p>
-      <div style="margin:24px 0;border-radius:12px;overflow:hidden;border:1px solid #e4e4e7">
-        ${(pendingItems || []).map((item) => `
-          <div style="padding:14px 16px;border-bottom:1px solid #f4f4f5;display:flex;align-items:center;gap:10px">
-            <span style="font-size:18px">${escapeHtml(item.icon)}</span>
+    subject: `Resumen de pendientes — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Resumen de pendientes del viaje`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Aquí tienes un resumen de todo lo pendiente del colegio <strong>${schoolName}</strong> para el viaje <strong>${tripName}</strong>:</p>
+      <div style="margin:0 0 24px;border-radius:10px;overflow:hidden;border:1px solid #e4e4e7">
+        ${(pendingItems || []).map((item, i) => `
+          <div style="padding:14px 16px;${i > 0 ? "border-top:1px solid #f4f4f5;" : ""}display:flex;align-items:center;gap:12px">
+            <span style="font-size:20px;flex-shrink:0">${escapeHtml(item.icon)}</span>
             <div>
               <div style="font-weight:600;font-size:14px;color:#18181b">${escapeHtml(item.label)}</div>
               <div style="font-size:13px;color:#71717a;margin-top:2px">${escapeHtml(item.detail)}</div>
             </div>
           </div>`).join("")}
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al portal escolar para completar toda la información.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al portal escolar para completar toda la información pendiente.</p>
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Coordinador de colegio: recordatorio genérico
   school_reminder: ({ schoolName, contactName, tripName, message }) => ({
-    subject: `⏰ Recordatorio GIMELOOS — ${tripName}`,
-    html: emailWrapper("Recordatorio del viaje escolar", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">El equipo de GIMELOOS quiere recordarte algo sobre el viaje <strong>${tripName}</strong> del colegio <strong>${schoolName}</strong>.</p>
-      <div style="margin:24px 0;padding:20px;background:#fff7ed;border-radius:12px;border-left:4px solid #f97316">
-        <p style="color:#3f3f46;font-size:14px;margin:0">${escapeHtml(message || "Por favor, revisa el estado de tu portal escolar.")}</p>
-      </div>
-    `),
+    subject: `Recordatorio GIMELOOS — ${tripName}`,
+    html: emailWrapper("PORTAL DEL COLEGIO", `Recordatorio del viaje escolar`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}.</p>
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">El equipo de GIMELOOS quiere recordarte algo sobre el viaje <strong>${tripName}</strong> del colegio <strong>${schoolName}</strong>.</p>
+      ${infoBox(escapeHtml(message || "Por favor, revisa el estado de tu portal escolar."))}
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Admin: colegio envió una pregunta
   admin_school_question: ({ schoolName, question }) => ({
-    subject: `❓ Nueva pregunta de colegio — ${schoolName}`,
-    html: emailWrapper("Nueva pregunta de colegio", `
-      <p style="color:#18181b;font-size:16px">Nueva pregunta de <strong>${schoolName}</strong></p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <p style="color:#3f3f46;font-size:14px;margin:0">${escapeHtml(question)}</p>
+    subject: `Nueva pregunta de colegio — ${schoolName}`,
+    html: emailWrapper("ADMINISTRACIÓN", `Nueva pregunta de colegio`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">El colegio <strong>${schoolName}</strong> ha enviado una nueva consulta a través del portal.</p>
+      <div style="margin:0 0 24px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#3f3f46">
+        ${escapeHtml(question)}
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al panel de administración para responder.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al panel de administración → Colegios → Preguntas para responder.</p>
+    `, "Mensaje automático del Portal GIMELOOS."),
   }),
 
-  // Coordinador de colegio: admin respondió a su pregunta
   school_question_replied: ({ schoolName, contactName, question, reply }) => ({
-    subject: `💬 El equipo GIMELOOS ha respondido tu pregunta`,
-    html: emailWrapper("Respuesta a tu pregunta", `
-      <p style="color:#18181b;font-size:16px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}</p>
-      <p style="color:#52525b;font-size:14px;line-height:1.6">El equipo de GIMELOOS ha respondido a una pregunta del colegio <strong>${schoolName}</strong>.</p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <div style="font-size:12px;color:#71717a;margin-bottom:4px">Tu pregunta:</div>
-        <p style="color:#52525b;font-size:14px;margin:0">${escapeHtml(question)}</p>
+    subject: `El equipo GIMELOOS ha respondido tu pregunta`,
+    html: emailWrapper("CONSULTAS", `Respuesta a tu consulta`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Hola${contactName ? `, <strong>${contactName}</strong>` : ""}. El equipo de GIMELOOS ha respondido a tu consulta sobre el colegio <strong>${schoolName}</strong>.</p>
+      <div style="margin:0 0 16px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#52525b">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#a1a1aa;text-transform:uppercase;margin-bottom:8px">Tu pregunta</div>
+        ${escapeHtml(question)}
       </div>
-      <div style="margin:16px 0;padding:16px;background:#f0fdf4;border-radius:12px;border-left:4px solid #16a34a">
-        <div style="font-size:12px;color:#71717a;margin-bottom:4px">Respuesta:</div>
-        <p style="color:#15803d;font-size:14px;margin:0">${escapeHtml(reply)}</p>
+      <div style="margin:0 0 20px;padding:16px 20px;background:#fef3c7;border-radius:10px;border-left:4px solid #d97706;font-size:14px;color:#3f3f46">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#92400e;text-transform:uppercase;margin-bottom:8px">Respuesta del equipo</div>
+        ${escapeHtml(reply)}
       </div>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Si tienes más dudas, accede al portal y envíanos otro mensaje.</p>
+    `, `Recibes este correo en representación del colegio ${schoolName}. Escríbenos a info@gimeloos.com si tienes dudas.`),
   }),
 
-  // Admin: nuevo documento subido
   admin_doc_uploaded: ({ participantName, docName, tripName }) => ({
-    subject: `📥 Nuevo documento — ${participantName}`,
-    html: emailWrapper("Nuevo documento pendiente de revisión", `
-      <p style="color:#18181b;font-size:16px">Nuevo documento para revisar</p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <div style="font-size:14px;color:#3f3f46"><strong>Participante:</strong> ${participantName}</div>
-        <div style="font-size:14px;color:#3f3f46;margin-top:4px"><strong>Documento:</strong> ${docName}</div>
-        <div style="font-size:14px;color:#3f3f46;margin-top:4px"><strong>Viaje:</strong> ${tripName}</div>
+    subject: `Nuevo documento — ${participantName}`,
+    html: emailWrapper("ADMINISTRACIÓN", `Nuevo documento para revisar`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Un participante ha subido un nuevo documento que requiere tu revisión.</p>
+      <div style="margin:0 0 24px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#3f3f46">
+        <div><strong>Participante:</strong> ${participantName}</div>
+        <div style="margin-top:6px"><strong>Documento:</strong> ${docName}</div>
+        <div style="margin-top:6px"><strong>Viaje:</strong> ${tripName}</div>
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al panel de administración para revisar y confirmar el documento.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al panel de administración para revisar y confirmar el documento.</p>
+    `, "Mensaje automático del Portal GIMELOOS."),
   }),
 
-  // Admin: nuevo justificante subido
   admin_payment_uploaded: ({ participantName, paymentName, tripName }) => ({
-    subject: `💳 Nuevo justificante — ${participantName}`,
-    html: emailWrapper("Nuevo justificante pendiente de revisión", `
-      <p style="color:#18181b;font-size:16px">Nuevo justificante de pago para revisar</p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <div style="font-size:14px;color:#3f3f46"><strong>Participante:</strong> ${participantName}</div>
-        <div style="font-size:14px;color:#3f3f46;margin-top:4px"><strong>Pago:</strong> ${paymentName}</div>
-        <div style="font-size:14px;color:#3f3f46;margin-top:4px"><strong>Viaje:</strong> ${tripName}</div>
+    subject: `Nuevo justificante — ${participantName}`,
+    html: emailWrapper("ADMINISTRACIÓN", `Nuevo justificante para revisar`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Un participante ha subido un justificante de pago que requiere tu revisión.</p>
+      <div style="margin:0 0 24px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#3f3f46">
+        <div><strong>Participante:</strong> ${participantName}</div>
+        <div style="margin-top:6px"><strong>Pago:</strong> ${paymentName}</div>
+        <div style="margin-top:6px"><strong>Viaje:</strong> ${tripName}</div>
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al panel de administración para revisar y confirmar el pago.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al panel de administración para revisar y confirmar el pago.</p>
+    `, "Mensaje automático del Portal GIMELOOS."),
   }),
 
-  // Admin: nueva pregunta
   admin_new_question: ({ participantName, question, tripName }) => ({
-    subject: `❓ Nueva pregunta — ${participantName}`,
-    html: emailWrapper("Nueva consulta de un participante", `
-      <p style="color:#18181b;font-size:16px">Nueva pregunta recibida</p>
-      <div style="margin:16px 0;padding:16px;background:#f4f4f5;border-radius:12px">
-        <div style="font-size:14px;color:#3f3f46"><strong>Participante:</strong> ${participantName}</div>
-        <div style="font-size:14px;color:#3f3f46;margin-top:4px"><strong>Viaje:</strong> ${tripName}</div>
+    subject: `Nueva consulta — ${participantName}`,
+    html: emailWrapper("ADMINISTRACIÓN", `Nueva consulta recibida`, `
+      <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 20px">Has recibido una nueva pregunta de un participante.</p>
+      <div style="margin:0 0 16px;padding:16px 20px;background:#f4f4f5;border-radius:10px;font-size:14px;color:#3f3f46">
+        <div><strong>Participante:</strong> ${participantName}</div>
+        <div style="margin-top:6px"><strong>Viaje:</strong> ${tripName}</div>
       </div>
-      <div style="margin:16px 0;padding:16px;background:#eff6ff;border-radius:12px;border-left:4px solid #3b82f6">
-        <p style="color:#1e3a5f;font-size:14px;margin:0">${question}</p>
+      <div style="margin:0 0 24px;padding:16px 20px;background:#eff6ff;border-radius:10px;border-left:4px solid #3b82f6;font-size:14px;color:#1e3a5f">
+        ${escapeHtml(question)}
       </div>
-      <p style="color:#52525b;font-size:14px">Accede al panel → Preguntas para responder.</p>
-    `),
+      <p style="color:#71717a;font-size:13px;margin:0">Accede al panel → Preguntas para responder.</p>
+    `, "Mensaje automático del Portal GIMELOOS."),
   }),
 };
 

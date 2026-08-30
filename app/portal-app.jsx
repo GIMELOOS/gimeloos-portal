@@ -4471,7 +4471,7 @@ function SchoolTrips({ schoolTrips, courses, students, schoolDocuments, onNaviga
   );
 }
 
-function SchoolStudents({ schoolTrips, courses, students, setStudents, notify }) {
+function SchoolStudents({ schoolTrips, courses, setCourses, setSchoolTrips, students, setStudents, notify }) {
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id || "");
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
@@ -4479,9 +4479,40 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
   const [addAllergies, setAddAllergies] = useState("");
   const [addIntolerances, setAddIntolerances] = useState("");
   const [addNotes, setAddNotes] = useState("");
-  const [xlsxPreview, setXlsxPreview] = useState(null); // { rows, mapping, headers, file }
+  const [xlsxPreview, setXlsxPreview] = useState(null); // { rows, mapping, headers, file } | { pdfStudents, file }
   const [importing, setImporting] = useState(false);
+  const [pdfParsing, setPdfParsing] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState(null);
+
+  // Normaliza un string de curso para comparación: "2º ESO B" → "2esob"
+  const normalizeCourse = (str) =>
+    (str || "").toLowerCase().replace(/[ºª°\s]/g, "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  // Busca un curso existente que coincida con el hint
+  const matchCourse = (hint) => {
+    if (!hint) return null;
+    const n = normalizeCourse(hint);
+    return courses.find((c) => normalizeCourse((c.course_name || "") + (c.group_name || "")) === n) || null;
+  };
+
+  // Obtiene o crea el curso en DB. Devuelve el curso (con id).
+  const getOrCreateCourse = async (courseHint, schoolTripId) => {
+    const existing = matchCourse(courseHint);
+    if (existing) return existing;
+    // Parsear "2º ESO B" → course_name="2º ESO", group_name="B"
+    const m = courseHint.match(/^(\d+[ºª°]?\s*(?:ESO|BACH(?:illerato)?|FP|Primaria|Infantil|Secundaria))\s*([A-Z]?)$/i);
+    const course_name = m ? m[1].trim() : courseHint;
+    const group_name = (m ? m[2].trim() : "") || "";
+    const { data, error } = await supabase.from("school_courses")
+      .insert([{ school_trip_id: schoolTripId, course_name, group_name }])
+      .select().maybeSingle();
+    if (error) throw error;
+    setCourses((prev) => [...prev, data]);
+    setSchoolTrips((prev) => prev.map((st) =>
+      st.id === schoolTripId ? { ...st, courses: [...(st.courses || []), data] } : st
+    ));
+    return data;
+  };
 
   const tripCourses = courses; // all courses for this school
   const courseStudents = students.filter((s) => s.school_course_id === selectedCourseId);
@@ -4512,6 +4543,33 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      e.target.value = "";
+      setPdfParsing(true);
+      try {
+        const token = await getAuthToken();
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/parse-pdf", {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Error al parsear el PDF");
+        if (!json.students?.length) {
+          notify("No se encontraron alumnos en el PDF. Revisa el formato.", { variant: "destructive" });
+          setPdfParsing(false);
+          return;
+        }
+        setXlsxPreview({ pdfStudents: json.students, file });
+      } catch (err) {
+        notify("Error leyendo el PDF: " + err.message, { variant: "destructive" });
+      }
+      setPdfParsing(false);
+      return;
+    }
     try {
       const buffer = await file.arrayBuffer();
       const XLSX2 = await import("xlsx");
@@ -4533,22 +4591,71 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
   const handleImport = async () => {
     if (!xlsxPreview || !selectedCourseId) return;
     setImporting(true);
-    const { rows, mapping } = xlsxPreview;
-    const toInsert = rows.map((r) => ({
-      school_course_id: selectedCourseId,
-      name: mapping.nombre !== undefined ? String(r[mapping.nombre] || "").trim() : "",
-      surname: mapping.apellidos !== undefined ? String(r[mapping.apellidos] || "").trim() : "",
-      allergies: mapping.alergias !== undefined ? String(r[mapping.alergias] || "").trim() : "",
-      intolerances: mapping.intolerancias !== undefined ? String(r[mapping.intolerancias] || "").trim() : "",
-      notes: mapping.notas !== undefined ? String(r[mapping.notas] || "").trim() : "",
-    })).filter((s) => s.name);
-    if (!toInsert.length) { notify("No se encontraron filas con nombre."); setImporting(false); return; }
-    const { data, error } = await supabase.from("students").insert(toInsert).select();
-    if (error) { notify("Error importando alumnos: " + error.message, { variant: "destructive" }); }
-    else {
-      setStudents((prev) => [...prev, ...(data || [])]);
-      notify(`${toInsert.length} alumnos importados.`);
+    // Helper: reemplaza alumnos de un curso (borra los existentes e inserta los nuevos)
+    const replaceCourseStudents = async (courseId, newRows) => {
+      await supabase.from("students").delete().eq("school_course_id", courseId);
+      setStudents((prev) => prev.filter((s) => s.school_course_id !== courseId));
+      if (!newRows.length) return 0;
+      const { data: inserted, error } = await supabase.from("students").insert(newRows).select();
+      if (error) throw error;
+      setStudents((prev) => [...prev, ...(inserted || [])]);
+      return inserted?.length || 0;
+    };
+
+    if (xlsxPreview.pdfStudents) {
+      // Agrupar por courseHint y asignar/crear curso para cada grupo
+      const schoolTripId = courses.find((c) => c.id === selectedCourseId)?.school_trip_id || schoolTrips[0]?.id;
+      const groups = {};
+      for (const s of xlsxPreview.pdfStudents) {
+        const key = s.courseHint || "__fallback__";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+      }
+      let totalImported = 0;
+      for (const [hint, groupStudents] of Object.entries(groups)) {
+        let course;
+        try {
+          course = hint !== "__fallback__" ? await getOrCreateCourse(hint, schoolTripId) : { id: selectedCourseId };
+        } catch {
+          course = { id: selectedCourseId };
+        }
+        const rows = groupStudents.map((s) => ({
+          school_course_id: course.id,
+          name: s.name,
+          surname: s.surname,
+          allergies: "",
+          intolerances: "",
+          notes: "",
+        }));
+        try {
+          totalImported += await replaceCourseStudents(course.id, rows);
+        } catch (err) {
+          notify("Error importando alumnos: " + err.message, { variant: "destructive" });
+        }
+      }
+      notify(`✅ ${totalImported} alumnos importados. Listado actualizado.`);
       setXlsxPreview(null);
+      setImporting(false);
+      return;
+    } else {
+      // Excel: reemplaza todos los alumnos del curso seleccionado
+      const { rows, mapping } = xlsxPreview;
+      const toInsert = rows.map((r) => ({
+        school_course_id: selectedCourseId,
+        name: mapping.nombre !== undefined ? String(r[mapping.nombre] || "").trim() : "",
+        surname: mapping.apellidos !== undefined ? String(r[mapping.apellidos] || "").trim() : "",
+        allergies: mapping.alergias !== undefined ? String(r[mapping.alergias] || "").trim() : "",
+        intolerances: mapping.intolerancias !== undefined ? String(r[mapping.intolerancias] || "").trim() : "",
+        notes: mapping.notas !== undefined ? String(r[mapping.notas] || "").trim() : "",
+      })).filter((s) => s.name);
+      if (!toInsert.length) { notify("No se encontraron filas con nombre."); setImporting(false); return; }
+      try {
+        const n = await replaceCourseStudents(selectedCourseId, toInsert);
+        notify(`✅ ${n} alumnos importados. Listado actualizado.`);
+        setXlsxPreview(null);
+      } catch (err) {
+        notify("Error importando alumnos: " + err.message, { variant: "destructive" });
+      }
     }
     setImporting(false);
   };
@@ -4598,7 +4705,7 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
         <SectionTitle icon={Users} title="Alumnos" subtitle="Gestiona los alumnos asignados a cada curso." />
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ backgroundColor: CORPORATE_RED }}>
           <FolderUp className="h-4 w-4" />Importar listado
-          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
+          <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} />
         </label>
       </div>
       {/* Tabs de curso */}
@@ -4646,60 +4753,142 @@ function SchoolStudents({ schoolTrips, courses, students, setStudents, notify })
         </div>
       )}
 
-      {/* Excel import preview — aparece tras seleccionar archivo */}
+      {/* Indicador de análisis PDF */}
+      {pdfParsing && (
+        <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-200" style={{ borderTopColor: CORPORATE_RED }} />
+            <span className="text-sm text-zinc-600">Analizando PDF...</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Import preview — aparece tras seleccionar archivo (Excel o PDF) */}
       {xlsxPreview && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-zinc-700">Vista previa del archivo</div>
+              <div className="text-sm font-semibold text-zinc-700">
+                Vista previa — {xlsxPreview.pdfStudents ? "PDF" : "Excel"}: {xlsxPreview.file?.name}
+              </div>
               <Button variant="ghost" size="sm" className="rounded-xl text-xs text-zinc-500" onClick={() => setXlsxPreview(null)}>
                 <X className="mr-1 h-3.5 w-3.5" />Cancelar
               </Button>
             </div>
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(FIELD_SYNONYMS).map(([field]) => {
-                  const found = xlsxPreview.mapping[field] !== undefined;
-                  return (
-                    <Badge key={field} variant="outline" className={`rounded-xl text-xs ${found ? "border-green-400 text-green-700" : "border-zinc-300 text-zinc-400"}`}>
-                      {found ? "✓" : "✗"} {field} {found ? `(col: ${xlsxPreview.headers[xlsxPreview.mapping[field]]})` : ""}
-                    </Badge>
-                  );
-                })}
-              </div>
-              {xlsxPreview.mapping.nombre === undefined && (
-                <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                  <AlertCircle className="h-3.5 w-3.5" />No se detectó columna de nombre. Verifica los encabezados.
-                </div>
+              {xlsxPreview.pdfStudents ? (
+                <>
+                  {/* Resumen de cursos detectados */}
+                  {(() => {
+                    const uniqueHints = [...new Set(xlsxPreview.pdfStudents.map(s => s.courseHint).filter(Boolean))];
+                    if (!uniqueHints.length) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {uniqueHints.map((hint) => {
+                          const matched = matchCourse(hint);
+                          return (
+                            <Badge key={hint} variant="outline" className={`rounded-xl text-xs ${matched ? "border-green-400 text-green-700" : "border-amber-400 text-amber-700"}`}>
+                              {matched ? "✓" : "✦ Nuevo"} {hint}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  <p className="text-xs text-zinc-400">Los cursos marcados con ✦ se crearán automáticamente. El listado anterior de cada curso se <strong>reemplazará</strong> por el nuevo.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-100 bg-zinc-50">
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nombre</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Apellidos</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Curso</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {xlsxPreview.pdfStudents.slice(0, 8).map((s, i) => {
+                          const matched = matchCourse(s.courseHint);
+                          return (
+                            <tr key={i} className="border-b border-zinc-50">
+                              <td className="px-3 py-2 text-zinc-700">{s.name}</td>
+                              <td className="px-3 py-2 text-zinc-700">{s.surname}</td>
+                              <td className="px-3 py-2">
+                                {s.courseHint ? (
+                                  <span className={`rounded-xl px-2 py-0.5 text-xs font-medium ${matched ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+                                    {s.courseHint}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {xlsxPreview.pdfStudents.length > 8 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.pdfStudents.length - 8} más</div>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleImport} disabled={importing} className="h-11 rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>
+                      {importing ? "Importando..." : `Importar ${xlsxPreview.pdfStudents.length} alumnos`}
+                    </Button>
+                    <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(FIELD_SYNONYMS).map(([field]) => {
+                      const found = xlsxPreview.mapping[field] !== undefined;
+                      return (
+                        <Badge key={field} variant="outline" className={`rounded-xl text-xs ${found ? "border-green-400 text-green-700" : "border-zinc-300 text-zinc-400"}`}>
+                          {found ? "✓" : "✗"} {field} {found ? `(col: ${xlsxPreview.headers[xlsxPreview.mapping[field]]})` : ""}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                  {xlsxPreview.mapping.nombre === undefined && (
+                    <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                      <AlertCircle className="h-3.5 w-3.5" />No se detectó columna de nombre. Verifica los encabezados.
+                    </div>
+                  )}
+                  {(() => {
+                    const existing = students.filter(s => s.school_course_id === selectedCourseId).length;
+                    return existing > 0 ? (
+                      <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Este curso ya tiene <strong className="mx-1">{existing} alumnos</strong>. Al importar se reemplazarán por los del nuevo listado.
+                      </div>
+                    ) : null;
+                  })()}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-100 bg-zinc-50">
+                          {xlsxPreview.headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
+                          <tr key={ri} className="border-b border-zinc-50">
+                            {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-3 py-2 text-zinc-700">{String(r[ci] || "")}</td>)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {xlsxPreview.rows.length > 5 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.rows.length - 5} filas más</div>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleImport}
+                      disabled={importing || xlsxPreview.mapping.nombre === undefined}
+                      className="h-11 rounded-2xl text-white text-xs"
+                      style={{ backgroundColor: CORPORATE_RED }}
+                    >
+                      {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
+                    </Button>
+                    <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
+                  </div>
+                </>
               )}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-zinc-100 bg-zinc-50">
-                      {xlsxPreview.headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {xlsxPreview.rows.slice(0, 5).map((r, ri) => (
-                      <tr key={ri} className="border-b border-zinc-50">
-                        {xlsxPreview.headers.map((_, ci) => <td key={ci} className="px-3 py-2 text-zinc-700">{String(r[ci] || "")}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {xlsxPreview.rows.length > 5 && <div className="mt-1 text-xs text-zinc-400">+{xlsxPreview.rows.length - 5} filas más</div>}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleImport}
-                  disabled={importing || xlsxPreview.mapping.nombre === undefined}
-                  className="h-11 rounded-2xl text-white text-xs"
-                  style={{ backgroundColor: CORPORATE_RED }}
-                >
-                  {importing ? "Importando..." : `Importar ${xlsxPreview.rows.filter((r) => r.some((c) => String(c).trim())).length} alumnos`}
-                </Button>
-                <Button variant="outline" className="h-11 rounded-2xl text-xs" onClick={() => setXlsxPreview(null)}>Cancelar</Button>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -4987,23 +5176,16 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify, scho
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             {doc.file_url && (
-                              <a href={doc.file_url} target="_blank" rel="noreferrer" download
+                              <a href={doc.file_url} target="_blank" rel="noreferrer"
                                 className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition">
-                                <Download className="h-3 w-3" />Descargar
+                                <Eye className="h-3 w-3" />Vista previa
                               </a>
                             )}
-                            {courses.length > 1 && (
-                              <select
-                                value={doc.school_course_id}
-                                disabled={movingDoc === doc.id}
-                                onChange={(e) => handleMoveDoc(doc.id, e.target.value)}
-                                className="rounded-xl border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 focus:outline-none"
-                                title="Mover a otro curso"
-                              >
-                                {courses.map((c) => (
-                                  <option key={c.id} value={c.id}>{c.course_name}{c.group_name ? ` · ${c.group_name}` : ""}</option>
-                                ))}
-                              </select>
+                            {doc.file_url && (
+                              <a href={doc.file_url} target="_blank" rel="noreferrer" download
+                                className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition">
+                                <Download className="h-3 w-3" />Descarga
+                              </a>
                             )}
                             <label className={`flex cursor-pointer items-center gap-1 rounded-2xl border px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 ${uploading ? "cursor-not-allowed opacity-60" : ""}`} style={{ backgroundColor: CORPORATE_RED, borderColor: CORPORATE_RED }}>
                               <Upload className="h-3 w-3" />{uploading ? `${Math.round(pct)}%` : "Subir"}
@@ -5044,6 +5226,7 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
   const allCourses = schoolTrips.flatMap((st) => (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" })));
   const [selectedCourseId, setSelectedCourseId] = useState(allCourses[0]?.id || "");
   const [importing, setImporting] = useState(false);
+  const [uploadPct, setUploadPct] = useState(null);
   const [confirmClearRooming, setConfirmClearRooming] = useState(false);
 
   const selectedTrip = schoolTrips.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId));
@@ -5059,6 +5242,22 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedTripId) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      e.target.value = "";
+      setUploadPct(0);
+      try {
+        const json = await uploadFileToDrive(file, "rooming", "documentos", (p) => setUploadPct(p), "colegio");
+        setUploadPct(100);
+        const viewUrl = json.webViewLink || json.webContentLink;
+        notify("PDF de rooming subido correctamente.");
+        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        notify("Error subiendo PDF: " + err.message, { variant: "destructive" });
+      }
+      setTimeout(() => setUploadPct(null), 1800);
+      return;
+    }
     setImporting(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -5131,6 +5330,14 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
             )}
           </div>
           <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
+          {uploadPct !== null && (
+            <div className="mt-3 space-y-1">
+              <div className="text-xs text-zinc-500">{uploadPct < 100 ? `Subiendo PDF... ${uploadPct}%` : "¡Subido!"}</div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div className="h-full rounded-full transition-all duration-200" style={{ width: `${uploadPct}%`, backgroundColor: uploadPct === 100 ? "#16a34a" : CORPORATE_RED }} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       {rooming.length > 0 ? (
@@ -5174,6 +5381,7 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
   const allCourses = schoolTrips.flatMap((st) => (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" })));
   const [selectedCourseId, setSelectedCourseId] = useState(allCourses[0]?.id || "");
   const [importing, setImporting] = useState(false);
+  const [uploadPct, setUploadPct] = useState(null);
 
   const selectedTrip = schoolTrips.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId));
   const selectedTripId = selectedTrip?.id || "";
@@ -5182,6 +5390,22 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedTripId) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      e.target.value = "";
+      setUploadPct(0);
+      try {
+        const json = await uploadFileToDrive(file, "grupos", "documentos", (p) => setUploadPct(p), "colegio");
+        setUploadPct(100);
+        const viewUrl = json.webViewLink || json.webContentLink;
+        notify("PDF de grupos subido correctamente.");
+        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        notify("Error subiendo PDF: " + err.message, { variant: "destructive" });
+      }
+      setTimeout(() => setUploadPct(null), 1800);
+      return;
+    }
     setImporting(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -5249,6 +5473,14 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
             </label>
           </div>
           <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columnas siguientes = alumnos.</div>
+          {uploadPct !== null && (
+            <div className="mt-3 space-y-1">
+              <div className="text-xs text-zinc-500">{uploadPct < 100 ? `Subiendo PDF... ${uploadPct}%` : "¡Subido!"}</div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div className="h-full rounded-full transition-all duration-200" style={{ width: `${uploadPct}%`, backgroundColor: uploadPct === 100 ? "#16a34a" : CORPORATE_RED }} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       {groups.length > 0 ? (
@@ -5749,7 +5981,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
 
             {/* Tab content */}
             {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} courses={courses} students={students} schoolDocuments={schoolDocuments} onNavigate={setActiveTab} />}
-            {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} students={students} setStudents={setStudents} notify={notify} />}
+            {activeTab === "students"  && <SchoolStudents schoolTrips={schoolTrips} courses={courses} setCourses={setCourses} setSchoolTrips={setSchoolTrips} students={students} setStudents={setStudents} notify={notify} />}
             {activeTab === "allergies" && <SchoolAllergies courses={courses} students={students} />}
             {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} school={school} schoolTrips={schoolTrips} />}
             {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
@@ -5893,8 +6125,11 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
   const selectedSt = allSchoolTrips.find((st) => st.id === selectedStId) || allSchoolTrips[0];
   const selectedTrip = trips.find((t) => t.id === selectedSt?.trip_id);
   const school = schools.find((s) => s.id === selectedSt?.school_id);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const syncTripField = (field, value) => {
+    setSaved(false);
     if (!setTrips) return;
     setTrips((prev) => prev.map((t) => t.id === selectedTrip?.id ? { ...t, [field]: value } : t));
   };
@@ -5904,6 +6139,20 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
     syncTripField(stateField, value);
     const { error } = await supabase.from("trips").update({ [dbField]: value }).eq("id", selectedTrip.id);
     if (error) notify("Error guardando cambios: " + error.message);
+  };
+  const handleSaveAll = async () => {
+    if (!selectedTrip) return;
+    setSaving(true);
+    const { error } = await supabase.from("trips").update({
+      name: selectedTrip.name,
+      departure_date: selectedTrip.departureDate || null,
+      hero_image: selectedTrip.heroImage || null,
+      description: selectedTrip.description || null,
+    }).eq("id", selectedTrip.id);
+    setSaving(false);
+    if (error) { notify("Error guardando: " + error.message, { variant: "destructive" }); return; }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   };
 
   if (!allSchoolTrips.length) return (
@@ -5974,7 +6223,23 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncTripField("description", e.target.value)} onBlur={(e) => saveTripField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncTripField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSaveAll}
+                disabled={saving}
+                className="h-11 rounded-2xl text-white px-6"
+                style={{ backgroundColor: CORPORATE_RED }}
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {saving ? "Guardando..." : "Guardar cambios"}
+              </Button>
+              {saved && (
+                <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" />Guardado
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -6112,7 +6377,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
       setSchools((prev) => [...prev, data]);
       setNewSchool({ name: "", contact_name: "", email: "", phone: "" });
       setShowNewSchool(false);
-      notify("Colegio creado.");
+      notify(data?.email ? `Colegio creado. Usa el botón "Enviar invitación" para dar acceso al coordinador.` : "Colegio creado.");
     }
     setSavingSchool(false);
   };
@@ -6478,54 +6743,117 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
 
           <div className="space-y-3">
             {schools.length === 0 && <p className="text-sm text-zinc-400">No hay colegios registrados.</p>}
-            {schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).map((school) => (
+            {schools.filter(s => !schoolSearch || s.name.toLowerCase().includes(schoolSearch.toLowerCase()) || s.contact_name?.toLowerCase().includes(schoolSearch.toLowerCase())).map((school) => {
+              const schoolTrips = allSchoolTrips.filter((st) => st.school_id === school.id);
+              const assignedTripIds = new Set(schoolTrips.map((st) => st.trip_id));
+              const availableTrips = trips.filter((t) => !assignedTripIds.has(t.id));
+              return (
               <Card key={school.id} className="rounded-3xl border-zinc-200 shadow-sm">
                 <CardContent className="p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-zinc-950">{school.name}</div>
                       {school.contact_name && <div className="mt-0.5 text-xs text-zinc-500">{school.contact_name}</div>}
                       <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-400">
                         {school.email && <span>{school.email}</span>}
                         {school.phone && <span>{school.phone}</span>}
                       </div>
-                      <div className="mt-2 flex gap-3">
-                        <Badge variant="outline" className="rounded-xl text-xs">{getSchoolTripCount(school.id)} viajes</Badge>
-                        <Badge variant="outline" className="rounded-xl text-xs">{getSchoolStudentCount(school.id)} alumnos</Badge>
+                      {/* Viajes asignados — nombres reales */}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {schoolTrips.length === 0 ? (
+                          <span className="inline-flex items-center rounded-xl border border-zinc-200 px-2.5 py-1 text-xs text-zinc-400">Sin viajes asignados</span>
+                        ) : schoolTrips.map((st) => (
+                          <span key={st.id} className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
+                            <MapIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+                            {st.trips?.name || st.trip_id}
+                          </span>
+                        ))}
+                        <span className="inline-flex items-center rounded-xl bg-zinc-50 px-2.5 py-1 text-xs text-zinc-500">
+                          {getSchoolStudentCount(school.id)} alumnos
+                        </span>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="rounded-xl text-xs"
-                      onClick={() => setAssigningSchoolId(assigningSchoolId === school.id ? null : school.id)}
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" />Asignar viaje
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {school.email && !school.auth_uid && (
+                        <Button
+                          className="rounded-xl text-xs text-white"
+                          style={{ backgroundColor: CORPORATE_RED }}
+                          onClick={async () => {
+                            try {
+                              const token = await getAuthToken();
+                              const res = await fetch("/api/send-school-invite", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({ school_id: school.id }),
+                              });
+                              const j = await res.json();
+                              if (!res.ok) throw new Error(j.error || "Error");
+                              notify(`Invitación enviada a ${j.sentTo}`);
+                            } catch (err) {
+                              notify("Error al enviar invitación: " + err.message, { variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <Mail className="mr-1 h-3.5 w-3.5" />Enviar invitación
+                        </Button>
+                      )}
+                      {school.auth_uid && (
+                        <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" />Acceso activo
+                        </span>
+                      )}
+                      <Button
+                        variant="outline"
+                        className="rounded-xl text-xs"
+                        onClick={() => setAssigningSchoolId(assigningSchoolId === school.id ? null : school.id)}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />Asignar viaje
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-xl text-xs text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={async () => {
+                          if (!window.confirm(`¿Borrar el colegio "${school.name}"? Se eliminarán también sus viajes, cursos y alumnos asociados. Esta acción no se puede deshacer.`)) return;
+                          const { error } = await supabase.from("schools").delete().eq("id", school.id);
+                          if (error) { notify("Error al borrar: " + error.message, { variant: "destructive" }); return; }
+                          setSchools((prev) => prev.filter((s) => s.id !== school.id));
+                          notify(`Colegio "${school.name}" eliminado.`);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {assigningSchoolId === school.id && (
                     <div className="mt-4 border-t border-zinc-100 pt-4">
                       <div className="mb-2 text-xs font-medium text-zinc-700">Asignar viaje + curso</div>
-                      <div className="flex flex-wrap gap-2">
-                        <select
-                          value={assignTripId}
-                          onChange={(e) => setAssignTripId(e.target.value)}
-                          className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
-                        >
-                          {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                        <Input placeholder="Curso (ej: 4ºA)" value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
-                        <Input placeholder="Grupo (opcional)" value={assignGroup} onChange={(e) => setAssignGroup(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
-                        <Button onClick={() => handleAssignTrip(school.id)} disabled={savingAssign} className="h-8 rounded-xl text-xs text-white" style={{ backgroundColor: CORPORATE_RED }}>
-                          {savingAssign ? "Guardando..." : "Guardar"}
-                        </Button>
-                        <Button variant="outline" className="h-8 rounded-xl text-xs" onClick={() => setAssigningSchoolId(null)}>Cancelar</Button>
-                      </div>
+                      {availableTrips.length === 0 ? (
+                        <p className="text-xs text-zinc-400">Todos los viajes disponibles ya están asignados a este colegio.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <select
+                            value={assignTripId}
+                            onChange={(e) => setAssignTripId(e.target.value)}
+                            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
+                          >
+                            <option value="">Selecciona un viaje</option>
+                            {availableTrips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                          <Input placeholder="Curso (ej: 4ºA)" value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
+                          <Input placeholder="Grupo (opcional)" value={assignGroup} onChange={(e) => setAssignGroup(e.target.value)} className="h-8 rounded-xl text-xs w-32" />
+                          <Button onClick={() => handleAssignTrip(school.id)} disabled={savingAssign || !assignTripId} className="h-8 rounded-xl text-xs text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                            {savingAssign ? "Guardando..." : "Guardar"}
+                          </Button>
+                          <Button variant="outline" className="h-8 rounded-xl text-xs" onClick={() => setAssigningSchoolId(null)}>Cancelar</Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -7473,6 +7801,8 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
               const stList = allSchoolTrips.filter((st) => st.school_id === school.id);
               const allSchoolCourseIds = allCourses.filter((c) => stList.map(t => t.id).includes(c.school_trip_id)).map(c => c.id);
               const totalStudents = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id)).length;
+              const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+              const newStudentsCount = allStudents.filter((s) => allSchoolCourseIds.includes(s.school_course_id) && s.created_at >= since7d).length;
               const totalDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id)).length;
               const uploadedDocs = allSchoolDocs.filter((d) => allSchoolCourseIds.includes(d.school_course_id) && d.status !== "pending").length;
               const missingDocs = totalDocs - uploadedDocs;
@@ -7540,6 +7870,16 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                     <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
                       {schoolQuestionsUnanswered > 0 && (
                         <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: CORPORATE_RED }}>{schoolQuestionsUnanswered}</span>
+                      )}
+                      {newStudentsCount > 0 && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white" style={{ backgroundColor: "#16a34a" }}>
+                          <Users className="h-2.5 w-2.5" />+{newStudentsCount} nuevos
+                        </span>
+                      )}
+                      {school.auth_uid && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-2xl bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />Acceso activo
+                        </span>
                       )}
                       <div className={`inline-flex items-center rounded-2xl px-3 py-2 text-xs font-medium ${getSummaryTone(totalStudents > 0, false)}`}>
                         {totalStudents > 0 ? `${totalStudents} alumnos` : "Sin alumnos"}
@@ -8360,7 +8700,7 @@ function AdminClientPreviewButton({ users, onPreview }) {
   );
 }
 
-function AdminDashboard({ users, trips, setActiveSection }) {
+function AdminDashboard({ users, trips, setActiveSection, lastSeenStudents, onStudentsViewed }) {
   const clients = users.filter((u) => u.role === "client" && !u.schoolId);
   const pendingDocs = clients.reduce((sum, u) => sum + (u.documents || []).filter((d) => d.status === "pending_confirmation").length, 0);
   const pendingPayments = clients.reduce((sum, u) => {
@@ -8369,22 +8709,25 @@ function AdminDashboard({ users, trips, setActiveSection }) {
   }, 0);
   const pendingQuestions = clients.reduce((sum, u) => sum + (u.questions || []).filter((q) => !q.reply).length, 0);
 
-  const [schoolStats, setSchoolStats] = useState({ schools: 0, trips: 0, students: 0, pendingDocs: 0 });
+  const [schoolStats, setSchoolStats] = useState({ schools: 0, trips: 0, students: 0, pendingDocs: 0, newStudents: 0 });
   useEffect(() => {
+    const since = lastSeenStudents || new Date(0).toISOString();
     Promise.all([
       supabase.from("schools").select("id", { count: "exact", head: true }),
       supabase.from("school_trips").select("id", { count: "exact", head: true }),
       supabase.from("students").select("id", { count: "exact", head: true }),
       supabase.from("school_documents").select("id", { count: "exact", head: true }).not("status", "in", '("approved","library")'),
-    ]).then(([sc, st, stu, docs]) => {
+      supabase.from("students").select("id", { count: "exact", head: true }).gte("created_at", since),
+    ]).then(([sc, st, stu, docs, newStu]) => {
       setSchoolStats({
         schools: sc.count || 0,
         trips: st.count || 0,
         students: stu.count || 0,
         pendingDocs: docs.count || 0,
+        newStudents: newStu.count || 0,
       });
     });
-  }, []);
+  }, [lastSeenStudents]);
 
   const stats = [
     { label: "Clientes campamentos", value: clients.length, icon: Users, section: "clients" },
@@ -8437,10 +8780,10 @@ function AdminDashboard({ users, trips, setActiveSection }) {
           {[
             { label: "Colegios", value: schoolStats.schools, icon: Building2, section: "school_colegios" },
             { label: "Viajes escolares", value: schoolStats.trips, icon: MapIcon, section: "school_colegios" },
-            { label: "Alumnos", value: schoolStats.students, icon: Users, section: "school_alumnos" },
+            { label: "Alumnos", value: schoolStats.students, icon: Users, section: "school_alumnos", badge: schoolStats.newStudents > 0 ? `+${schoolStats.newStudents} nuevos` : null, onView: onStudentsViewed },
             { label: "Documentos pendientes", value: schoolStats.pendingDocs, icon: FileCheck2, section: "school_docs", highlight: schoolStats.pendingDocs > 0 },
-          ].map(({ label, value, icon: Icon, section, highlight }) => (
-            <button key={label} type="button" onClick={() => setActiveSection(section)}
+          ].map(({ label, value, icon: Icon, section, highlight, badge, onView }) => (
+            <button key={label} type="button" onClick={() => { setActiveSection(section); onView?.(); }}
               className="rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${highlight ? "text-white" : "bg-zinc-100 text-zinc-500"}`}
@@ -8450,7 +8793,12 @@ function AdminDashboard({ users, trips, setActiveSection }) {
                 <span className={`text-2xl font-bold ${highlight ? "" : "text-zinc-950"}`}
                   style={highlight ? { color: CORPORATE_RED } : {}}>{value}</span>
               </div>
-              <div className="mt-3 text-xs font-medium text-zinc-500">{label}</div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-zinc-500">{label}</span>
+                {badge && (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white" style={{ backgroundColor: CORPORATE_RED }}>{badge}</span>
+                )}
+              </div>
             </button>
           ))}
         </div>
@@ -8496,6 +8844,14 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
   const totalParticipants = users.filter((u) => u.role === "client" && !u.schoolId).length;
   const campTrips = trips.filter((t) => t.tipo !== "colegio");
 
+  const [lastSeenStudents, setLastSeenStudents] = useState(() => {
+    try { return localStorage.getItem("gimeloos_last_seen_students") || new Date(0).toISOString(); } catch { return new Date(0).toISOString(); }
+  });
+  const [newStudentsCount, setNewStudentsCount] = useState(0);
+  useEffect(() => {
+    supabase.from("students").select("id", { count: "exact", head: true }).gte("created_at", lastSeenStudents)
+      .then(({ count }) => setNewStudentsCount(count || 0));
+  }, [lastSeenStudents]);
 
   const [campExpanded, setCampExpanded] = useState(false);
   const [colExpanded, setColExpanded] = useState(false);
@@ -8629,12 +8985,25 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
                 </button>
                 {colExpanded && colegiosItems.map(({ key, label, icon: Icon }) => {
                   const active = activeSection === key;
+                  const isNew = key === "school_alumnos" && newStudentsCount > 0;
                   return (
-                    <button key={key} type="button" onClick={() => setActiveSection(key)}
+                    <button key={key} type="button" onClick={() => {
+                      setActiveSection(key);
+                      if (key === "school_alumnos") {
+                        const now = new Date().toISOString();
+                        try { localStorage.setItem("gimeloos_last_seen_students", now); } catch {}
+                        setLastSeenStudents(now);
+                      }
+                    }}
                       className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all ${active ? "text-white shadow-sm" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
                       style={active ? { backgroundColor: CORPORATE_RED } : {}}
                     >
                       <Icon className="h-4 w-4 shrink-0" />{label}
+                      {isNew && !active && (
+                        <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white" style={{ backgroundColor: "#16a34a" }}>
+                          {newStudentsCount}
+                        </span>
+                      )}
                       {active && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
                     </button>
                   );
@@ -8716,7 +9085,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          {activeSection === "home"                && <AdminDashboard users={users} trips={campTrips} setActiveSection={setActiveSection} />}
+          {activeSection === "home"                && <AdminDashboard users={users} trips={campTrips} setActiveSection={setActiveSection} lastSeenStudents={lastSeenStudents} onStudentsViewed={() => { const now = new Date().toISOString(); try { localStorage.setItem("gimeloos_last_seen_students", now); } catch {} setLastSeenStudents(now); }} />}
           {activeSection === "clients"             && <AdminClients users={users} trips={campTrips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
           {activeSection === "tracking"            && <AdminTracking users={users} trips={campTrips} templates={templates} setUsers={setUsers} notify={notify} />}
           {activeSection === "participants_export" && <AdminParticipantsExport users={users} trips={campTrips} />}
@@ -8749,6 +9118,184 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
   );
 }
 
+// ─── School coordinator self-registration ────────────────────────────────────
+
+function RegisterSchoolScreen({ token, onRegistered }) {
+  const [schoolInfo, setSchoolInfo] = useState(null);
+  const [loadingInfo, setLoadingInfo] = useState(true);
+  const [infoError, setInfoError] = useState(null);
+  const [nombre, setNombre] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoadingInfo(true);
+      try {
+        const res = await fetch(`/api/register-school-coord?token=${encodeURIComponent(token)}`);
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || "Error");
+        setSchoolInfo(j);
+        if (j.contactName) setNombre(j.contactName);
+      } catch (err) {
+        setInfoError(err.message);
+      } finally {
+        setLoadingInfo(false);
+      }
+    })();
+  }, [token]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password.length < 8) { setSubmitError("La contraseña debe tener al menos 8 caracteres."); return; }
+    if (password !== confirm) { setSubmitError("Las contraseñas no coinciden."); return; }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/register-school-coord", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, nombre, password }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Error al registrarse");
+      setDone(true);
+    } catch (err) {
+      setSubmitError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-white text-zinc-950">
+      <div className="mx-auto flex min-h-screen max-w-6xl items-center p-4 sm:p-6 lg:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full overflow-hidden rounded-[32px] border border-black/5 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.18)]"
+        >
+          <img
+            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80"
+            alt="GIMELOOS"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.72),rgba(0,0,0,0.45),rgba(255,49,49,0.18))]" />
+          <div className="relative grid min-h-[600px] grid-cols-1 lg:grid-cols-[1.1fr_420px]">
+            <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+              <LogoMark dark />
+              <div className="mt-4 max-w-xl">
+                <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">
+                  Portal del Colegio
+                </Badge>
+                <h1 className="mt-4 text-[1.5rem] font-semibold leading-tight tracking-tight text-white sm:text-[1.9rem]">
+                  CREA TU CUENTA DE COORDINADOR
+                </h1>
+              </div>
+            </div>
+            <div className="flex items-end p-4 sm:p-6 lg:items-center lg:p-6">
+              <Card className="w-full rounded-[28px] border border-white/10 bg-white/88 shadow-2xl backdrop-blur-xl">
+                <CardHeader className="space-y-1 p-6 pb-3 sm:p-7 sm:pb-3">
+                  <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">GIMELOOS</div>
+                  <CardTitle className="text-2xl font-semibold tracking-tight text-zinc-950">
+                    {loadingInfo ? "Cargando..." : infoError ? "Enlace no válido" : `${schoolInfo?.schoolName || "Tu colegio"}`}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 pt-2 sm:p-7 sm:pt-2">
+                  {loadingInfo ? (
+                    <div className="py-6 text-center text-sm text-zinc-400">Verificando invitación...</div>
+                  ) : infoError ? (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{infoError}</div>
+                      <p className="text-sm text-zinc-500">Solicita al administrador que te envíe un nuevo enlace de invitación.</p>
+                    </div>
+                  ) : done ? (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl bg-green-50 px-4 py-4 text-sm text-green-700">
+                        ¡Cuenta creada correctamente! Ya puedes iniciar sesión con tu email <strong>{schoolInfo?.email}</strong> y la contraseña que acabas de establecer.
+                      </div>
+                      <Button
+                        className="h-12 w-full rounded-2xl text-white"
+                        style={{ backgroundColor: CORPORATE_RED }}
+                        onClick={() => {
+                          window.history.replaceState(null, "", window.location.pathname);
+                          onRegistered();
+                        }}
+                      >
+                        Ir al inicio de sesión
+                      </Button>
+                    </div>
+                  ) : (
+                    <form className="space-y-4" onSubmit={handleSubmit}>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          value={schoolInfo?.email || ""}
+                          readOnly
+                          disabled
+                          className="h-12 rounded-2xl border-zinc-200 bg-zinc-100 text-zinc-500"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nombre completo</Label>
+                        <Input
+                          value={nombre}
+                          onChange={(e) => setNombre(e.target.value)}
+                          placeholder="Tu nombre y apellidos"
+                          className="h-12 rounded-2xl border-zinc-200 bg-white"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Contraseña</Label>
+                        <Input
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          type="password"
+                          placeholder="Mínimo 8 caracteres"
+                          className="h-12 rounded-2xl border-zinc-200 bg-white"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Confirmar contraseña</Label>
+                        <Input
+                          value={confirm}
+                          onChange={(e) => setConfirm(e.target.value)}
+                          type="password"
+                          placeholder="Repite la contraseña"
+                          className="h-12 rounded-2xl border-zinc-200 bg-white"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      {submitError && (
+                        <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</div>
+                      )}
+                      <Button
+                        type="submit"
+                        disabled={submitting || !nombre.trim() || !password || !confirm}
+                        className="h-12 w-full rounded-2xl text-white shadow-lg"
+                        style={{ backgroundColor: CORPORATE_RED }}
+                      >
+                        {submitting ? "Creando cuenta..." : "Crear mi cuenta"}
+                      </Button>
+                    </form>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Root component ──────────────────────────────────────────────────────────
 
 export default function GIMELOOSPortalApp() {
@@ -8773,6 +9320,12 @@ export default function GIMELOOSPortalApp() {
     if (typeof window === "undefined") return false;
     const hash = new URLSearchParams(window.location.hash.slice(1));
     return hash.get("type") === "recovery";
+  });
+
+  // Detectar invitación de coordinador de colegio (?invite=<token>)
+  const [inviteToken, setInviteToken] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("invite") || null;
   });
 
   useEffect(() => {
@@ -9028,6 +9581,17 @@ export default function GIMELOOSPortalApp() {
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (inviteToken) {
+    return (
+      <div className="[&_button]:cursor-pointer">
+        <RegisterSchoolScreen
+          token={inviteToken}
+          onRegistered={() => setInviteToken(null)}
+        />
       </div>
     );
   }

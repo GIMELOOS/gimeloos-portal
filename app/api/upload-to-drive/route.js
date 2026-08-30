@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -62,7 +62,7 @@ async function findOrCreateFolder(drive, name, parentId) {
 // POST /api/upload-to-drive
 // body: FormData { file, username, subfolder ("documentos" | "pagos") }
 export async function POST(request) {
-  const { error: authError } = await requireAdmin(request);
+  const { error: authError } = await requireAuth(request);
   if (authError) return authError;
 
   try {
