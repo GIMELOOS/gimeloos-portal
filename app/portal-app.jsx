@@ -5951,18 +5951,24 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
         if (tripsErr) throw new Error(tripsErr.message);
         let tripsArr = tripsData || [];
 
-        // Si el join a trips quedó vacío por RLS, cargar los datos del viaje directamente
+        // Si el join a trips quedó vacío por RLS, obtener datos via API (usa service role key)
         const missingTripData = tripsArr.some(st => !st.trips);
         if (missingTripData && tripsArr.length) {
           const tripIds = tripsArr.map(st => st.trip_id).filter(Boolean);
-          const { data: tripDetails } = await supabase
-            .from("trips")
-            .select("id, name, departure_date, hero_image, hero_images")
-            .in("id", tripIds);
-          if (tripDetails?.length) {
-            const tripMap = Object.fromEntries(tripDetails.map(t => [t.id, t]));
-            tripsArr = tripsArr.map(st => ({ ...st, trips: st.trips || tripMap[st.trip_id] || null }));
-          }
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            const res = await fetch("/api/school-trip-data", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+              body: JSON.stringify({ trip_ids: tripIds }),
+            });
+            const json = await res.json();
+            if (json.trips?.length) {
+              const tripMap = Object.fromEntries(json.trips.map(t => [t.id, t]));
+              tripsArr = tripsArr.map(st => ({ ...st, trips: st.trips || tripMap[st.trip_id] || null }));
+            }
+          } catch { /* silencioso — el coordinador verá datos parciales */ }
         }
         setSchoolTrips(tripsArr);
 
