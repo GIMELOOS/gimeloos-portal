@@ -6306,16 +6306,23 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
       {/* Colegios tab */}
       {tab === "schools" && (
         <div className="space-y-5">
-          <SectionTitle icon={Users} title="Colegios" subtitle="Gestiona los centros escolares y asigna viajes." />
+          <SectionTitle icon={Users} title="Colegios" subtitle="Importación, asignación y gestión de centros escolares." />
 
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <div className="flex flex-wrap items-center gap-3 justify-between">
-                <Input placeholder="Buscar colegio..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="h-9 w-48 rounded-xl text-sm" />
-                <div className="flex gap-2">
-                  <label className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 ${isImportingSchool ? "pointer-events-none opacity-60" : ""}`}>
-                    <FolderUp className="h-3.5 w-3.5" />
-                    {isImportingSchool ? schoolImportMsg || "Importando..." : "Importar Excel"}
+              <div className="space-y-2">
+                <Label>Buscar colegio</Label>
+                <Input placeholder="Busca por nombre, coordinador o email" value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="rounded-2xl" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <Label className="mb-2 block">Importar Excel</Label>
+                  <label className="cursor-pointer">
                     <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={isImportingSchool}
                       onChange={async (e) => {
                         const file = e.target.files?.[0]; if (!file) return;
@@ -6345,11 +6352,14 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                         finally { setIsImportingSchool(false); setSchoolImportMsg(""); }
                       }}
                     />
+                    <span className={`inline-flex h-11 items-center rounded-2xl px-4 text-sm font-medium text-white ${isImportingSchool ? "opacity-60" : ""}`} style={{ backgroundColor: CORPORATE_RED }}>
+                      <Upload className="mr-2 h-4 w-4" />{isImportingSchool ? schoolImportMsg || "Importando..." : "Subir Excel"}
+                    </span>
                   </label>
-                  <Button className="rounded-2xl text-sm text-white h-9" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
-                    <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
-                  </Button>
                 </div>
+                <Button className="h-11 rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
+                  <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
+                </Button>
               </div>
             </CardContent>
           </Card>
