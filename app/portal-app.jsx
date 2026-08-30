@@ -5880,7 +5880,7 @@ function SchoolOnboarding({ onDone, tripCount = 1 }) {
                 <Icon className="h-8 w-8" style={{ color: CORPORATE_RED }} />
               </div>
             ) : (
-              <img src="/logo-gimeloos.svg" alt="GIMELOOS" className="h-16 w-auto" />
+              <img src="/logo-gimeloos.png" alt="GIMELOOS" className="h-16 w-auto" />
             )}
           </div>
           <h2 className="text-xl font-bold text-zinc-900 text-center mb-3">{title}</h2>
@@ -9055,7 +9055,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
-              <img src="/logo-gimeloos.svg" alt="GIMELOOS" className="h-8 w-8 object-contain" style={{ filter: "invert(1)" }} />
+              <img src="/logo-gimeloos.png" alt="GIMELOOS" className="h-8 w-8 object-contain" style={{ filter: "invert(1)" }} />
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel administrador</div>
