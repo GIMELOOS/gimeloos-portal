@@ -2465,36 +2465,38 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         paymentStatusMap.set(`${p.participant_id}__${p.payment_key}`, { id: p.id, status: p.status });
       }
 
-      const paymentsToInsertMap = new Map(); // clave: "participantId__paymentKey"
-      const paymentsToUpdate = [];
-
+      // Un solo Map deduplicado: últimos valores del Excel por (participantId, paymentKey)
+      const paymentUpsertMap = new Map();
       for (const r of parsedRows) {
         const participantId = existingByUsername.get(r.finalUsername);
         if (!participantId) continue;
         for (const p of r.payments) {
           const comboKey = `${participantId}__${p.key}`;
           const existing = paymentStatusMap.get(comboKey);
-          if (!existing) {
-            // Deduplicar: si ya lo añadimos en este batch, sobreescribir con la última fila
-            paymentsToInsertMap.set(comboKey, { participant_id: participantId, payment_key: p.key, name: p.name, amount: p.amount, status: "pending", proof_name: "", proof_path: "", due_date: p.due_date });
-          } else if (!PROTECTED.includes(existing.status)) {
-            paymentsToUpdate.push({ id: existing.id, name: p.name, amount: p.amount, due_date: p.due_date });
-          }
+          // No tocar pagos ya confirmados o enviados
+          if (existing && PROTECTED.includes(existing.status)) continue;
+          paymentUpsertMap.set(comboKey, {
+            participant_id: participantId,
+            payment_key: p.key,
+            name: p.name,
+            amount: p.amount,
+            due_date: p.due_date,
+            // Solo ponemos status "pending" si es nuevo; si existe, lo dejamos como está
+            ...(existing ? {} : { status: "pending", proof_name: "", proof_path: "" }),
+          });
         }
       }
 
-      const paymentsToInsert = [...paymentsToInsertMap.values()];
-      if (paymentsToInsert.length) {
-        const { error: payInsertErr } = await supabase.from("participant_payments").insert(paymentsToInsert);
-        if (payInsertErr) { console.error("Error insertando pagos:", payInsertErr); notify("Error guardando pagos del Excel. Revisa los datos manualmente.", { variant: "destructive" }); }
+      const paymentUpserts = [...paymentUpsertMap.values()];
+      if (paymentUpserts.length) {
+        const { error: payErr } = await supabase
+          .from("participant_payments")
+          .upsert(paymentUpserts, { onConflict: "participant_id,payment_key" });
+        if (payErr) {
+          console.error("Error guardando pagos:", payErr);
+          notify("Error guardando pagos del Excel: " + payErr.message, { variant: "destructive" });
+        }
       }
-
-      // Updates individuales (necesario porque cada row tiene su propio id)
-      await Promise.all(
-        paymentsToUpdate.map(({ id, ...fields }) =>
-          supabase.from("participant_payments").update(fields).eq("id", id)
-        )
-      );
 
       setImportProgress(90);
 
@@ -2981,13 +2983,18 @@ function AdminParticipantsExport({ users, trips }) {
 
   const handleExport = () => {
     if (!tripClients.length || !activeCols.length) return;
+    // Filtrar columnas que tengan al menos un valor real para este campamento
+    const usedCols = activeCols.filter((c) =>
+      tripClients.some((client) => { const v = getCell(client, c.key); return v && v !== "—"; })
+    );
+    if (!usedCols.length) return;
     const tbody = tripClients.map((client, i) =>
-      `<tr><td style="color:#a1a1aa;width:24px">${i + 1}</td>${activeCols.map((c) => `<td>${getCell(client, c.key)}</td>`).join("")}</tr>`
+      `<tr><td style="color:#a1a1aa;width:24px">${i + 1}</td>${usedCols.map((c) => `<td>${getCell(client, c.key)}</td>`).join("")}</tr>`
     ).join("");
     exportListToPDF(
       `Participantes — ${tripName}`,
       `${tripClients.length} participante(s)`,
-      `<table><thead><tr><th>#</th>${activeCols.map((c) => `<th>${c.label}</th>`).join("")}</tr></thead><tbody>${tbody}</tbody></table>`
+      `<table><thead><tr><th>#</th>${usedCols.map((c) => `<th>${c.label}</th>`).join("")}</tr></thead><tbody>${tbody}</tbody></table>`
     );
   };
 
