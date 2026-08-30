@@ -6263,13 +6263,14 @@ function SchoolQuestionCard({ q, schoolName, onReply }) {
   );
 }
 
-function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify }) {
+function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, setTrips, notify }) {
   const [selectedStId, setSelectedStId] = useState(allSchoolTrips[0]?.id || "");
   const selectedSt = allSchoolTrips.find((st) => st.id === selectedStId) || allSchoolTrips[0];
   const selectedTrip = trips.find((t) => t.id === selectedSt?.trip_id);
   const school = schools.find((s) => s.id === selectedSt?.school_id);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const syncTripField = (field, value) => {
     setSaved(false);
@@ -6280,22 +6281,39 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
     if (!selectedTrip) return;
     const stateField = dbField === "hero_image" ? "heroImage" : dbField === "departure_date" ? "departureDate" : dbField;
     syncTripField(stateField, value);
-    const { error } = await supabase.from("trips").update({ [dbField]: value }).eq("id", selectedTrip.id);
-    if (error) notify("Error guardando cambios: " + error.message);
+    const { data: updated, error } = await supabase.from("trips").update({ [dbField]: value }).eq("id", selectedTrip.id).select("id");
+    if (error) { notify("Error guardando cambios: " + error.message); return; }
+    if (!updated?.length) notify("⚠️ Cambio no guardado — sin permisos de escritura en viajes.");
   };
   const handleSaveAll = async () => {
     if (!selectedTrip) return;
     setSaving(true);
-    const { error } = await supabase.from("trips").update({
+    const dateValue = selectedTrip.departureDate || null;
+    const { data: updated, error } = await supabase.from("trips").update({
       name: selectedTrip.name,
-      departure_date: selectedTrip.departureDate || null,
+      departure_date: dateValue ? (dateValue.length === 16 ? dateValue + ":00" : dateValue) : null,
       hero_image: selectedTrip.heroImage || null,
       description: selectedTrip.description || null,
-    }).eq("id", selectedTrip.id);
+    }).eq("id", selectedTrip.id).select("id");
     setSaving(false);
-    if (error) { notify("Error guardando: " + error.message, { variant: "destructive" }); return; }
+    if (error) { notify("Error guardando: " + error.message); return; }
+    if (!updated?.length) { notify("⚠️ No se guardaron los cambios. Puede que falten permisos de escritura en la tabla trips."); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+  const handleDeleteSchoolTrip = async () => {
+    if (!selectedSt) return;
+    const schoolName = school?.name || "este colegio";
+    const tripName = selectedTrip?.name || "este viaje";
+    if (!window.confirm(`¿Eliminar la asignación del viaje "${tripName}" a ${schoolName}? Esta acción no borra el viaje, solo la asignación.`)) return;
+    setDeleting(true);
+    const { error } = await supabase.from("school_trips").delete().eq("id", selectedSt.id);
+    setDeleting(false);
+    if (error) { notify("Error eliminando asignación: " + error.message); return; }
+    const remaining = allSchoolTrips.filter((st) => st.id !== selectedSt.id);
+    setAllSchoolTrips?.(remaining);
+    setSelectedStId(remaining[0]?.id || "");
+    notify("Asignación eliminada.");
   };
 
   if (!allSchoolTrips.length) return (
@@ -6329,6 +6347,15 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
                 <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
               </div>
             )}
+            <Button
+              variant="outline"
+              onClick={handleDeleteSchoolTrip}
+              disabled={deleting || !selectedSt}
+              className="h-11 shrink-0 rounded-2xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              <span className="ml-2 hidden sm:inline">Eliminar asignación</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -6346,11 +6373,7 @@ function AdminSchoolViajes({ allSchoolTrips, schools, trips, setTrips, notify })
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
                 <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)}
-                  onChange={async (e) => {
-                    syncTripField("departureDate", e.target.value);
-                    const { error } = await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTrip.id);
-                    if (error) notify("Error guardando fecha: " + error.message);
-                  }}
+                  onChange={(e) => syncTripField("departureDate", e.target.value)}
                   className="rounded-2xl" />
               </div>
             </div>
@@ -8495,7 +8518,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
 
       {/* Viajes escolares tab */}
       {tab === "school_viajes" && (
-        <AdminSchoolViajes allSchoolTrips={allSchoolTrips} schools={schools} trips={trips} setTrips={setTrips} notify={notify} />
+        <AdminSchoolViajes allSchoolTrips={allSchoolTrips} setAllSchoolTrips={setAllSchoolTrips} schools={schools} trips={trips} setTrips={setTrips} notify={notify} />
       )}
     </div>
   );
