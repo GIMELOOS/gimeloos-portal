@@ -4678,8 +4678,8 @@ function SchoolStudents({ schoolTrips, courses, setCourses, setSchoolTrips, stud
   };
 
   const handleExportAlumnosPDF = () => {
-    const courseName = tripCourses.find((c) => c.id === selectedCourseId);
-    const tripName = schoolTrips.find((st) => st.id === selectedTripId)?.trips?.name || "";
+    const courseName = courses.find((c) => c.id === selectedCourseId);
+    const tripName = schoolTrips?.find((st) => (st.courses || []).some((c) => c.id === selectedCourseId))?.trips?.name || "";
     const label = courseName ? `${courseName.course_name}${courseName.group_name ? ` · ${courseName.group_name}` : ""}` : "Todos los cursos";
     const rows = (selectedCourseId ? courseStudents : students).map((s, i) => {
       const course = courses.find((c) => c.id === s.school_course_id);
@@ -4707,6 +4707,11 @@ function SchoolStudents({ schoolTrips, courses, setCourses, setSchoolTrips, stud
           <FolderUp className="h-4 w-4" />Importar listado
           <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} />
         </label>
+        {students.length > 0 && (
+          <Button variant="outline" onClick={handleExportAlumnosPDF} className="shrink-0 rounded-2xl text-sm">
+            <Download className="mr-1.5 h-4 w-4" />Descargar lista
+          </Button>
+        )}
       </div>
       {/* Tabs de curso */}
       {courses.length > 0 && (
@@ -4992,7 +4997,14 @@ function SchoolAllergies({ courses, students }) {
 
   return (
     <div className="space-y-4">
-      <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Alumnos con restricciones alimentarias." />
+      <div className="flex items-center gap-3">
+        <SectionTitle icon={AlertCircle} title="Alergias e intolerancias" subtitle="Alumnos con restricciones alimentarias." />
+        {withAllergies.length > 0 && (
+          <Button variant="outline" onClick={handleExportAlergiasPDF} className="shrink-0 rounded-2xl text-sm">
+            <Download className="mr-1.5 h-4 w-4" />Exportar PDF
+          </Button>
+        )}
+      </div>
       {/* Filtro de curso */}
       {courses.length > 1 && (
         <div className="flex flex-wrap gap-2">
@@ -5166,9 +5178,11 @@ function SchoolDocs({ courses, schoolDocuments, setSchoolDocuments, notify, scho
                               )}
                               {!displayFileName && (
                                 <div className="mt-0.5">
-                                  {doc.status === "uploaded"
-                                    ? <Badge className="bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-medium">Subido</Badge>
-                                    : <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">Pendiente</Badge>
+                                  {doc.status === "approved"
+                                    ? <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-medium">✓ Aprobado</Badge>
+                                    : doc.status === "uploaded"
+                                      ? <Badge className="bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-medium">Subido</Badge>
+                                      : <Badge className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-medium">Pendiente</Badge>
                                   }
                                 </div>
                               )}
@@ -5324,9 +5338,14 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
               <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} disabled={importing} />
             </label>
             {rooming.length > 0 && (
-              <Button variant="outline" className="h-11 rounded-2xl text-sm text-red-600 hover:bg-red-50 border-red-200" onClick={() => setConfirmClearRooming(true)}>
-                <Trash2 className="mr-2 h-4 w-4" />Borrar rooming
-              </Button>
+              <>
+                <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={handleExportRoomingPDF}>
+                  <Download className="mr-2 h-4 w-4" />Exportar PDF
+                </Button>
+                <Button variant="outline" className="h-11 rounded-2xl text-sm text-red-600 hover:bg-red-50 border-red-200" onClick={() => setConfirmClearRooming(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" />Borrar rooming
+                </Button>
+              </>
             )}
           </div>
           <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de habitación, columnas siguientes = nombres de alumnos.</div>
@@ -5471,6 +5490,11 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
               <FolderUp className="h-4 w-4" />{importing ? "Importando..." : "Importar documento"}
               <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFileChange} disabled={importing} />
             </label>
+            {groups.length > 0 && (
+              <Button variant="outline" className="h-11 rounded-2xl text-sm" onClick={handleExportGroupsPDF}>
+                <Download className="mr-2 h-4 w-4" />Exportar PDF
+              </Button>
+            )}
           </div>
           <div className="mt-2 text-xs text-zinc-400">Formato esperado: columna 1 = nombre de grupo, columnas siguientes = alumnos.</div>
           {uploadPct !== null && (
@@ -5972,6 +5996,11 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
         }
         setSchoolTrips(tripsArr);
 
+        // 6. Questions — siempre cargar, independientemente de si hay viajes
+        const { data: qData, error: qErr } = await supabase.from("school_questions").select("*").eq("school_id", schoolData.id).order("created_at");
+        if (qErr) throw new Error(qErr.message);
+        setSchoolQuestions(qData || []);
+
         if (!tripsArr.length) { setLoading(false); return; }
 
         // 3. Courses
@@ -6002,11 +6031,6 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
           .in("school_course_id", courseIds);
         if (docsErr) throw new Error(docsErr.message);
         setSchoolDocuments(docsData || []);
-
-        // 6. Questions
-        const { data: qData, error: qErr } = await supabase.from("school_questions").select("*").eq("school_id", schoolData.id).order("created_at");
-        if (qErr) throw new Error(qErr.message);
-        setSchoolQuestions(qData || []);
 
         // Attach courses to trips for display
         setSchoolTrips(tripsArr.map((st) => ({ ...st, courses: coursesArr.filter((c) => c.school_trip_id === st.id) })));
