@@ -4349,7 +4349,7 @@ function SchoolTrips({ schoolTrips, courses, students, schoolDocuments, onNaviga
                 <img src={st.trips.hero_image} alt={st.trips?.name} className="h-12 w-16 rounded-xl object-cover shrink-0" />
               ) : (
                 <div className="flex h-12 w-16 items-center justify-center rounded-xl bg-zinc-100 shrink-0">
-                  <Map className="h-5 w-5 text-zinc-400" />
+                  <MapPinned className="h-5 w-5 text-zinc-400" />
                 </div>
               )}
 
@@ -5347,7 +5347,7 @@ function SchoolHeroBanner({ school, schoolTrips, students, schoolDocuments, onNa
             </div>
             {schoolTrips.length > 1 && (
               <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 backdrop-blur-sm">
-                <Map className="h-4 w-4" /> {schoolTrips.length} viajes
+                <MapPinned className="h-4 w-4" /> {schoolTrips.length} viajes
               </div>
             )}
           </div>
