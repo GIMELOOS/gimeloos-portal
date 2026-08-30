@@ -5816,7 +5816,7 @@ function buildOnboardingSteps(n) {
   const pendientes = n > 1 ? "pendientes" : "pendiente";
   return [
     {
-      Icon: Building2,
+      Icon: null, // logo
       title: "Bienvenido al Portal GIMELOOS",
       desc: `Aquí gestionarás todo lo relacionado con ${los} ${v} de tu colegio. En pocos minutos tendrás una visión completa de lo que necesitas hacer.`,
     },
@@ -5833,7 +5833,7 @@ function buildOnboardingSteps(n) {
     {
       Icon: FileText,
       title: "Documentación",
-      desc: `Sube los documentos que te solicite GIMELOOS. Verás en todo momento cuáles están ${pendientes}, entregados o aprobados.`,
+      desc: `Sube los documentos que te solicite GIMELOOS. Verás en todo momento cuáles están pendientes, entregados o aprobados.`,
     },
     {
       Icon: LayoutGrid,
@@ -5843,7 +5843,7 @@ function buildOnboardingSteps(n) {
     {
       Icon: CheckCircle2,
       title: "Ya estás listo",
-      desc: `Si tienes cualquier duda, usa la sección «Dudas» para escribirnos directamente. Bienvenidos a GIMELOOS.`,
+      desc: `Si tienes cualquier duda, usa la sección «Dudas» para escribirnos directamente. ¡Bienvenidos a GIMELOOS!`,
     },
   ];
 }
@@ -5875,9 +5875,13 @@ function SchoolOnboarding({ onDone, tripCount = 1 }) {
         </div>
         <div className="p-8">
           <div className="flex justify-center mb-5">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: "#fff1f1" }}>
-              <Icon className="h-8 w-8" style={{ color: CORPORATE_RED }} />
-            </div>
+            {Icon ? (
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: "#fff1f1" }}>
+                <Icon className="h-8 w-8" style={{ color: CORPORATE_RED }} />
+              </div>
+            ) : (
+              <img src="/logo-gimeloos.svg" alt="GIMELOOS" className="h-16 w-auto" />
+            )}
           </div>
           <h2 className="text-xl font-bold text-zinc-900 text-center mb-3">{title}</h2>
           <p className="text-sm text-zinc-500 text-center leading-relaxed mb-8">{desc}</p>
@@ -6084,6 +6088,25 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
                 );
               })}
             </div>
+
+            {/* Banner 30 días — visible en secciones de gestión */}
+            {["students","allergies","docs","rooming","groups"].includes(activeTab) && (() => {
+              const nearestDep = schoolTrips.map(st => st.trips?.departure_date).filter(Boolean).sort()[0];
+              if (!nearestDep) return null;
+              const days = Math.ceil((new Date(nearestDep) - new Date()) / 86400000);
+              const deadline = new Date(nearestDep);
+              deadline.setDate(deadline.getDate() - 30);
+              const deadlineStr = deadline.toLocaleDateString("es-ES", { day: "numeric", month: "long" });
+              return (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <Bell className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <p className="text-sm text-amber-800 leading-snug">
+                    <strong>Recuerda</strong> que es imprescindible que toda la documentación solicitada esté registrada{" "}
+                    <strong>30 días antes de la salida</strong>{days > 30 ? ` (antes del ${deadlineStr})` : days > 0 ? ` — ¡quedan solo ${days} días!` : " — ¡fecha límite superada!"}.
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Tab content */}
             {activeTab === "trips"     && <SchoolTrips schoolTrips={schoolTrips} courses={courses} students={students} schoolDocuments={schoolDocuments} onNavigate={setActiveTab} />}
