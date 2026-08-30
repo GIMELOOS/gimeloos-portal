@@ -5949,7 +5949,21 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
           .select("*, trips(name, departure_date, hero_image, hero_images)")
           .eq("school_id", schoolData.id);
         if (tripsErr) throw new Error(tripsErr.message);
-        const tripsArr = tripsData || [];
+        let tripsArr = tripsData || [];
+
+        // Si el join a trips quedó vacío por RLS, cargar los datos del viaje directamente
+        const missingTripData = tripsArr.some(st => !st.trips);
+        if (missingTripData && tripsArr.length) {
+          const tripIds = tripsArr.map(st => st.trip_id).filter(Boolean);
+          const { data: tripDetails } = await supabase
+            .from("trips")
+            .select("id, name, departure_date, hero_image, hero_images")
+            .in("id", tripIds);
+          if (tripDetails?.length) {
+            const tripMap = Object.fromEntries(tripDetails.map(t => [t.id, t]));
+            tripsArr = tripsArr.map(st => ({ ...st, trips: st.trips || tripMap[st.trip_id] || null }));
+          }
+        }
         setSchoolTrips(tripsArr);
 
         if (!tripsArr.length) { setLoading(false); return; }
@@ -9054,9 +9068,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
       <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl shadow-sm" style={{ backgroundColor: CORPORATE_RED }}>
-              <img src="/logo-gimeloos.png" alt="GIMELOOS" className="h-8 w-8 object-contain" style={{ filter: "invert(1)" }} />
-            </div>
+            <img src="/logo-gimeloos.png" alt="GIMELOOS" className="h-10 w-10 object-contain" />
             <div>
               <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Panel administrador</div>
               <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
