@@ -8760,6 +8760,8 @@ export default function GIMELOOSPortalApp() {
   const [loadError, setLoadError] = useState(null);
   // Clave para forzar recarga de datos tras login (RLS requiere sesión activa)
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  // Evita que el efecto de limpieza borre el userId justo después de un login
+  const pendingLoginRef = React.useRef(false);
 
   // Detectar enlace de recuperación de contraseña (hash #type=recovery)
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -8912,6 +8914,7 @@ export default function GIMELOOSPortalApp() {
         // [MEDIO-2] Exponer el error al usuario con opción de reintentar
         setLoadError("No se pudieron cargar los datos. Comprueba tu conexión e inténtalo de nuevo.");
       } finally {
+        pendingLoginRef.current = false;
         setIsBootstrapping(false);
       }
     };
@@ -8933,8 +8936,8 @@ export default function GIMELOOSPortalApp() {
   // Limpiar sesión si el usuario ya no existe (solo cuando los datos están completamente cargados)
   useEffect(() => {
     if (!sessionBootstrapped || isBootstrapping || !auth.userId) return;
-    // No limpiar si hay una recarga en curso (dataRefreshKey acaba de cambiar)
-    if (dataRefreshKey > 0 && users === initialUsers) return;
+    // No limpiar durante un login reciente (la recarga aún no ha terminado)
+    if (pendingLoginRef.current) return;
     if (!users.some((u) => u.id === auth.userId)) {
       setAuth({ userId: null, error: "", isLoading: false });
       try { window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY); } catch (e) { console.error(e); }
@@ -8978,6 +8981,7 @@ export default function GIMELOOSPortalApp() {
       const { data: participantId } = await supabase.rpc("get_participant_id_for_auth");
       const resolvedId = participantId ?? session.user.id;
 
+      pendingLoginRef.current = true;
       setAuth({ userId: resolvedId, error: "", isLoading: false });
       setDataRefreshKey((k) => k + 1); // Recargar datos con sesión activa (RLS)
       notify("Acceso correcto.");
