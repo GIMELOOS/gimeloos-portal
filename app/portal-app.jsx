@@ -2071,16 +2071,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
     const selectedGroupTripObj = trips.find((t) => t.id === selectedGroupTrip);
     if (!selectedGroupTripObj) { notify("Selecciona primero el campamento en 'Campamento origen'."); return; }
 
-    // Extraer ID de Google Sheets si es una URL de Google
-    let targetUrl = sheetUrl.trim();
-    const gSheetMatch = targetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-    if (gSheetMatch) {
-      const sheetId = gSheetMatch[1];
-      targetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
-    }
-
-    // Usar proxy del servidor para evitar bloqueos CORS
-    const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`;
+    const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(sheetUrl.trim())}`;
     const token = await getAuthToken();
 
     setIsSyncingSheet(true);
@@ -2653,7 +2644,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                 <span className="ml-2">{isSyncingSheet ? "Sincronizando..." : "Sincronizar"}</span>
               </Button>
             </div>
-            <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace). Usa el mismo campamento seleccionado en "Campamento origen".</p>
+            <p className="mt-1 text-xs text-zinc-400">Comparte el Google Sheet con la cuenta de Google conectada al portal. Usa el mismo campamento seleccionado en "Campamento origen".</p>
           </div>
         </CardContent>
       </Card>
@@ -6435,7 +6426,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                     <span className="ml-2">{isSyncingSchoolSheet ? "Sincronizando..." : "Sincronizar"}</span>
                   </Button>
                 </div>
-                <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace).</p>
+                <p className="mt-1 text-xs text-zinc-400">Comparte el Google Sheet con la cuenta de Google conectada al portal.</p>
               </div>
             </CardContent>
           </Card>
