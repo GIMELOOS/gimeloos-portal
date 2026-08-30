@@ -2081,10 +2081,13 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
     // Usar proxy del servidor para evitar bloqueos CORS
     const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`;
+    const token = await getToken();
 
     setIsSyncingSheet(true);
     try {
-      const res = await fetch(proxyUrl);
+      const res = await fetch(proxyUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Error ${res.status}`);
