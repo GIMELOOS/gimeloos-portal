@@ -2069,7 +2069,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
   const handleSyncSheet = async () => {
     if (!sheetUrl.trim()) { notify("Introduce la URL del documento Excel o Google Sheets."); return; }
     const selectedGroupTripObj = trips.find((t) => t.id === selectedGroupTrip);
-    if (!selectedGroupTripObj) { notify("Selecciona primero el campamento en 'Grupo origen'."); return; }
+    if (!selectedGroupTripObj) { notify("Selecciona primero el campamento en 'Campamento origen'."); return; }
 
     // Extraer ID de Google Sheets si es una URL de Google
     let targetUrl = sheetUrl.trim();
@@ -2606,13 +2606,13 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
               </label>
             </div>
             <div className="space-y-2">
-              <Label>Grupo origen</Label>
+              <Label>Campamento origen</Label>
               <select value={selectedGroupTrip} onChange={(e) => setSelectedGroupTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
-              <Label>Asignar experiencia</Label>
+              <Label>Asignar campamento</Label>
               <select value={assignTargetTrip} onChange={(e) => setAssignTargetTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -2653,7 +2653,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                 <span className="ml-2">{isSyncingSheet ? "Sincronizando..." : "Sincronizar"}</span>
               </Button>
             </div>
-            <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace). Usa el mismo campamento seleccionado en "Grupo origen".</p>
+            <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace). Usa el mismo campamento seleccionado en "Campamento origen".</p>
           </div>
         </CardContent>
       </Card>
@@ -2663,9 +2663,9 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
               <div className="space-y-3">
-                <Label className="block pb-1">Filtrar por viaje</Label>
+                <Label className="block pb-1">Filtrar por campamento</Label>
                 <select value={selectedTripFilter} onChange={(e) => setSelectedTripFilter(e.target.value)} className="h-11 min-w-[280px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-                  <option value="all">Todos los viajes</option>
+                  <option value="all">Todos los campamentos</option>
                   {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
@@ -2715,7 +2715,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                     }}
                     className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm"
                   >
-                    <option value="">Sin viaje asignado</option>
+                    <option value="">Sin campamento asignado</option>
                     {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                   <div className="flex flex-col items-end gap-2">
@@ -3202,9 +3202,9 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <Label className="mb-2 block">Filtrar por viaje</Label>
+            <Label className="mb-2 block">Filtrar por campamento</Label>
             <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="mt-2 h-11 min-w-[320px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-              <option value="all">Todos los viajes</option>
+              <option value="all">Todos los campamentos</option>
               {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
@@ -5996,6 +5996,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
   const [filterTripId, setFilterTripId] = useState("");
   const [filterCourseId, setFilterCourseId] = useState("all");
   const [schoolSearch, setSchoolSearch] = useState("");
+  const [studentTrackingSearch, setStudentTrackingSearch] = useState("");
   const [pagosSchoolSearch, setPagosSchoolSearch] = useState("");
   // Manual student entry
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -6035,6 +6036,8 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
   // School Excel import
   const [isImportingSchool, setIsImportingSchool] = useState(false);
   const [schoolImportMsg, setSchoolImportMsg] = useState("");
+  const [selectedImportSchool, setSelectedImportSchool] = useState("");
+  const [selectedImportTrip, setSelectedImportTrip] = useState("");
   // Confirmaciones destructivas en pagos
   const [pendingDeleteInvoiceId, setPendingDeleteInvoiceId] = useState(null);
   const [pendingResetPaymentId, setPendingResetPaymentId] = useState(null);
@@ -6319,7 +6322,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
 
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-5">
-              <div className="flex flex-wrap items-end gap-3">
+              <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr_auto] lg:items-end">
                 <div>
                   <Label className="mb-2 block">Importar Excel</Label>
                   <label className="cursor-pointer">
@@ -6356,6 +6359,20 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                       <Upload className="mr-2 h-4 w-4" />{isImportingSchool ? schoolImportMsg || "Importando..." : "Subir Excel"}
                     </span>
                   </label>
+                </div>
+                <div className="space-y-2">
+                  <Label>Colegio</Label>
+                  <select value={selectedImportSchool} onChange={(e) => { setSelectedImportSchool(e.target.value); setSelectedImportTrip(""); }} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los colegios</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Viaje contratado</Label>
+                  <select value={selectedImportTrip} onChange={(e) => setSelectedImportTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                    <option value="">Todos los viajes</option>
+                    {allSchoolTrips.filter(st => !selectedImportSchool || st.school_id === selectedImportSchool).map((st) => <option key={st.id} value={st.id}>{st.trips?.name || st.id}</option>)}
+                  </select>
                 </div>
                 <Button className="h-11 rounded-2xl text-sm text-white" style={{ backgroundColor: CORPORATE_RED }} onClick={() => setShowNewSchool(!showNewSchool)}>
                   <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
@@ -7343,14 +7360,18 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
           </Card>
 
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="p-5">
+            <CardContent className="p-5 space-y-4">
               <div className="space-y-2">
                 <Label>Filtrar por colegio</Label>
                 <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
-                  className="mt-2 h-11 min-w-[280px] rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  className="mt-2 h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                   <option value="">Todos los colegios</option>
                   {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Buscar alumno</Label>
+                <Input value={studentTrackingSearch} onChange={(e) => setStudentTrackingSearch(e.target.value)} placeholder="Busca por nombre o apellido del alumno..." className="rounded-2xl" />
               </div>
             </CardContent>
           </Card>
@@ -7446,38 +7467,79 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                     </div>
                   }
                 >
-                  {/* Bloque de recordatorios */}
-                  {school.email && (
-                    <div className="mb-5 rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-                      <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Enviar recordatorio al coordinador</div>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { key: "listado",  Icon: Users,       label: "Listados" },
-                          { key: "alergias", Icon: AlertCircle, label: "Alergias" },
-                          { key: "docs",     Icon: FileCheck2,  label: "Documentación" },
-                          { key: "rooming",  Icon: LayoutGrid,  label: "Rooming" },
-                          { key: "grupos",   Icon: ListChecks,  label: "Grupos" },
-                          { key: "todo",     Icon: Bell,        label: "Recordatorio completo", highlight: true },
-                        ].map(({ key, Icon, label, highlight }) => (
-                          <Button key={key} variant={highlight ? "default" : "outline"}
-                            onClick={() => sendSchoolReminder(key)}
-                            className={`h-9 rounded-2xl text-xs font-medium ${highlight ? "text-white" : ""}`}
-                            style={highlight ? { backgroundColor: CORPORATE_RED } : {}}
-                          >
-                            <Icon className="mr-1.5 h-3.5 w-3.5" />{label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {stList.length === 0 ? (
                     <p className="text-sm text-zinc-400">Sin viajes asignados.</p>
                   ) : stList.map((st) => {
                     const stCourses = allCourses.filter((c) => c.school_trip_id === st.id);
+                    const sendTripReminder = async (reminderType) => {
+                      const email = school.email;
+                      if (!email) { notify("Este colegio no tiene email registrado."); return; }
+                      const stTripName = st.trips?.name || "viaje";
+                      const base = { schoolName: school.name, contactName: school.contact_name, tripName: stTripName };
+                      const stStudentCount = allStudents.filter(s => stCourses.map(c => c.id).includes(s.school_course_id)).length;
+                      const stDocs = allSchoolDocs.filter(d => stCourses.map(c => c.id).includes(d.school_course_id));
+                      const stMissingDocs = stDocs.filter(d => d.status === "pending").length;
+                      const typeMap = {
+                        listado:  { type: "school_reminder_listado",  data: base },
+                        alergias: { type: "school_reminder_alergias", data: base },
+                        docs:     { type: "school_doc_reminder",      data: { ...base, pendingCount: stMissingDocs } },
+                        rooming:  { type: "school_reminder_rooming",  data: base },
+                        grupos:   { type: "school_reminder_grupos",   data: base },
+                        todo: {
+                          type: "school_reminder_todo",
+                          data: (() => {
+                            const pendingItems = [
+                              { icon: "📋", label: "Listado de alumnos", detail: stStudentCount > 0 ? `${stStudentCount} alumnos registrados` : "Sin listado todavía" },
+                              { icon: "📄", label: "Documentación",      detail: stMissingDocs > 0 ? `${stMissingDocs} documentos pendientes` : "Al día ✓" },
+                              { icon: "🛏️", label: "Rooming",            detail: !st.rooming?.length ? "Pendiente de asignar" : "Completado ✓" },
+                              { icon: "👥", label: "Grupos de actividad", detail: !st.activity_groups?.length ? "Pendiente de definir" : "Completado ✓" },
+                            ];
+                            const pendingCount = [stStudentCount === 0, stMissingDocs > 0, !st.rooming?.length, !st.activity_groups?.length].filter(Boolean).length;
+                            return { ...base, pendingItems, pendingCount };
+                          })(),
+                        },
+                      };
+                      const payload = typeMap[reminderType];
+                      if (!payload) return;
+                      try {
+                        const token = await getAuthToken();
+                        const res = await fetch("/api/notify", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ ...payload, to: email }),
+                        });
+                        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Error ${res.status}`); }
+                        notify(`Recordatorio enviado a ${email}`);
+                      } catch (err) {
+                        notify("Error enviando recordatorio: " + err.message);
+                      }
+                    };
                     return (
                       <div key={st.id} className="mb-4 last:mb-0">
                         <div className="mb-2 text-sm font-semibold text-zinc-700">{st.trips?.name || st.trip_id}</div>
+                        {school.email && (
+                          <div className="mb-3 rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">Recordatorio coordinador · {st.trips?.name}</div>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: "listado",  Icon: Users,       label: "Listados" },
+                                { key: "alergias", Icon: AlertCircle, label: "Alergias" },
+                                { key: "docs",     Icon: FileCheck2,  label: "Documentación" },
+                                { key: "rooming",  Icon: LayoutGrid,  label: "Rooming" },
+                                { key: "grupos",   Icon: ListChecks,  label: "Grupos" },
+                                { key: "todo",     Icon: Bell,        label: "Recordatorio completo", highlight: true },
+                              ].map(({ key, Icon, label, highlight }) => (
+                                <Button key={key} variant={highlight ? "default" : "outline"}
+                                  onClick={() => sendTripReminder(key)}
+                                  className={`h-9 rounded-2xl text-xs font-medium ${highlight ? "text-white" : ""}`}
+                                  style={highlight ? { backgroundColor: CORPORATE_RED } : {}}
+                                >
+                                  <Icon className="mr-1.5 h-3.5 w-3.5" />{label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="mb-3 grid gap-3 lg:grid-cols-4">
                           {[
                             ["Alumnos", totalStudents],
