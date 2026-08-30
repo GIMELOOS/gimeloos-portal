@@ -9336,7 +9336,7 @@ export default function GIMELOOSPortalApp() {
   }, []);
 
   const currentUser = useMemo(
-    () => users.find((u) => u.id === auth.userId) || null,
+    () => users.find((u) => u.id === auth.userId || u.authUid === auth.userId) || null,
     [users, auth.userId]
   );
 
@@ -9496,7 +9496,7 @@ export default function GIMELOOSPortalApp() {
     if (!sessionBootstrapped || isBootstrapping || !auth.userId) return;
     // No limpiar durante un login reciente (la recarga aún no ha terminado)
     if (pendingLoginRef.current) return;
-    if (!users.some((u) => u.id === auth.userId)) {
+    if (!users.some((u) => u.id === auth.userId || u.authUid === auth.userId)) {
       setAuth({ userId: null, error: "", isLoading: false });
       try { window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY); } catch (e) { console.error(e); }
     }
