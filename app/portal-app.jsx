@@ -2236,10 +2236,12 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           "correo padre", "Email padre", "Email_Tutor2", "Email_Tutor_2"
         ));
         const passwordFromExcel = safeString(getRowValue(row, "Password", "Contraseña", "Clave", "Pass"));
-        const dniFromExcel = safeString(getRowValue(row,
+        const dniRaw = safeString(getRowValue(row,
           "DNI", "Dni", "NIF", "Pasaporte", "passport", "document",
           "DNI del participante", "DNI (participante)", "Documento", "ID"
         ));
+        // Si Tally guarda una URL de archivo en vez del número, ignorar
+        const dniFromExcel = dniRaw.startsWith("http") ? "" : dniRaw;
         const birthDateRaw = getRowValue(row,
           "Fecha_Nacimiento", "Fecha de nacimiento", "FechaNacimiento", "Nacimiento",
           "fecha_nac", "F_Nacimiento", "birthdate", "birth_date", "Fecha nacimiento"
@@ -2261,8 +2263,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
           "Telefono_Madre", "Teléfono de la madre", "Tel_Madre", "Telefono madre",
           "Movil_Madre", "Movil madre", "Phone_Mother", "Tlf madre"
         ));
-        const dniFatherRaw = safeString(getRowValue(row, "DNI_Padre", "DNI del padre", "NIF padre"));
-        const dniMotherRaw = safeString(getRowValue(row, "DNI_Madre", "DNI de la madre", "NIF madre"));
+        const dniFatherRaw = safeString(getRowValue(row, "DNI_Padre", "DNI del padre", "NIF padre")).replace(/^https?:\/\/.*/, "");
+        const dniMotherRaw = safeString(getRowValue(row, "DNI_Madre", "DNI de la madre", "NIF madre")).replace(/^https?:\/\/.*/, "");
         const imageAuthRaw = getRowValue(row,
           "Autorizacion_Imagenes", "Autorización uso de imágenes", "Auth_Imagenes",
           "autorizacion imagenes", "Uso de imágenes", "Autorización imágenes"
