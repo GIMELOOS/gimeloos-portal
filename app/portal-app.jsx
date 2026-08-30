@@ -2081,7 +2081,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
     // Usar proxy del servidor para evitar bloqueos CORS
     const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`;
-    const token = await getToken();
+    const token = await getAuthToken();
 
     setIsSyncingSheet(true);
     try {
@@ -6398,7 +6398,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                       if (m) targetUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=xlsx`;
                       setIsSyncingSchoolSheet(true);
                       try {
-                        const token = await getToken();
+                        const token = await getAuthToken();
                         const res = await fetch(`/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`, {
                           headers: token ? { Authorization: `Bearer ${token}` } : {},
                         });
@@ -8100,6 +8100,13 @@ const EMAIL_TEMPLATE_DEFS = {
       vars: ["nombre", "viaje", "coordinador", "pendientes"],
       hints: { nombre: "Nombre del colegio", viaje: "Nombre del viaje", coordinador: "Nombre del coordinador (opcional)", pendientes: "Nº total de pendientes" },
     },
+    {
+      id: "school_question_replied",
+      label: "Respuesta a consulta",
+      icon: "💬",
+      vars: ["nombre", "coordinador", "pregunta", "respuesta"],
+      hints: { nombre: "Nombre del colegio", coordinador: "Nombre del coordinador", pregunta: "Pregunta original del colegio", respuesta: "Tu respuesta" },
+    },
   ],
 };
 
@@ -8116,6 +8123,7 @@ const TEMPLATE_ICON_MAP = {
   school_reminder_rooming:   LayoutGrid,
   school_reminder_grupos:    ListChecks,
   school_reminder_todo:      Bell,
+  school_question_replied:   MessageCircleQuestion,
   general_reminder:          Bell,
 };
 
