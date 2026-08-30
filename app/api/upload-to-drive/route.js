@@ -1,19 +1,29 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
-const TOKEN_PATH = join(process.cwd(), ".google-token.json");
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-function getDriveClient() {
-  if (!existsSync(TOKEN_PATH)) {
+async function getDriveClient() {
+  const { data, error } = await supabaseAdmin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "google_drive_token")
+    .single();
+
+  if (error || !data) {
     throw new Error("Google Drive no está autorizado. Visita /api/auth/google-setup para conectarlo.");
   }
-  const tokens = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
+
+  const tokens = JSON.parse(data.value);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
@@ -22,10 +32,13 @@ function getDriveClient() {
   );
   oauth2Client.setCredentials(tokens);
 
-  // Actualiza el token si se refresca automáticamente
-  oauth2Client.on("tokens", (newTokens) => {
+  // Guarda el token actualizado en Supabase si se refresca
+  oauth2Client.on("tokens", async (newTokens) => {
     const updated = { ...tokens, ...newTokens };
-    try { require("fs").writeFileSync(TOKEN_PATH, JSON.stringify(updated, null, 2)); } catch (_) {}
+    await supabaseAdmin.from("app_settings").upsert(
+      { key: "google_drive_token", value: JSON.stringify(updated) },
+      { onConflict: "key" }
+    );
   });
 
   return google.drive({ version: "v3", auth: oauth2Client });
@@ -79,7 +92,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "El archivo supera el límite de 20 MB" }, { status: 400 });
     }
 
-    const drive = getDriveClient();
+    const drive = await getDriveClient();
 
     // Carpeta del campamento (opcional) → carpeta del participante → subcarpeta
     const tripName = formData.get("tripName");
@@ -116,7 +129,6 @@ export async function POST(request) {
       requestBody: { role: "reader", type: "anyone" },
     });
 
-    // URL directa de imagen (sustituye el &export=download por thumbnail o direct)
     const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
 
     return NextResponse.json({

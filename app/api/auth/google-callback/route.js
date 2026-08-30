@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { writeFileSync, readFileSync } from "fs";
-import { join } from "path";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-const TOKEN_PATH = join(process.cwd(), ".google-token.json");
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -35,13 +37,16 @@ export async function GET(request) {
     }, { status: 400 });
   }
 
-  writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
+  // Guardar token en Supabase en vez de en disco
+  await supabaseAdmin.from("app_settings").upsert(
+    { key: "google_drive_token", value: JSON.stringify(tokens) },
+    { onConflict: "key" }
+  );
 
   return new NextResponse(
     `<html><body style="font-family:sans-serif;padding:40px">
       <h2>✅ Google Drive conectado correctamente</h2>
       <p>Ya puedes cerrar esta ventana y volver al portal.</p>
-      <p style="color:#666;font-size:14px">Token guardado en <code>.google-token.json</code></p>
     </body></html>`,
     { headers: { "Content-Type": "text/html" } }
   );
