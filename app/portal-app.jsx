@@ -2693,8 +2693,8 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
             {pagedClients.map((client) => {
               const isSelected = selectedClientIds.includes(client.id);
               return (
-                <div key={client.id} className={`grid gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-white shadow-sm" : "border-zinc-200 bg-white"}`}>
-                  <div className="flex justify-center">
+                <div key={client.id} onClick={() => toggleClientSelection(client.id)} className={`grid cursor-pointer gap-3 rounded-3xl border p-4 transition-all lg:grid-cols-[44px_1.2fr_1fr_44px] lg:items-center ${isSelected ? "border-zinc-900 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-zinc-400"}`}>
+                  <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={isSelected} onCheckedChange={() => toggleClientSelection(client.id)} />
                   </div>
                   <div>
@@ -2707,6 +2707,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                     }
                   </div>
                   <select
+                    onClick={(e) => e.stopPropagation()}
                     value={client.tripId && trips.some((t) => t.id === client.tripId) ? client.tripId : ""}
                     onChange={async (e) => {
                       const value = e.target.value || null;
@@ -2719,7 +2720,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
                     <option value="">Sin campamento asignado</option>
                     {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost" size="icon"
                       aria-label={client.email ? "Enviar invitación de acceso" : "Sin email registrado"}
