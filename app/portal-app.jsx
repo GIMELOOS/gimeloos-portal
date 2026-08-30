@@ -2993,12 +2993,12 @@ function AdminParticipantsExport({ users, trips }) {
 
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5 space-y-6">
-          {/* Selector de viaje */}
+          {/* Selector de campamento */}
           <div className="space-y-2">
-            <Label>Viaje</Label>
+            <Label>Campamento</Label>
             <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)}
               className="h-11 w-full max-w-sm rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
-              <option value="all">Todos los viajes</option>
+              <option value="all">Todos los campamentos</option>
               {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
@@ -3800,7 +3800,7 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
           <CardContent className="space-y-4 p-5">
             <div className="font-medium text-zinc-950">Aplicar a grupo</div>
             <div className="space-y-2">
-              <Label>Viaje</Label>
+              <Label>Campamento</Label>
               <select value={selectedTrip} onChange={(e) => setSelectedTrip(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -3870,7 +3870,7 @@ function AdminChecklists({ trips, setTrips, notify }) {
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
             <div className="flex-1 space-y-2">
-              <Label>Viaje</Label>
+              <Label>Campamento</Label>
               <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -6038,6 +6038,8 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
   const [schoolImportMsg, setSchoolImportMsg] = useState("");
   const [selectedImportSchool, setSelectedImportSchool] = useState("");
   const [selectedImportTrip, setSelectedImportTrip] = useState("");
+  const [schoolSheetUrl, setSchoolSheetUrl] = useState("");
+  const [isSyncingSchoolSheet, setIsSyncingSchoolSheet] = useState(false);
   // Confirmaciones destructivas en pagos
   const [pendingDeleteInvoiceId, setPendingDeleteInvoiceId] = useState(null);
   const [pendingResetPaymentId, setPendingResetPaymentId] = useState(null);
@@ -6378,6 +6380,63 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                   <Plus className="mr-1.5 h-4 w-4" />Nuevo colegio
                 </Button>
               </div>
+
+              <div className="mt-3 border-t border-zinc-100 pt-3">
+                <Label className="mb-2 block text-xs text-zinc-500">Vincular documento Excel o Google Sheets (URL pública)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={schoolSheetUrl}
+                    onChange={(e) => setSchoolSheetUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/... o enlace Excel"
+                    className="rounded-2xl text-sm"
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (!schoolSheetUrl.trim()) { notify("Introduce la URL del documento Excel o Google Sheets."); return; }
+                      let targetUrl = schoolSheetUrl.trim();
+                      const m = targetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+                      if (m) targetUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=xlsx`;
+                      setIsSyncingSchoolSheet(true);
+                      try {
+                        const token = await getToken();
+                        const res = await fetch(`/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`, {
+                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
+                        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
+                        const buffer = await res.arrayBuffer();
+                        const wb = XLSX.read(buffer, { type: "array" });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+                        const getVal = (row, ...keys) => { for (const k of keys) { const v = Object.entries(row).find(([rk]) => rk.toLowerCase().replace(/[^a-záéíóúñ0-9]/gi, "") === k.toLowerCase().replace(/[^a-záéíóúñ0-9]/gi, ""))?.[1]; if (v !== undefined && v !== "") return v; } return ""; };
+                        let created = 0, skipped = 0;
+                        for (const row of rows) {
+                          const name = String(getVal(row, "nombre", "colegio", "centro", "name", "school") || "").trim();
+                          if (!name) { skipped++; continue; }
+                          const existing = schools.find(s => s.name.toLowerCase() === name.toLowerCase());
+                          if (existing) { skipped++; continue; }
+                          const contact_name = String(getVal(row, "coordinador", "contacto", "contact", "responsable") || "").trim();
+                          const email = String(getVal(row, "email", "correo", "mail") || "").trim();
+                          const phone = String(getVal(row, "telefono", "teléfono", "phone", "tel") || "").trim();
+                          const { data, error } = await supabase.from("schools").insert([{ name, contact_name, email, phone }]).select().maybeSingle();
+                          if (!error && data) { setSchools(prev => [...prev, data]); created++; }
+                        }
+                        notify(`Sincronización completada: ${created} colegio(s) creado(s)${skipped ? `, ${skipped} omitido(s)` : ""}.`);
+                      } catch (err) {
+                        notify("Error al sincronizar: " + err.message, { variant: "destructive" });
+                      } finally {
+                        setIsSyncingSchoolSheet(false);
+                      }
+                    }}
+                    disabled={isSyncingSchoolSheet}
+                    className="h-11 shrink-0 rounded-2xl text-white"
+                    style={{ backgroundColor: CORPORATE_RED }}
+                  >
+                    {isSyncingSchoolSheet ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    <span className="ml-2">{isSyncingSchoolSheet ? "Sincronizando..." : "Sincronizar"}</span>
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs text-zinc-400">El documento debe ser público (acceso con enlace).</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -6493,14 +6552,23 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
             </CardContent>
           </Card>
 
-          {/* Filtro colegio */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          {/* Filtro colegio + buscar alumno */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5 space-y-4">
+              <div className="space-y-2">
+                <Label>Filtrar por colegio</Label>
+                <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+                  className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                  <option value="">Todos los colegios</option>
+                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Buscar alumno</Label>
+                <Input value={studentTrackingSearch} onChange={(e) => setStudentTrackingSearch(e.target.value)} placeholder="Busca por nombre o apellido del alumno..." className="rounded-2xl" />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Tabs de curso — solo si hay colegio seleccionado */}
           {filterSchoolId && visibleCourses.length > 0 && (
@@ -6615,14 +6683,17 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
             </div>
           } />
 
-          {/* Filtro colegio + tabs curso */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setRoomingTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          {/* Filtro colegio Rooming */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5 space-y-2">
+              <Label>Filtrar por colegio</Label>
+              <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setRoomingTripId(""); }}
+                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                <option value="">Todos los colegios</option>
+                {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </CardContent>
+          </Card>
 
           {/* Tabs de curso — solo si hay colegio seleccionado */}
           {filterSchoolId && visibleCourses.length > 0 && (
@@ -6720,14 +6791,17 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
             </div>
           } />
 
-          {/* Filtro colegio */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setGroupTripId(""); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          {/* Filtro colegio Grupos */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5 space-y-2">
+              <Label>Filtrar por colegio</Label>
+              <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); setGroupTripId(""); }}
+                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                <option value="">Todos los colegios</option>
+                {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </CardContent>
+          </Card>
 
           {/* Tabs de curso — solo si hay colegio seleccionado */}
           {filterSchoolId && visibleCourses.length > 0 && (
@@ -7055,14 +7129,17 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
             </Button>
           } />
 
-          {/* Filtro colegio */}
-          <div className="flex flex-wrap gap-3">
-            <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
-              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none">
-              <option value="">Todos los colegios</option>
-              {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+          {/* Filtro colegio Alergias */}
+          <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
+            <CardContent className="p-5 space-y-2">
+              <Label>Filtrar por colegio</Label>
+              <select value={filterSchoolId} onChange={(e) => { setFilterSchoolId(e.target.value); setFilterTripId(""); setFilterCourseId("all"); }}
+                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm">
+                <option value="">Todos los colegios</option>
+                {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </CardContent>
+          </Card>
 
           {/* Tabs de curso — solo si hay colegio seleccionado */}
           {filterSchoolId && visibleCourses.length > 0 && (
@@ -7368,10 +7445,6 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                   <option value="">Todos los colegios</option>
                   {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Buscar alumno</Label>
-                <Input value={studentTrackingSearch} onChange={(e) => setStudentTrackingSearch(e.target.value)} placeholder="Busca por nombre o apellido del alumno..." className="rounded-2xl" />
               </div>
             </CardContent>
           </Card>
