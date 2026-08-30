@@ -9590,7 +9590,10 @@ export default function GIMELOOSPortalApp() {
       <div className="[&_button]:cursor-pointer">
         <RegisterSchoolScreen
           token={inviteToken}
-          onRegistered={() => setInviteToken(null)}
+          onRegistered={async () => {
+            await supabase.auth.signOut();
+            setInviteToken(null);
+          }}
         />
       </div>
     );
