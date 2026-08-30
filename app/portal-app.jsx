@@ -5357,7 +5357,7 @@ function SchoolRooming({ schoolTrips, setSchoolTrips, notify }) {
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
           <LayoutGrid className="mb-3 h-10 w-10 opacity-40" />
-          <p className="text-sm">Importa un Excel para ver las habitaciones aquí.</p>
+          <p className="text-sm">Importa un Excel o PDF para ver las habitaciones aquí.</p>
         </div>
       )}
 
@@ -5501,7 +5501,7 @@ function SchoolGroups({ schoolTrips, setSchoolTrips, notify }) {
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
           <ListChecks className="mb-3 h-10 w-10 opacity-40" />
-          <p className="text-sm">Importa un Excel para ver los grupos aquí.</p>
+          <p className="text-sm">Importa un Excel o PDF para ver los grupos aquí.</p>
         </div>
       )}
     </div>
@@ -5807,6 +5807,105 @@ function SchoolChecklist({ schoolTrips }) {
   );
 }
 
+const ONBOARDING_KEY = "gimeloos_school_onboarding_done";
+
+const ONBOARDING_STEPS = [
+  {
+    icon: "👋",
+    title: "Bienvenido al Portal GIMELOOS",
+    desc: "Aquí gestionarás todo lo relacionado con el viaje de tu colegio. En pocos minutos tendrás una visión completa de lo que necesitas hacer.",
+  },
+  {
+    icon: "🎒",
+    title: "Mis viajes",
+    desc: "En la pestaña «Mis viajes» puedes ver el viaje asignado a tu colegio, la fecha de salida y el estado general de la preparación.",
+  },
+  {
+    icon: "👨‍🎓",
+    title: "Alumnos",
+    desc: "Añade los alumnos participantes uno a uno o importa el listado completo desde un Excel o PDF. Aquí también gestionas alergias e intolerancias.",
+  },
+  {
+    icon: "📄",
+    title: "Documentación",
+    desc: "Sube los documentos que te solicite GIMELOOS (autorizaciones, seguros, etc.). Verás en todo momento cuáles están pendientes, entregados o aprobados.",
+  },
+  {
+    icon: "🛏️",
+    title: "Rooming y Grupos",
+    desc: "Importa la distribución de habitaciones y los grupos de actividad desde un Excel o PDF. GIMELOOS usará esta información para organizar el viaje.",
+  },
+  {
+    icon: "✅",
+    title: "Ya estás listo",
+    desc: "Si tienes cualquier duda, usa la sección «Dudas» para escribirnos directamente. ¡Que tengáis un viaje increíble!",
+  },
+];
+
+function SchoolOnboarding({ onDone }) {
+  const [step, setStep] = useState(0);
+  const total = ONBOARDING_STEPS.length;
+  const current = ONBOARDING_STEPS[step];
+  const isLast = step === total - 1;
+
+  const handleNext = () => {
+    if (isLast) {
+      try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+      onDone();
+    } else {
+      setStep((s) => s + 1);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+        {/* Progress bar */}
+        <div className="h-1 bg-zinc-100">
+          <div
+            className="h-1 transition-all duration-500"
+            style={{ width: `${((step + 1) / total) * 100}%`, backgroundColor: CORPORATE_RED }}
+          />
+        </div>
+        <div className="p-8">
+          <div className="text-5xl mb-4 text-center">{current.icon}</div>
+          <h2 className="text-xl font-bold text-zinc-900 text-center mb-3">{current.title}</h2>
+          <p className="text-sm text-zinc-500 text-center leading-relaxed mb-8">{current.desc}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex gap-1.5">
+              {ONBOARDING_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-full transition-all duration-300"
+                  style={{
+                    width: i === step ? 20 : 6,
+                    height: 6,
+                    backgroundColor: i === step ? CORPORATE_RED : "#e4e4e7",
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              {step > 0 && (
+                <Button variant="outline" className="rounded-2xl text-sm" onClick={() => setStep((s) => s - 1)}>
+                  Atrás
+                </Button>
+              )}
+              <Button
+                className="rounded-2xl text-sm text-white"
+                style={{ backgroundColor: CORPORATE_RED }}
+                onClick={handleNext}
+              >
+                {isLast ? "Empezar" : "Siguiente"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const [activeTab, setActiveTab] = useState("trips");
   const [school, setSchool] = useState(null);
@@ -5817,6 +5916,10 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const [schoolQuestions, setSchoolQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (previewSchoolId) return false; // no mostrar en modo preview del admin
+    try { return !localStorage.getItem(ONBOARDING_KEY); } catch { return false; }
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -5946,6 +6049,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
           </div>
         ) : (
           <>
+            {showOnboarding && <SchoolOnboarding onDone={() => setShowOnboarding(false)} />}
             {/* Hero banner */}
             <SchoolHeroBanner
               school={school}
