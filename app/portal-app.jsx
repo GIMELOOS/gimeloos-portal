@@ -6929,9 +6929,21 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                         {schoolTrips.length === 0 ? (
                           <span className="inline-flex items-center rounded-xl border border-zinc-200 px-2.5 py-1 text-xs text-zinc-400">Sin viajes asignados</span>
                         ) : schoolTrips.map((st) => (
-                          <span key={st.id} className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
+                          <span key={st.id} className="inline-flex items-center gap-1 rounded-xl bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
                             <MapIcon className="h-3 w-3 shrink-0 text-zinc-400" />
                             {st.trips?.name || st.trip_id}
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`¿Quitar "${st.trips?.name || st.trip_id}" de ${school.name}?`)) return;
+                                const { error } = await supabase.from("school_trips").delete().eq("id", st.id);
+                                if (error) { notify("Error eliminando asignación: " + error.message); return; }
+                                setAllSchoolTrips((prev) => prev.filter((x) => x.id !== st.id));
+                              }}
+                              className="ml-0.5 rounded-full p-0.5 text-zinc-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+                              title="Quitar viaje"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </span>
                         ))}
                         <span className="inline-flex items-center rounded-xl bg-zinc-50 px-2.5 py-1 text-xs text-zinc-500">
