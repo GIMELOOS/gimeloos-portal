@@ -56,7 +56,7 @@ export async function POST(request) {
         <h1 style="color:#18181b;font-size:24px;font-weight:700;margin:0 0 24px;line-height:1.3">Accede al Portal del Colegio</h1>
         <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 16px">Hola, <strong>${contactName}</strong>.</p>
         <p style="color:#52525b;font-size:15px;line-height:1.7;margin:0 0 24px">
-          Te invitamos a activar tu acceso al <strong>Portal del Colegio GIMELOOS</strong> de <strong>${school.name}</strong>.
+          Te invitamos a activar tu acceso al <strong>PORTAL GIMELOOS</strong> de <strong>${school.name}</strong>.
           Desde aquí podrás gestionar la documentación del viaje, ver el listado de alumnos y mucho más.
         </p>
         <a href="${inviteUrl}" style="display:inline-block;background:#FF3131;color:white;font-weight:600;font-size:15px;padding:14px 28px;border-radius:10px;text-decoration:none;margin-bottom:24px">
