@@ -1586,8 +1586,13 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
     if (!showNotifications) return;
     const handler = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false); };
     document.addEventListener("mousedown", handler);
+    // Marcar todas como leídas automáticamente al abrir el panel
+    if (notifications.some((n) => !n.read)) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      supabase.from("notifications").update({ read: true }).eq("participant_id", user.id).eq("read", false).then(() => {});
+    }
     return () => document.removeEventListener("mousedown", handler);
-  }, [showNotifications]);
+  }, [showNotifications]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     supabase.from("notifications").select("*").eq("participant_id", user.id).order("created_at", { ascending: false }).limit(20)
