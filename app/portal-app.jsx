@@ -2416,7 +2416,11 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
       const toInsert = parsedRows.filter((r) => !existingByUsername.has(r.finalUsername)).map((r) => r.participantPayload);
       const toUpdate = parsedRows.filter((r) => existingByUsername.has(r.finalUsername));
 
-      const allPayloads = parsedRows.map((r) => r.participantPayload);
+      // Deduplicar por username (el Excel puede tener filas repetidas)
+      const payloadByUsername = new Map();
+      for (const r of parsedRows) payloadByUsername.set(r.finalUsername, r.participantPayload);
+      const allPayloads = [...payloadByUsername.values()];
+
       if (allPayloads.length) {
         const { data: upserted, error: upsertErr } = await supabase
           .from("participants")
@@ -2430,9 +2434,12 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
 
       // ── Fase 5: batch upsert pricing (1 query) ────────────────────────────────
       setImportMessage("Sincronizando precios...");
-      const pricingRows = parsedRows
-        .filter((r) => existingByUsername.has(r.finalUsername))
-        .map((r) => ({ participant_id: existingByUsername.get(r.finalUsername), ...r.pricing }));
+      const pricingByParticipant = new Map();
+      for (const r of parsedRows) {
+        const pid = existingByUsername.get(r.finalUsername);
+        if (pid) pricingByParticipant.set(pid, { participant_id: pid, ...r.pricing });
+      }
+      const pricingRows = [...pricingByParticipant.values()];
 
       if (pricingRows.length) {
         const { error: pricErr } = await supabase.from("participant_pricing").upsert(pricingRows, { onConflict: "participant_id" });
