@@ -9315,6 +9315,9 @@ export default function GIMELOOSPortalApp() {
   // Evita que el efecto de limpieza borre el userId justo después de un login
   const pendingLoginRef = React.useRef(false);
 
+  // Sesión de coordinador de colegio (role=school en user_metadata, no usa el sistema de users/participants)
+  const [schoolCoordSession, setSchoolCoordSession] = useState(null);
+
   // Detectar enlace de recuperación de contraseña (hash #type=recovery)
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -9369,6 +9372,14 @@ export default function GIMELOOSPortalApp() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData?.session) {
+          setIsBootstrapping(false);
+          return;
+        }
+
+        // Coordinador de colegio: usar user_metadata directamente, sin tocar participants
+        const meta = sessionData.session.user?.user_metadata;
+        if (meta?.role === "school") {
+          setSchoolCoordSession({ authUid: sessionData.session.user.id, nombre: meta.nombre || "" });
           setIsBootstrapping(false);
           return;
         }
@@ -9535,6 +9546,15 @@ export default function GIMELOOSPortalApp() {
         return;
       }
 
+      // Coordinador de colegio: user_metadata.role === "school" → portal escolar directo
+      const meta = session.user?.user_metadata;
+      if (meta?.role === "school") {
+        setSchoolCoordSession({ authUid: session.user.id, nombre: meta.nombre || "" });
+        notify("Acceso correcto.");
+        setAuth((prev) => ({ ...prev, isLoading: false }));
+        return;
+      }
+
       // Resolver el participant.id real desde auth_uid (funciona para admin y participantes)
       const { data: participantId } = await supabase.rpc("get_participant_id_for_auth");
       const resolvedId = participantId ?? session.user.id;
@@ -9552,6 +9572,7 @@ export default function GIMELOOSPortalApp() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAuth({ userId: null, error: "", isLoading: false });
+    setSchoolCoordSession(null);
     try {
       window.localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
       window.localStorage.removeItem(ADMIN_SECTION_STORAGE_KEY);
@@ -9614,7 +9635,9 @@ export default function GIMELOOSPortalApp() {
   return (
     <div className="[&_button]:cursor-pointer [&_label]:cursor-pointer [&_select]:cursor-pointer [&_summary]:cursor-pointer">
       <ActionToast notifications={notifications} removeNotification={removeNotification} />
-      {!currentUser ? (
+      {schoolCoordSession ? (
+        <SchoolPortal user={{ authUid: schoolCoordSession.authUid }} onLogout={handleLogout} notify={notify} />
+      ) : !currentUser ? (
         <LoginScreen onLogin={handleLogin} loginError={auth.error} isLoading={auth.isLoading} />
       ) : currentUser.role === "admin" ? (
         <AdminPanel users={users} setUsers={setUsers} trips={trips} setTrips={setTrips} schoolTripIds={schoolTripIds} setSchoolTripIds={setSchoolTripIds} templates={templates} setTemplates={setTemplates} onLogout={handleLogout} notify={notify} />
