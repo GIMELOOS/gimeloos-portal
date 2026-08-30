@@ -5655,6 +5655,17 @@ function SchoolPortalQuestions({ school, questions, setQuestions, notify }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
+  // Polling cada 30s para mostrar respuestas del admin sin recargar
+  useEffect(() => {
+    if (!school?.id) return;
+    const poll = async () => {
+      const { data } = await supabase.from("school_questions").select("*").eq("school_id", school.id).order("created_at");
+      if (data) setQuestions(data);
+    };
+    const interval = setInterval(poll, 30000);
+    return () => clearInterval(interval);
+  }, [school?.id]);
+
   const handleSend = async () => {
     if (!message.trim() || sending || !school?.id) return;
     setSending(true);
@@ -5732,7 +5743,7 @@ function SchoolPortalQuestions({ school, questions, setQuestions, notify }) {
   );
 }
 
-function SchoolChecklist({ schoolTrips }) {
+function SchoolChecklist({ schoolTrips, setSchoolTrips, notify }) {
   const allCourses = schoolTrips.flatMap((st) =>
     (st.courses || []).map((c) => ({ ...c, tripId: st.id, tripName: st.trips?.name || "" }))
   );
@@ -5741,20 +5752,36 @@ function SchoolChecklist({ schoolTrips }) {
   const checklist = selectedTrip?.checklist || [];
 
   const storageKey = selectedTrip ? `school_checklist_state_${selectedTrip.id}` : null;
+
+  // Estado inicial: BD tiene prioridad, localStorage como fallback
   const [checked, setChecked] = useState(() => {
+    if (selectedTrip?.checklist_state && Object.keys(selectedTrip.checklist_state).length) {
+      return selectedTrip.checklist_state;
+    }
     if (!storageKey || typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
   });
 
   useEffect(() => {
-    if (!storageKey || typeof window === "undefined") { setChecked({}); return; }
-    try { setChecked(JSON.parse(window.localStorage.getItem(storageKey) || "{}")); } catch { setChecked({}); }
+    const state = selectedTrip?.checklist_state && Object.keys(selectedTrip.checklist_state).length
+      ? selectedTrip.checklist_state
+      : (() => {
+          if (!storageKey || typeof window === "undefined") return {};
+          try { return JSON.parse(window.localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+        })();
+    setChecked(state);
   }, [storageKey]);
 
-  const toggleItem = (item) => {
+  const toggleItem = async (item) => {
     const next = { ...checked, [item]: !checked[item] };
     setChecked(next);
+    // Guardar en localStorage siempre (fallback inmediato)
     if (storageKey) { try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch {} }
+    // Guardar en BD (columna checklist_state en school_trips)
+    if (selectedTrip?.id) {
+      const { error } = await supabase.from("school_trips").update({ checklist_state: next }).eq("id", selectedTrip.id);
+      if (!error) setSchoolTrips?.((prev) => prev.map((st) => st.id === selectedTrip.id ? { ...st, checklist_state: next } : st));
+    }
   };
 
   const completedCount = checklist.filter((item) => !!checked[item]).length;
@@ -6159,7 +6186,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
             {activeTab === "docs"      && <SchoolDocs courses={courses} schoolDocuments={schoolDocuments} setSchoolDocuments={setSchoolDocuments} notify={notify} school={school} schoolTrips={schoolTrips} />}
             {activeTab === "rooming"   && <SchoolRooming schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
             {activeTab === "groups"    && <SchoolGroups schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
-            {activeTab === "checklist" && <SchoolChecklist schoolTrips={schoolTrips} />}
+            {activeTab === "checklist" && <SchoolChecklist schoolTrips={schoolTrips} setSchoolTrips={setSchoolTrips} notify={notify} />}
             {activeTab === "questions" && (
               <SchoolPortalQuestions
                 school={school}
