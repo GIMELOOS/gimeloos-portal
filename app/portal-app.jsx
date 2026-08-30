@@ -2072,17 +2072,23 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
     if (!selectedGroupTripObj) { notify("Selecciona primero el campamento en 'Grupo origen'."); return; }
 
     // Extraer ID de Google Sheets si es una URL de Google
-    let fetchUrl = sheetUrl.trim();
-    const gSheetMatch = fetchUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    let targetUrl = sheetUrl.trim();
+    const gSheetMatch = targetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (gSheetMatch) {
       const sheetId = gSheetMatch[1];
-      fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+      targetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
     }
+
+    // Usar proxy del servidor para evitar bloqueos CORS
+    const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(targetUrl)}`;
 
     setIsSyncingSheet(true);
     try {
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error(`No se pudo descargar el archivo (${res.status}). Asegúrate de que el documento es público.`);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
       const buffer = await res.arrayBuffer();
       const fakeFile = new File([buffer], "sheet.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       await handleBulkExcelUpload(fakeFile, null);
