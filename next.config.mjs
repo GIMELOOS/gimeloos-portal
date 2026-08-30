@@ -8,6 +8,7 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  transpilePackages: ["framer-motion"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
