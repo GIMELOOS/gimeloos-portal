@@ -6498,31 +6498,12 @@ function SchoolQuestionCard({ q, schoolName, onReply }) {
 }
 
 function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, setTrips, notify }) {
-  const [selectedStId, setSelectedStId] = useState(allSchoolTrips[0]?.id || "");
-  const selectedSt = allSchoolTrips.find((st) => st.id === selectedStId) || allSchoolTrips[0];
-  const selectedTrip = trips.find((t) => t.id === selectedSt?.trip_id);
-  const school = schools.find((s) => s.id === selectedSt?.school_id);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const escolarTrips = trips.filter((t) => t.tipo === "escolar");
+  const [selectedTripId, setSelectedTripId] = useState(escolarTrips[0]?.id || "");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const selectedTrip = escolarTrips.find((t) => t.id === selectedTripId) || escolarTrips[0];
 
-  const handleCreate = async () => {
-    setCreating(true);
-    const newId = crypto.randomUUID();
-    const { data, error } = await supabase.from("trips").insert({ id: newId, name: "Nuevo viaje escolar", tipo: "escolar", checklist: [], itinerary: [], logistics: [] }).select().single();
-    if (error) { notify("Error creando viaje escolar: " + error.message); setCreating(false); return; }
-    const newTrip = { id: data.id, name: data.name, departureDate: "", description: "", heroImage: "", heroImages: [], transferInfo: { bank: "", accountHolder: "", iban: "", concept: "" }, automation: {}, showItinerary: true, showLogistics: true, documentRules: [], paymentSchedule: {}, itinerary: [], logistics: [], checklist: [], tipo: "escolar" };
-    setTrips?.((prev) => [...prev, newTrip]);
-    notify("Viaje escolar creado. Asígnalo a un colegio desde la tarjeta del colegio.");
-    setCreating(false);
-  };
-
-  const syncTripField = (field, value) => {
-    setSaved(false);
-    if (!setTrips) return;
-    setTrips((prev) => prev.map((t) => t.id === selectedTrip?.id ? { ...t, [field]: value } : t));
-  };
   const callUpdateTrip = async (id, fields) => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
@@ -6534,60 +6515,47 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "Error guardando");
   };
-  const saveTripField = async (dbField, value) => {
-    if (!selectedTrip) return;
-    const stateField = dbField === "hero_image" ? "heroImage" : dbField === "departure_date" ? "departureDate" : dbField;
-    syncTripField(stateField, value);
-    try {
-      await callUpdateTrip(selectedTrip.id, { [dbField]: value });
-    } catch (err) {
-      notify("Error guardando cambios: " + err.message);
-    }
-  };
-  const handleSaveAll = async () => {
-    if (!selectedTrip) return;
-    setSaving(true);
-    const dateValue = selectedTrip.departureDate || null;
-    try {
-      await callUpdateTrip(selectedTrip.id, {
-        name: selectedTrip.name,
-        departure_date: dateValue ? (dateValue.length === 16 ? dateValue + ":00" : dateValue) : null,
-        hero_image: selectedTrip.heroImage || null,
-        description: selectedTrip.description || null,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch (err) {
-      notify("Error guardando: " + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-  const handleDeleteSchoolTrip = async () => {
-    if (!selectedSt) return;
-    const schoolName = school?.name || "este colegio";
-    const tripName = selectedTrip?.name || "este viaje";
-    if (!window.confirm(`¿Eliminar la asignación del viaje "${tripName}" a ${schoolName}? Esta acción no borra el viaje, solo la asignación.`)) return;
-    setDeleting(true);
-    const { error } = await supabase.from("school_trips").delete().eq("id", selectedSt.id);
-    setDeleting(false);
-    if (error) { notify("Error eliminando asignación: " + error.message); return; }
-    const remaining = allSchoolTrips.filter((st) => st.id !== selectedSt.id);
-    setAllSchoolTrips?.(remaining);
-    setSelectedStId(remaining[0]?.id || "");
-    notify("Asignación eliminada.");
+
+  const syncField = (field, value) => setTrips?.((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, [field]: value } : t));
+  const saveField = async (field, value) => {
+    syncField(field, value);
+    try { await callUpdateTrip(selectedTripId, { [field]: value }); }
+    catch (err) { notify("Error guardando cambios: " + err.message); }
   };
 
-  if (!allSchoolTrips.length) return (
+  const handleCreate = async () => {
+    setCreating(true);
+    const newId = crypto.randomUUID();
+    const { data, error } = await supabase.from("trips").insert({ id: newId, name: "Nuevo viaje escolar", tipo: "escolar", checklist: [], itinerary: [], logistics: [] }).select().single();
+    if (error) { notify("Error creando viaje escolar: " + error.message); setCreating(false); return; }
+    const newTrip = { id: data.id, name: data.name, departureDate: "", description: "", heroImage: "", heroImages: [], transferInfo: { bank: "", accountHolder: "", iban: "", concept: "" }, automation: {}, showItinerary: true, showLogistics: true, documentRules: [], paymentSchedule: {}, itinerary: [], logistics: [], checklist: [], tipo: "escolar" };
+    setTrips?.((prev) => [...prev, newTrip]);
+    setSelectedTripId(data.id);
+    setCreating(false);
+    notify("Viaje escolar creado. Edita el nombre y asígnalo a un colegio desde su tarjeta.");
+  };
+
+  const handleDelete = async () => {
+    if (!selectedTrip) return;
+    if (!window.confirm(`¿Eliminar el viaje escolar "${selectedTrip.name}"? Esta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    const { error } = await supabase.from("trips").delete().eq("id", selectedTripId);
+    setDeleting(false);
+    if (error) { notify("Error eliminando viaje: " + error.message); return; }
+    const remaining = escolarTrips.filter((t) => t.id !== selectedTripId);
+    setTrips?.((prev) => prev.filter((t) => t.id !== selectedTripId));
+    setSelectedTripId(remaining[0]?.id || "");
+    notify("Viaje escolar eliminado.");
+  };
+
+  if (!escolarTrips.length) return (
     <div className="space-y-5">
       <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." extra={
         <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
           <Plus className="mr-1.5 h-4 w-4" />{creating ? "Creando..." : "Nuevo viaje escolar"}
         </Button>
       } />
-      <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-        <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados. Crea el primero y asígnalo a un colegio.</CardContent>
-      </Card>
+      <div className="py-16 text-center text-sm text-zinc-400">No hay viajes escolares configurados. Crea el primero.</div>
     </div>
   );
 
@@ -6603,12 +6571,8 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex-1 space-y-1">
               <Label>Viaje activo</Label>
-              <select value={selectedStId} onChange={(e) => setSelectedStId(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
-                {allSchoolTrips.map((st) => {
-                  const sch = schools.find((s) => s.id === st.school_id);
-                  return <option key={st.id} value={st.id}>{sch ? `${sch.name} · ` : ""}{st.trips?.name || st.trip_id}</option>;
-                })}
+              <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
+                {escolarTrips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             {selectedTrip?.departureDate && (
@@ -6617,14 +6581,8 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
                 <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
               </div>
             )}
-            <Button
-              variant="outline"
-              onClick={handleDeleteSchoolTrip}
-              disabled={deleting || !selectedSt}
-              className="h-11 shrink-0 rounded-2xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4"
-            >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              <span className="ml-2 hidden sm:inline">Eliminar asignación</span>
+            <Button variant="outline" onClick={handleDelete} disabled={deleting} className="rounded-2xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">
+              <Trash2 className="mr-1.5 h-4 w-4" />{deleting ? "Eliminando…" : "Eliminar"}
             </Button>
           </div>
         </CardContent>
@@ -6632,50 +6590,29 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
       {selectedTrip && (
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-5 p-6">
-            {school && (
-              <div className="text-sm text-zinc-500">Colegio: <span className="font-medium text-zinc-800">{school.name}</span></div>
-            )}
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre del viaje</Label>
-                <Input value={selectedTrip.name} onChange={(e) => syncTripField("name", e.target.value)} onBlur={(e) => saveTripField("name", e.target.value)} className="rounded-2xl" />
+                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} onBlur={(e) => saveField("name", e.target.value)} className="rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)}
-                  onChange={(e) => syncTripField("departureDate", e.target.value)}
-                  className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); try { await callUpdateTrip(selectedTripId, { departure_date: e.target.value || null }); } catch (err) { notify("Error guardando fecha: " + err.message); } }} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Foto de portada</Label>
               <CoverImageInput
                 value={selectedTrip.heroImage || ""}
-                onChange={(v) => syncTripField("heroImage", v)}
-                onBlur={(v) => saveTripField("hero_image", v)}
-                tripId={selectedTrip.id}
+                onChange={(v) => syncField("heroImage", v)}
+                onBlur={(v) => saveField("hero_image", v)}
+                tripId={selectedTripId}
                 notify={notify}
               />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncTripField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleSaveAll}
-                disabled={saving}
-                className="h-11 rounded-2xl text-white px-6"
-                style={{ backgroundColor: CORPORATE_RED }}
-              >
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {saving ? "Guardando..." : "Guardar cambios"}
-              </Button>
-              {saved && (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-                  <CheckCircle2 className="h-4 w-4" />Guardado
-                </span>
-              )}
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} onBlur={(e) => saveField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
             </div>
           </CardContent>
         </Card>
