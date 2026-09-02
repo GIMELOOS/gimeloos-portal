@@ -9206,7 +9206,27 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
   });
   useEffect(() => { if (typeof window !== "undefined") window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, activeSection); }, [activeSection]);
   const totalParticipants = users.filter((u) => u.role === "client" && !u.schoolId).length;
-  const campTrips = trips.filter((t) => t.tipo !== "colegio");
+  const [purging, setPurging] = useState(false);
+  const handlePurge = async () => {
+    if (!window.confirm("¿Borrar TODOS los datos de prueba? Se eliminarán participantes, colegios, viajes y archivos de Drive. Esta acción no se puede deshacer.")) return;
+    setPurging(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/purge-test-data", {
+        method: "POST",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      const json = await res.json();
+      if (!res.ok) { notify("Error al borrar: " + (json.error || "desconocido")); return; }
+      notify(`Datos borrados. Drive: ${json.driveFilesFound} archivos eliminados.`);
+      window.location.reload();
+    } catch (err) {
+      notify("Error al borrar datos: " + err.message);
+    } finally {
+      setPurging(false);
+    }
+  };
 
   const [lastSeenStudents, setLastSeenStudents] = useState(() => {
     try { return localStorage.getItem("gimeloos_last_seen_students") || new Date(0).toISOString(); } catch { return new Date(0).toISOString(); }
@@ -9383,6 +9403,13 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
                 >
                   <Calculator className="h-4 w-4 shrink-0" />Calculadora
                   {activeSection === "calculadora" && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
+                </button>
+              </div>
+              {/* Borrar datos de prueba */}
+              <div className="border-t border-zinc-100 pt-2 mt-2">
+                <button type="button" onClick={handlePurge} disabled={purging}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-700 transition-all disabled:opacity-50">
+                  <Trash2 className="h-4 w-4 shrink-0" />{purging ? "Borrando…" : "Borrar datos de prueba"}
                 </button>
               </div>
             </nav>
