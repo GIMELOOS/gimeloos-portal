@@ -4046,10 +4046,11 @@ function AdminChecklists({ trips, setTrips, notify }) {
 }
 
 function AdminTrips({ trips, setTrips, notify }) {
-  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
+  const campTrips = trips.filter((t) => t.tipo !== "escolar");
+  const [selectedTripId, setSelectedTripId] = useState(campTrips[0]?.id || "");
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
+  const selectedTrip = campTrips.find((t) => t.id === selectedTripId) || campTrips[0];
 
   const callUpdateTrip = async (id, fields) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -4089,13 +4090,13 @@ function AdminTrips({ trips, setTrips, notify }) {
     const { error } = await supabase.from("trips").delete().eq("id", selectedTripId);
     setDeleting(false);
     if (error) { notify("Error eliminando campamento: " + error.message); return; }
-    const remaining = trips.filter((t) => t.id !== selectedTripId);
-    setTrips(remaining);
+    const remaining = campTrips.filter((t) => t.id !== selectedTripId);
+    setTrips((prev) => prev.filter((t) => t.id !== selectedTripId));
     setSelectedTripId(remaining[0]?.id || "");
     notify("Campamento eliminado.");
   };
 
-  if (!trips.length) return (
+  if (!campTrips.length) return (
     <div className="space-y-5">
       <SectionTitle icon={MapIcon} title="Campamentos" subtitle="Información básica y foto de portada de cada campamento." extra={
         <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
@@ -4119,7 +4120,7 @@ function AdminTrips({ trips, setTrips, notify }) {
             <div className="flex-1 space-y-1">
               <Label>Campamento activo</Label>
               <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium">
-                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {campTrips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             {selectedTrip?.departureDate && (
