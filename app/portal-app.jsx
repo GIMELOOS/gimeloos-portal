@@ -86,6 +86,7 @@ import {
   CreditCard,
   Download,
   Eye,
+  EyeOff,
   ExternalLink,
   FileCheck2,
   FileText,
@@ -693,6 +694,7 @@ function LogoMark({ dark = false, totalParticipants = null }) {
 function LoginScreen({ onLogin, loginError, isLoading }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim());
   const emailError = emailTouched && username && !emailValid ? "Introduce un email válido" : null;
@@ -830,14 +832,24 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
                         </div>
                         <div className="space-y-2">
                           <Label>Contraseña</Label>
-                          <Input
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            type="password"
-                            placeholder="••••••••"
-                            className="h-12 rounded-2xl border-zinc-200 bg-white"
-                            autoComplete="current-password"
-                          />
+                          <div className="relative">
+                            <Input
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••"
+                              className="h-12 rounded-2xl border-zinc-200 bg-white pr-11"
+                              autoComplete="current-password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword((v) => !v)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                              tabIndex={-1}
+                            >
+                              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                          </div>
                         </div>
                         {loginError && (
                           <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{loginError}</div>
@@ -874,6 +886,8 @@ function LoginScreen({ onLogin, loginError, isLoading }) {
 function ResetPasswordScreen({ onDone }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [done, setDone] = useState(false);
@@ -936,27 +950,47 @@ function ResetPasswordScreen({ onDone }) {
                     <form className="space-y-4" onSubmit={handleSubmit}>
                       <div className="space-y-2">
                         <Label>Nueva contraseña</Label>
-                        <Input
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          type="password"
-                          placeholder="Mínimo 6 caracteres"
-                          className="h-12 rounded-2xl border-zinc-200 bg-white"
-                          autoComplete="new-password"
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Mínimo 6 caracteres"
+                            className="h-12 rounded-2xl border-zinc-200 bg-white pr-11"
+                            autoComplete="new-password"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Confirmar contraseña</Label>
-                        <Input
-                          value={confirm}
-                          onChange={(e) => setConfirm(e.target.value)}
-                          type="password"
-                          placeholder="Repite la contraseña"
-                          className="h-12 rounded-2xl border-zinc-200 bg-white"
-                          autoComplete="new-password"
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            value={confirm}
+                            onChange={(e) => setConfirm(e.target.value)}
+                            type={showConfirm ? "text" : "password"}
+                            placeholder="Repite la contraseña"
+                            className="h-12 rounded-2xl border-zinc-200 bg-white pr-11"
+                            autoComplete="new-password"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirm((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                            tabIndex={-1}
+                          >
+                            {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </div>
                       </div>
                       {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
                       <Button
@@ -1102,6 +1136,11 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
                   {docItem.uploadedFileName && (
                     <div className="mt-1 text-sm text-zinc-500">Subido: {docItem.uploadedFileName}</div>
                   )}
+                  {docItem.driveUrl && (
+                    <a href={docItem.driveUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm font-medium" style={{ color: CORPORATE_RED }}>
+                      <ExternalLink className="h-3.5 w-3.5" />Ver documento
+                    </a>
+                  )}
                   {pct !== undefined && (
                     <div className="mt-2">
                       <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
@@ -1197,6 +1236,9 @@ function PaymentRow({ title, payment, onUploadProof }) {
         <div className="min-w-0 flex-1">
           <div className="font-medium text-zinc-950">{title}</div>
           <div className="mt-1 text-sm text-zinc-500">Importe: {formatCurrency(payment.amount)}</div>
+          {payment.dueDate && (
+            <div className="mt-0.5 text-sm text-zinc-400">Fecha límite: {new Date(payment.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+          )}
           {displayProofName && (
             <div className="mt-1 flex items-center gap-1.5 text-sm text-zinc-500">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -1279,19 +1321,19 @@ function ClientPayments({ user, trip, onUploadProof }) {
               ))}
             </CardContent>
           </Card>
-          <PaymentRow title={reservation.name || "Reserva"} payment={reservation} onUploadProof={(_, file) => onUploadProof("reservation", file)} />
-          <PaymentRow title={firstInstallment.name || "Primera cuota"} payment={firstInstallment} onUploadProof={(_, file) => onUploadProof("firstInstallment", file)} />
-          <PaymentRow title={secondInstallment.name || "Segunda cuota"} payment={secondInstallment} onUploadProof={(_, file) => onUploadProof("secondInstallment", file)} />
+          <PaymentRow title={reservation.name || "Reserva"} payment={reservation} onUploadProof={(_, file, onProgress) => onUploadProof("reservation", file, onProgress)} />
+          <PaymentRow title={firstInstallment.name || "Primera cuota"} payment={firstInstallment} onUploadProof={(_, file, onProgress) => onUploadProof("firstInstallment", file, onProgress)} />
+          <PaymentRow title={secondInstallment.name || "Segunda cuota"} payment={secondInstallment} onUploadProof={(_, file, onProgress) => onUploadProof("secondInstallment", file, onProgress)} />
         </div>
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-5">
             <div>
               <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Datos de transferencia</div>
               <div className="mt-3 space-y-2 text-sm text-zinc-700">
-                <div><span className="font-medium text-zinc-950">Banco:</span> {trip.transferInfo.bank}</div>
-                <div><span className="font-medium text-zinc-950">Titular:</span> {trip.transferInfo.accountHolder}</div>
-                <div><span className="font-medium text-zinc-950">IBAN:</span> {trip.transferInfo.iban}</div>
-                <div><span className="font-medium text-zinc-950">Concepto:</span> {trip.transferInfo.concept}</div>
+                <div><span className="font-medium text-zinc-950">Banco:</span> {trip.transferInfo?.bank}</div>
+                <div><span className="font-medium text-zinc-950">Titular:</span> {trip.transferInfo?.accountHolder}</div>
+                <div><span className="font-medium text-zinc-950">IBAN:</span> {trip.transferInfo?.iban}</div>
+                <div><span className="font-medium text-zinc-950">Concepto:</span> {trip.transferInfo?.concept}</div>
               </div>
             </div>
             <Separator />
@@ -1595,9 +1637,24 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   }, [showNotifications]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    supabase.from("notifications").select("*").eq("participant_id", user.id).order("created_at", { ascending: false }).limit(20)
+    const fetchNotifs = () => supabase.from("notifications").select("*").eq("participant_id", user.id).order("created_at", { ascending: false }).limit(20)
       .then(({ data }) => { if (data) setNotifications(data); });
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30000);
+    return () => clearInterval(interval);
   }, [user.id]);
+
+  useEffect(() => {
+    if (!user.id) return;
+    const poll = async () => {
+      const { data } = await supabase.from("participant_questions").select("*").eq("participant_id", user.id).order("created_at");
+      if (!data) return;
+      const mapped = data.map((q) => ({ id: q.id, message: q.message, reply: q.reply, status: q.status, createdAt: q.created_at }));
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, questions: mapped } : u));
+    };
+    const interval = setInterval(poll, 30000);
+    return () => clearInterval(interval);
+  }, [user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -2399,8 +2456,22 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         }
       }
 
-      const { error: tripsBatchErr } = await supabase.from("trips").upsert([...uniqueTrips.values()], { onConflict: "id" });
-      if (tripsBatchErr) { notify(`Error guardando viajes: ${tripsBatchErr.message}`); setIsImporting(false); return; }
+      const tripsPayload = [...uniqueTrips.values()];
+      if (tripsPayload.length) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const upsertRes = await fetch("/api/upsert-trips", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ trips: tripsPayload }),
+        });
+        if (!upsertRes.ok) {
+          const j = await upsertRes.json().catch(() => ({}));
+          notify(`Error guardando viajes: ${j.error || "Error desconocido"}`);
+          setIsImporting(false);
+          return;
+        }
+      }
 
       for (const [tripId, tp] of uniqueTrips) {
         if (!currentTrips.find((t) => t.id === tripId)) {
@@ -2802,7 +2873,7 @@ function AdminClients({ users, trips, setUsers, templates, notify, setTrips }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {selectedClientIds.length > 1 ? `¿Enviar acceso a ${selectedClientIds.length} participantes?` : "¿Enviar acceso a todos los participantes?"}
+              {selectedClientIds.length > 1 ? `¿Enviar acceso a ${selectedClientIds.length} participantes?` : selectedClientIds.length === 1 ? "¿Enviar acceso a este participante?" : "¿Enviar acceso a todos los participantes?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               Se enviará un email de invitación con sus credenciales de acceso al portal.
@@ -3148,7 +3219,7 @@ function AdminTracking({ users, trips, templates, setUsers, notify }) {
           !["confirmed"].includes(d.status)
         );
         const docName = pendingDocs.length > 0
-          ? pendingDocs.map((d) => d.id).join(", ")
+          ? pendingDocs.map((d) => templates.find((t) => t.id === d.id)?.name || d.id).join(", ")
           : "Documentación pendiente";
         const res = await fetch("/api/notify", {
           method: "POST",
@@ -3541,14 +3612,22 @@ function AdminPayments({ users, setUsers, trips, setTrips, notify }) {
   const [searchQuery, setSearchQuery] = useState("");
   const filteredClients = clients.filter((c) => matchesParticipantSearch(c, searchQuery));
   const globalTi = trips?.[0]?.transferInfo || {};
+  const [pendingDeleteInvoiceClientId, setPendingDeleteInvoiceClientId] = useState(null);
 
   const saveGlobalTransferInfo = async (field, value) => {
     if (!trips?.length) return;
     const updated = { ...globalTi, [field]: value };
     setTrips?.((prev) => prev.map((t) => ({ ...t, transferInfo: updated })));
-    const ids = trips.map((t) => t.id);
-    const { error } = await supabase.from("trips").update({ transfer_info: updated }).in("id", ids);
-    if (error) notify("Error guardando datos bancarios: " + error.message);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const errors = (await Promise.all(trips.map((t) =>
+      fetch("/api/update-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ id: t.id, fields: { transfer_info: updated } }),
+      }).then((r) => r.ok ? null : r.json().then((j) => j.error || "Error"))
+    ))).filter(Boolean);
+    if (errors.length) notify("Error guardando datos bancarios: " + errors[0]);
   };
 
   return (
@@ -3568,6 +3647,7 @@ function AdminPayments({ users, setUsers, trips, setTrips, notify }) {
                 <div key={field} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
                   <Input
+                    key={`${field}-${globalTi[field] || ""}`}
                     defaultValue={globalTi[field] || ""}
                     placeholder={field === "concept" ? "Nombre del participante + viaje" : field === "iban" ? "ES00 0000 0000 0000 0000 0000" : ""}
                     className="rounded-xl text-sm h-9"
@@ -3688,6 +3768,25 @@ function AdminPayments({ users, setUsers, trips, setTrips, notify }) {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!pendingDeleteInvoiceClientId} onOpenChange={(o) => { if (!o) setPendingDeleteInvoiceClientId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar factura?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará el enlace a la factura de este participante. El archivo en Google Drive no se borrará.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction style={{ backgroundColor: CORPORATE_RED }} onClick={async () => {
+              const id = pendingDeleteInvoiceClientId;
+              setPendingDeleteInvoiceClientId(null);
+              const { error } = await supabase.from("participants").update({ invoice_url: null }).eq("id", id);
+              if (!error) { setUsers((prev) => prev.map((u) => u.id === id ? { ...u, invoiceUrl: null } : u)); notify("Factura eliminada."); }
+              else notify("Error eliminando factura: " + error.message);
+            }}>Borrar factura</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -3861,21 +3960,46 @@ function AdminDocs({ templates, setTemplates, users, setUsers, trips, notify }) 
 function AdminChecklists({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
   const [newItem, setNewItem] = useState("");
+  const [duplicating, setDuplicating] = useState(false);
   const selectedTrip = trips.find((t) => t.id === selectedTripId);
+
+  const callUpdateTrip = async (id, fields) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch("/api/update-trip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Error guardando");
+  };
 
   const addItem = async () => {
     if (!newItem.trim()) return;
     const nextChecklist = [...selectedTrip.checklist, newItem];
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: nextChecklist } : t));
-    const { error } = await supabase.from("trips").update({ checklist: nextChecklist }).eq("id", selectedTripId);
-    if (error) notify("Error añadiendo elemento: " + error.message);
-    else setNewItem("");
+    try { await callUpdateTrip(selectedTripId, { checklist: nextChecklist }); setNewItem(""); }
+    catch (err) { notify("Error añadiendo elemento: " + err.message); }
   };
 
-  const duplicateChecklist = () => {
-    if (!selectedTrip) return;
-    const cloneId = `trip-${Date.now()}`;
-    setTrips((prev) => [...prev, { ...selectedTrip, id: cloneId, name: `${selectedTrip.name} · copia` }]);
+  const duplicateChecklist = async () => {
+    if (!selectedTrip || duplicating) return;
+    setDuplicating(true);
+    const newId = crypto.randomUUID();
+    const cloneName = `${selectedTrip.name} · copia`;
+    const { data, error } = await supabase.from("trips").insert({
+      id: newId,
+      name: cloneName,
+      tipo: selectedTrip.tipo || "campamento",
+      checklist: selectedTrip.checklist || [],
+      itinerary: selectedTrip.itinerary || [],
+      logistics: selectedTrip.logistics || [],
+    }).select().single();
+    setDuplicating(false);
+    if (error) { notify("Error duplicando checklist: " + error.message); return; }
+    setTrips((prev) => [...prev, { ...selectedTrip, id: data.id, name: cloneName }]);
+    setSelectedTripId(data.id);
     notify("Checklist duplicado correctamente.");
   };
 
@@ -3891,8 +4015,8 @@ function AdminChecklists({ trips, setTrips, notify }) {
                 {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
-            <Button variant="outline" className="h-11 rounded-2xl" onClick={duplicateChecklist}>
-              <Copy className="mr-2 h-4 w-4" />Duplicar checklist
+            <Button variant="outline" className="h-11 rounded-2xl" onClick={duplicateChecklist} disabled={duplicating}>
+              <Copy className="mr-2 h-4 w-4" />{duplicating ? "Duplicando..." : "Duplicar checklist"}
             </Button>
           </div>
           <div className="flex flex-col gap-3 lg:flex-row">
@@ -3909,8 +4033,8 @@ function AdminChecklists({ trips, setTrips, notify }) {
                 <Button variant="ghost" size="sm" onClick={async () => {
                   const next = selectedTrip.checklist.filter((l) => l !== item);
                   setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, checklist: next } : t));
-                  const { error } = await supabase.from("trips").update({ checklist: next }).eq("id", selectedTripId);
-                  if (error) notify("Error quitando elemento: " + error.message);
+                  try { await callUpdateTrip(selectedTripId, { checklist: next }); }
+                  catch (err) { notify("Error quitando elemento: " + err.message); }
                 }}>Quitar</Button>
               </div>
             ))}
@@ -3924,13 +4048,26 @@ function AdminChecklists({ trips, setTrips, notify }) {
 function AdminTrips({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
+
+  const callUpdateTrip = async (id, fields) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch("/api/update-trip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Error guardando");
+  };
 
   const syncField = (field, value) => setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, [field]: value } : t));
   const saveField = async (field, value) => {
     syncField(field, value);
-    const { error } = await supabase.from("trips").update({ [field]: value }).eq("id", selectedTripId);
-    if (error) notify("Error guardando cambios: " + error.message);
+    try { await callUpdateTrip(selectedTripId, { [field]: value }); }
+    catch (err) { notify("Error guardando cambios: " + err.message); }
   };
 
   const handleCreate = async () => {
@@ -3943,6 +4080,19 @@ function AdminTrips({ trips, setTrips, notify }) {
     setSelectedTripId(data.id);
     setCreating(false);
     notify("Campamento creado. Edita el nombre y los datos.");
+  };
+
+  const handleDelete = async () => {
+    if (!selectedTrip) return;
+    if (!window.confirm(`¿Eliminar el campamento "${selectedTrip.name}"? Los participantes asignados quedarán sin campamento. Esta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    const { error } = await supabase.from("trips").delete().eq("id", selectedTripId);
+    setDeleting(false);
+    if (error) { notify("Error eliminando campamento: " + error.message); return; }
+    const remaining = trips.filter((t) => t.id !== selectedTripId);
+    setTrips(remaining);
+    setSelectedTripId(remaining[0]?.id || "");
+    notify("Campamento eliminado.");
   };
 
   if (!trips.length) return (
@@ -3978,6 +4128,9 @@ function AdminTrips({ trips, setTrips, notify }) {
                 <div className="font-semibold text-zinc-950">{new Date(selectedTrip.departureDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
               </div>
             )}
+            <Button variant="outline" onClick={handleDelete} disabled={deleting} className="rounded-2xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">
+              <Trash2 className="mr-1.5 h-4 w-4" />{deleting ? "Eliminando…" : "Eliminar"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -3991,7 +4144,7 @@ function AdminTrips({ trips, setTrips, notify }) {
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); const { error } = await supabase.from("trips").update({ departure_date: e.target.value || null }).eq("id", selectedTripId); if (error) notify("Error guardando fecha: " + error.message); }} className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); try { await callUpdateTrip(selectedTripId, { departure_date: e.target.value || null }); } catch (err) { notify("Error guardando fecha: " + err.message); } }} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
@@ -4022,11 +4175,23 @@ function AdminItinerary({ trips, setTrips, notify }) {
 
   useEffect(() => { setLocalOrder(selectedTrip?.itinerary || []); }, [selectedTripId]);
 
+  const callUpdateTrip = async (id, fields) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch("/api/update-trip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Error guardando");
+  };
+
   const syncItinerary = async (nextOrder) => {
     setLocalOrder(nextOrder);
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, itinerary: nextOrder } : t));
-    const { error } = await supabase.from("trips").update({ itinerary: nextOrder }).eq("id", selectedTripId);
-    if (error) notify("Error guardando itinerario: " + error.message);
+    try { await callUpdateTrip(selectedTripId, { itinerary: nextOrder }); }
+    catch (err) { notify("Error guardando itinerario: " + err.message); }
   };
 
   if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay campamentos configurados.</div>;
@@ -4057,9 +4222,9 @@ function AdminItinerary({ trips, setTrips, notify }) {
                   <div
                     onClick={async () => {
                       const next = selectedTrip.showItinerary === false;
-                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showItinerary: next } : t));
-                      const { error } = await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showItinerary: next } }).eq("id", selectedTripId);
-                      if (error) notify("Error guardando visibilidad: " + error.message);
+                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showItinerary: next, automation: { ...(t.automation || {}), showItinerary: next } } : t));
+                      try { await callUpdateTrip(selectedTripId, { automation: { ...(selectedTrip.automation || {}), showItinerary: next } }); }
+                      catch (err) { notify("Error guardando visibilidad: " + err.message); }
                     }}
                     className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showItinerary !== false ? "bg-green-500" : "bg-zinc-300"}`}
                   >
@@ -4111,10 +4276,22 @@ function AdminLogistica({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id || "");
   const selectedTrip = trips.find((t) => t.id === selectedTripId) || trips[0];
 
+  const callUpdateTrip = async (id, fields) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch("/api/update-trip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Error guardando");
+  };
+
   const syncLogistics = async (nextLogistics) => {
     setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, logistics: nextLogistics } : t));
-    const { error } = await supabase.from("trips").update({ logistics: nextLogistics }).eq("id", selectedTripId);
-    if (error) notify("Error guardando logística: " + error.message);
+    try { await callUpdateTrip(selectedTripId, { logistics: nextLogistics }); }
+    catch (err) { notify("Error guardando logística: " + err.message); }
   };
 
   if (!trips.length) return <div className="py-16 text-center text-sm text-zinc-400">No hay campamentos configurados.</div>;
@@ -4145,9 +4322,9 @@ function AdminLogistica({ trips, setTrips, notify }) {
                   <div
                     onClick={async () => {
                       const next = selectedTrip.showLogistics === false;
-                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showLogistics: next } : t));
-                      const { error } = await supabase.from("trips").update({ automation: { ...(selectedTrip.automation || {}), showLogistics: next } }).eq("id", selectedTripId);
-                      if (error) notify("Error guardando visibilidad: " + error.message);
+                      setTrips((prev) => prev.map((t) => t.id === selectedTripId ? { ...t, showLogistics: next, automation: { ...(t.automation || {}), showLogistics: next } } : t));
+                      try { await callUpdateTrip(selectedTripId, { automation: { ...(selectedTrip.automation || {}), showLogistics: next } }); }
+                      catch (err) { notify("Error guardando visibilidad: " + err.message); }
                     }}
                     className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${selectedTrip.showLogistics !== false ? "bg-green-500" : "bg-zinc-300"}`}
                   >
@@ -6328,6 +6505,18 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    const newId = crypto.randomUUID();
+    const { data, error } = await supabase.from("trips").insert({ id: newId, name: "Nuevo viaje escolar", tipo: "escolar", checklist: [], itinerary: [], logistics: [] }).select().single();
+    if (error) { notify("Error creando viaje escolar: " + error.message); setCreating(false); return; }
+    const newTrip = { id: data.id, name: data.name, departureDate: "", description: "", heroImage: "", heroImages: [], transferInfo: { bank: "", accountHolder: "", iban: "", concept: "" }, automation: {}, showItinerary: true, showLogistics: true, documentRules: [], paymentSchedule: {}, itinerary: [], logistics: [], checklist: [], tipo: "escolar" };
+    setTrips?.((prev) => [...prev, newTrip]);
+    notify("Viaje escolar creado. Asígnalo a un colegio desde la tarjeta del colegio.");
+    setCreating(false);
+  };
 
   const syncTripField = (field, value) => {
     setSaved(false);
@@ -6391,16 +6580,24 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
 
   if (!allSchoolTrips.length) return (
     <div className="space-y-5">
-      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." extra={
+        <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+          <Plus className="mr-1.5 h-4 w-4" />{creating ? "Creando..." : "Nuevo viaje escolar"}
+        </Button>
+      } />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-        <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados.</CardContent>
+        <CardContent className="p-8 text-center text-sm text-zinc-400">No hay viajes escolares registrados. Crea el primero y asígnalo a un colegio.</CardContent>
       </Card>
     </div>
   );
 
   return (
     <div className="space-y-5">
-      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." />
+      <SectionTitle icon={MapIcon} title="Viajes escolares" subtitle="Información básica y foto de portada de cada viaje escolar." extra={
+        <Button onClick={handleCreate} disabled={creating} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+          <Plus className="mr-1.5 h-4 w-4" />{creating ? "Creando..." : "Nuevo viaje escolar"}
+        </Button>
+      } />
       <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -6584,19 +6781,20 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
     const load = async () => {
       setLoading(true);
       try {
-        const [schoolsRes, schoolTripsRes, coursesRes, studentsRes, docsRes] = await Promise.all([
+        const [schoolsRes, schoolTripsRes, coursesRes, studentsRes, docsRes, questionsRes] = await Promise.all([
           supabase.from("schools").select("*").order("name"),
           supabase.from("school_trips").select("*, trips(name, departure_date, hero_image, hero_images, description, transfer_info)").order("created_at"),
           supabase.from("school_courses").select("id,course_name,group_name,school_trip_id,created_at").order("course_name"),
           supabase.from("students").select("*").order("name"),
           supabase.from("school_documents").select("id,name,file_url,file_name,school_course_id,status,required,created_at").order("created_at"),
+          supabase.from("school_questions").select("*").order("created_at"),
         ]);
         setSchools(schoolsRes.data || []);
         setAllSchoolTrips(schoolTripsRes.data || []);
         setAllCourses(coursesRes.data || []);
         setAllStudents(studentsRes.data || []);
         setAllSchoolDocs(docsRes.data || []);
-        setAllSchoolQuestions([]);
+        setAllSchoolQuestions(questionsRes.data || []);
       } catch (err) {
         console.error(err);
         notify("Error cargando datos de colegios.", { variant: "destructive" });
@@ -6627,8 +6825,16 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
     const { data: stData, error: stErr } = await supabase.from("school_trips").insert([{ school_id: schoolId, trip_id: assignTripId }]).select().maybeSingle();
     if (stErr) { notify("Error asignando viaje: " + stErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
     // Marcar el viaje como tipo colegio para separarlo de campamentos
-    const { error: tipoErr } = await supabase.from("trips").update({ tipo: "colegio" }).eq("id", assignTripId);
-    if (tipoErr) { notify("Error actualizando tipo de viaje: " + tipoErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/update-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ id: assignTripId, fields: { tipo: "colegio" } }),
+      });
+      if (!res.ok) { const j = await res.json(); notify("Error actualizando tipo de viaje: " + (j.error || "Error")); setSavingAssign(false); return; }
+    } catch (err) { notify("Error actualizando tipo de viaje: " + err.message); setSavingAssign(false); return; }
     const { error: scErr } = await supabase.from("school_courses").insert([{ school_trip_id: stData.id, course_name: assignCourse.trim(), group_name: assignGroup.trim() }]);
     if (scErr) { notify("Error creando curso: " + scErr.message, { variant: "destructive" }); setSavingAssign(false); return; }
     notify("Viaje asignado con curso.");
@@ -6725,47 +6931,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
     setSavingStudent(false);
   };
 
-  const handleSaveDoc = async () => {
-    if (!newDoc.name.trim()) { notify("El nombre del documento es obligatorio."); return; }
-    // Determinar curso destino: puede ser un curso específico o todos los cursos del viaje
-    const formCourses = docFormCourseId !== "all"
-      ? allCourses.filter(c => c.id === docFormCourseId)
-      : allCourses.filter(c => {
-          const st = allSchoolTrips.find(t => t.id === docFormTripId);
-          return st ? c.school_trip_id === st.id : false;
-        });
-    if (!docFormTripId) { notify("Selecciona colegio y viaje primero."); return; }
-    if (formCourses.length === 0) { notify("No hay cursos disponibles para asignar."); return; }
-    setSavingDoc(true);
-    try {
-      let driveUrl = ""; let driveFileName = "";
-      if (docFile) {
-        const school = schools.find(s => s.id === docFormSchoolId);
-        const trip = allSchoolTrips.find(t => t.id === docFormTripId);
-        const result = await uploadFileToDrive(docFile, school?.name || "colegio", "documentos", null, trip?.trips?.name || "colegio");
-        driveUrl = result.webViewLink; driveFileName = result.fileName;
-      }
-      const { description, ...newDocBase } = newDoc;
-      // Crear un registro por cada curso seleccionado
-      const inserts = formCourses.map(c => ({
-        ...newDocBase,
-        school_course_id: c.id,
-        status: "pending",
-        ...(driveUrl ? { file_url: driveUrl, file_name: driveFileName } : {}),
-      }));
-      const { data, error } = await supabase.from("school_documents").insert(inserts).select();
-      if (error) notify("Error añadiendo documento: " + error.message, { variant: "destructive" });
-      else {
-        setAllSchoolDocs((prev) => [...prev, ...(data || [])]);
-        setNewDoc({ name: "", description: "", required: true });
-        setDocFile(null);
-        setDocFormCourseId("all");
-        setShowAddDoc(false);
-        notify(docFormCourseId === "all" ? `Documento asignado a ${formCourses.length} curso(s).` : "Documento asignado al curso.");
-      }
-    } catch(err) { notify("Error al subir el archivo: " + err.message); }
-    setSavingDoc(false);
-  };
+
 
   const handleSaveQuestion = async () => {
     if (!newQuestion.message.trim()) { notify("La pregunta no puede estar vacía."); return; }
@@ -7486,9 +7652,17 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
               const updated = { ...ti, [field]: value };
               const uniqueTripIds = [...new Set(allSchoolTrips.map((s) => s.trip_id).filter(Boolean))];
               if (!uniqueTripIds.length) return;
-              const { error } = await supabase.from("trips").update({ transfer_info: updated }).in("id", uniqueTripIds);
-              if (!error) setAllSchoolTrips((prev) => prev.map((s) => ({ ...s, trips: { ...s.trips, transfer_info: updated } })));
-              else notify("Error guardando datos bancarios: " + error.message);
+              const { data: { session } } = await supabase.auth.getSession();
+              const token = session?.access_token;
+              const errors = (await Promise.all(uniqueTripIds.map((id) =>
+                fetch("/api/update-trip", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                  body: JSON.stringify({ id, fields: { transfer_info: updated } }),
+                }).then((r) => r.ok ? null : r.json().then((j) => j.error || "Error"))
+              ))).filter(Boolean);
+              if (!errors.length) setAllSchoolTrips((prev) => prev.map((s) => ({ ...s, trips: { ...s.trips, transfer_info: updated } })));
+              else notify("Error guardando datos bancarios: " + errors[0]);
             };
             return (
               <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
@@ -7502,6 +7676,7 @@ function AdminSchools({ trips, setTrips, notify, section = "colegios", schoolTri
                       <div key={field} className="space-y-1">
                         <Label className="text-xs">{label}</Label>
                         <Input
+                          key={`${field}-${ti[field] || ""}`}
                           defaultValue={ti[field] || ""}
                           placeholder={field === "concept" ? "Nombre del participante + viaje" : field === "iban" ? "ES00 0000 0000 0000 0000 0000" : ""}
                           className="rounded-xl text-sm h-9"
