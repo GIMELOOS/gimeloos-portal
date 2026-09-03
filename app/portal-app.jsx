@@ -148,6 +148,93 @@ const CORPORATE_RED = "#FF3131";
 const LOCAL_STORAGE_AUTH_KEY = "gimeloos-portal-auth-user-id";
 const ADMIN_SECTION_STORAGE_KEY = "gimeloos-admin-active-section";
 
+// ─── Internacionalización (ES / EN) ──────────────────────────────────────────
+const LangContext = React.createContext("es");
+const useLang = () => React.useContext(LangContext);
+const tl = (lang, key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS.es[key] ?? key;
+const dateLocale = (lang) => lang === "en" ? "en-US" : "es-ES";
+
+const TRANSLATIONS = {
+  es: {
+    salir: "Salir", reintentar: "Reintentar",
+    participante: "Participante:", notificaciones: "Notificaciones",
+    sin_notificaciones: "Sin notificaciones", marcar_leidas: "Marcar leídas",
+    tab_docs: "Documentación", tab_pagos: "Pagos", tab_logistics: "Lo que llevar",
+    tab_itinerary: "Itinerario", tab_checklist: "Checklist", tab_dudas: "Dudas",
+    tab_factura: "Factura", ps_pagos: "Pagos", ps_respuestas: "Respuestas", ps_avisos: "Avisos",
+    experiencia_contratada: "Experiencia contratada", hola_familia: "Hola, familia de",
+    aqui_tienes: "Aquí tienes toda la información de la experiencia.",
+    cuenta_atras: "Cuenta atrás", dias_experiencia: "días para tu experiencia",
+    salida: "Salida", tareas_pendientes: "Tareas pendientes", todo_al_dia: "¡Todo al día!",
+    subido: "Subido:", ver_documento: "Ver documento",
+    subiendo_drive: "Subiendo a Google Drive…", subido_exito: "¡Subido!",
+    subir_documento: "Subir documento", pdf_max: "PDF · máx. 20 MB",
+    descargar_plantilla: "Descargar plantilla",
+    importe: "Importe:", fecha_limite_pago: "Fecha límite:", justificante: "Justificante:",
+    subido_correctamente: "¡Subido correctamente!", subir_justificante: "Subir justificante",
+    precio_inicial: "Precio inicial", tu_descuento: "Tu descuento", precio_final: "Precio final",
+    importe_reserva: "Importe reserva", primera_cuota: "Primera cuota", segunda_cuota: "Segunda cuota",
+    datos_transferencia: "Datos de transferencia", banco: "Banco:", titular: "Titular:",
+    iban: "IBAN:", concepto: "Concepto:", resumen: "Resumen",
+    importe_enviado: "Importe ya enviado/abonado", importe_residual: "Importe residual pendiente",
+    factura_label: "Factura", descargar_factura: "Descargar factura",
+    factura_pendiente: "Tu factura estará disponible aquí en cuanto el equipo de GIMELOOS la emita.",
+    logistics_empty: "El equipo de GIMELOOS publicará pronto la información logística de tu experiencia.",
+    itinerary_empty: "El equipo de GIMELOOS publicará el itinerario próximamente.", dia: "Día",
+    progreso: "Progreso", tienes_duda: "¿Tienes alguna duda?",
+    escribe_duda: "Escríbenos aquí cualquier duda sobre el viaje, la documentación, los pagos o el equipaje y te responderemos lo antes posible.",
+    escribe_aqui: "Escribe aquí tu consulta...",
+    mensaje_registrado: "Tu mensaje quedará registrado para que el equipo de GIMELOOS pueda responderte.",
+    enviando: "Enviando…", enviar_duda: "Enviar duda",
+    no_pudo_enviar: "No se pudo enviar. Inténtalo de nuevo.",
+    historial: "Historial de consultas", respuesta_gimeloos: "Respuesta del equipo GIMELOOS",
+    pendiente_respuesta: "Pendiente de respuesta",
+    portal_escolar: "Portal Escolar", cargando_colegio: "Cargando datos del colegio...",
+    tab_mis_viajes: "Mis viajes", tab_alumnos: "Alumnos", tab_alergias: "Alergias",
+    tab_documentacion_school: "Documentación", tab_rooming: "Rooming", tab_grupos: "Grupos",
+    tab_checklist_school: "Checklist", tab_dudas_school: "Dudas",
+  },
+  en: {
+    salir: "Log out", reintentar: "Retry",
+    participante: "Participant:", notificaciones: "Notifications",
+    sin_notificaciones: "No notifications", marcar_leidas: "Mark as read",
+    tab_docs: "Documents", tab_pagos: "Payments", tab_logistics: "What to Bring",
+    tab_itinerary: "Itinerary", tab_checklist: "Checklist", tab_dudas: "Questions",
+    tab_factura: "Invoice", ps_pagos: "Payments", ps_respuestas: "Replies", ps_avisos: "Alerts",
+    experiencia_contratada: "Booked Experience", hola_familia: "Hello, family of",
+    aqui_tienes: "Here you'll find all the information about your experience.",
+    cuenta_atras: "Countdown", dias_experiencia: "days to your experience",
+    salida: "Departure", tareas_pendientes: "Pending tasks", todo_al_dia: "All caught up!",
+    subido: "Uploaded:", ver_documento: "View document",
+    subiendo_drive: "Uploading to Google Drive…", subido_exito: "Uploaded!",
+    subir_documento: "Upload document", pdf_max: "PDF · max. 20 MB",
+    descargar_plantilla: "Download template",
+    importe: "Amount:", fecha_limite_pago: "Due date:", justificante: "Proof:",
+    subido_correctamente: "Uploaded successfully!", subir_justificante: "Upload proof",
+    precio_inicial: "Original price", tu_descuento: "Your discount", precio_final: "Final price",
+    importe_reserva: "Deposit", primera_cuota: "1st installment", segunda_cuota: "2nd installment",
+    datos_transferencia: "Transfer details", banco: "Bank:", titular: "Account holder:",
+    iban: "IBAN:", concepto: "Reference:", resumen: "Summary",
+    importe_enviado: "Amount sent/paid", importe_residual: "Remaining amount due",
+    factura_label: "Invoice", descargar_factura: "Download invoice",
+    factura_pendiente: "Your invoice will be available here once the GIMELOOS team issues it.",
+    logistics_empty: "The GIMELOOS team will soon publish the logistics information for your experience.",
+    itinerary_empty: "The GIMELOOS team will publish the itinerary soon.", dia: "Day",
+    progreso: "Progress", tienes_duda: "Have a question?",
+    escribe_duda: "Write us here with any questions about the trip, documents, payments or packing, and we'll get back to you as soon as possible.",
+    escribe_aqui: "Write your question here...",
+    mensaje_registrado: "Your message will be saved so the GIMELOOS team can reply to you.",
+    enviando: "Sending…", enviar_duda: "Send question",
+    no_pudo_enviar: "Could not send. Please try again.",
+    historial: "Message history", respuesta_gimeloos: "Reply from the GIMELOOS team",
+    pendiente_respuesta: "Awaiting reply",
+    portal_escolar: "School Portal", cargando_colegio: "Loading school data...",
+    tab_mis_viajes: "My trips", tab_alumnos: "Students", tab_alergias: "Allergies",
+    tab_documentacion_school: "Documentation", tab_rooming: "Rooming", tab_grupos: "Groups",
+    tab_checklist_school: "Checklist", tab_dudas_school: "Questions",
+  },
+};
+
 const DEFAULT_HERO_IMAGES = [
   "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=1600&q=80",
   "https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?auto=format&fit=crop&w=1600&q=80",
@@ -1014,6 +1101,7 @@ function ResetPasswordScreen({ onDone }) {
 }
 
 function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
+  const lang = useLang();
   const remaining = daysRemaining(trip.departureDate);
 
   // 1 experiencia contratada = 1 imagen. Sin carrusel.
@@ -1051,13 +1139,13 @@ function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
       <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_260px] lg:gap-8 lg:p-10">
         <div className="flex flex-col justify-between">
           <div>
-            <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">Experiencia contratada</Badge>
+            <Badge className="border-0 bg-white/10 text-white backdrop-blur-sm hover:bg-white/10">{tl(lang, "experiencia_contratada")}</Badge>
             <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">{trip.name?.toUpperCase()}</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-white font-medium sm:text-lg">
-              Hola, familia de <span className="text-white font-bold">{user.participantName}</span> 👋
+              {tl(lang, "hola_familia")} <span className="text-white font-bold">{user.participantName}</span> 👋
             </p>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-300">
-              Aquí tienes toda la información de la experiencia.
+              {tl(lang, "aqui_tienes")}
             </p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3 text-sm text-white">
@@ -1071,24 +1159,24 @@ function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
         </div>
         <div className="flex items-end lg:items-center">
           <div className="w-full rounded-[26px] border border-white/10 bg-black/35 p-5 text-white shadow-2xl backdrop-blur-xl">
-            <div className="text-xs uppercase tracking-[0.24em] text-zinc-300">Cuenta atrás</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-zinc-300">{tl(lang, "cuenta_atras")}</div>
             <div className="mt-3 text-5xl font-semibold leading-none sm:text-6xl">{remaining}</div>
-            <div className="mt-2 text-zinc-200">días para tu experiencia</div>
+            <div className="mt-2 text-zinc-200">{tl(lang, "dias_experiencia")}</div>
             <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-zinc-200">
-              <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Salida</div>
+              <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> {tl(lang, "salida")}</div>
               <div className="mt-2 font-medium text-white">
                 {trip.departureDate
-                  ? (() => { const s = new Date(trip.departureDate).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); return s.charAt(0).toUpperCase() + s.slice(1); })()
+                  ? (() => { const s = new Date(trip.departureDate).toLocaleDateString(dateLocale(lang), { weekday: "long", day: "numeric", month: "long", year: "numeric" }); return s.charAt(0).toUpperCase() + s.slice(1); })()
                   : "-"}
               </div>
             </div>
             {/* Resumen de tareas pendientes */}
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300 mb-3">Tareas pendientes</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-300 mb-3">{tl(lang, "tareas_pendientes")}</div>
               {totalPending === 0 ? (
                 <div className="flex items-center gap-2 text-sm text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
-                  ¡Todo al día!
+                  {tl(lang, "todo_al_dia")}
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3">
@@ -1119,6 +1207,7 @@ function HeroBanner({ trip, user, pendingSummary, onNavigate }) {
 }
 
 function ClientDocuments({ user, templates, onUploadDocument }) {
+  const lang = useLang();
   const [progress, setProgress] = useState({});
   return (
     <div className="space-y-4">
@@ -1134,17 +1223,17 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-zinc-950">{template?.name || docItem.id}</div>
                   {docItem.uploadedFileName && (
-                    <div className="mt-1 text-sm text-zinc-500">Subido: {docItem.uploadedFileName}</div>
+                    <div className="mt-1 text-sm text-zinc-500">{tl(lang, "subido")} {docItem.uploadedFileName}</div>
                   )}
                   {docItem.driveUrl && (
                     <a href={docItem.driveUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm font-medium" style={{ color: CORPORATE_RED }}>
-                      <ExternalLink className="h-3.5 w-3.5" />Ver documento
+                      <ExternalLink className="h-3.5 w-3.5" />{tl(lang, "ver_documento")}
                     </a>
                   )}
                   {pct !== undefined && (
                     <div className="mt-2">
                       <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
-                        <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido!"}</span>
+                        <span>{pct < 100 ? tl(lang, "subiendo_drive") : tl(lang, "subido_exito")}</span>
                         <span>{pct}%</span>
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
@@ -1160,11 +1249,11 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
                   <Badge className={status.className} style={status.style}>{status.label}</Badge>
                   {template?.driveUrl && (
                     <Button variant="outline" className="rounded-2xl border-zinc-200 bg-white" onClick={() => window.open(template.driveUrl, "_blank", "noopener,noreferrer")}>
-                      <Download className="mr-2 h-4 w-4" />Descargar plantilla
+                      <Download className="mr-2 h-4 w-4" />{tl(lang, "descargar_plantilla")}
                     </Button>
                   )}
                   <div className="flex flex-col gap-1">
-                  <p className="text-xs text-zinc-400">PDF · máx. 20 MB</p>
+                  <p className="text-xs text-zinc-400">{tl(lang, "pdf_max")}</p>
                   <label className={uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"}>
                     <input type="file" accept=".pdf,.PDF" className="hidden" disabled={uploading} onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -1177,7 +1266,7 @@ function ClientDocuments({ user, templates, onUploadDocument }) {
                         .finally(() => setTimeout(() => setProgress((p) => { const n = { ...p }; delete n[docItem.id]; return n; }), 1800));
                     }} />
                     <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
-                      <Upload className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : "Subir documento"}
+                      <Upload className="mr-2 h-4 w-4" />{uploading ? `${pct}%` : tl(lang, "subir_documento")}
                     </span>
                   </label>
                   </div>
@@ -1225,6 +1314,7 @@ function InvoiceUploadButton({ existing, onUpload, size = "sm" }) {
 }
 
 function PaymentRow({ title, payment, onUploadProof }) {
+  const lang = useLang();
   const status = getStatusMeta(payment.status);
   const [pct, setPct] = useState(undefined);
   const [localFileName, setLocalFileName] = useState(null); // feedback inmediato
@@ -1235,20 +1325,20 @@ function PaymentRow({ title, payment, onUploadProof }) {
       <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="font-medium text-zinc-950">{title}</div>
-          <div className="mt-1 text-sm text-zinc-500">Importe: {formatCurrency(payment.amount)}</div>
+          <div className="mt-1 text-sm text-zinc-500">{tl(lang, "importe")} {formatCurrency(payment.amount)}</div>
           {payment.dueDate && (
-            <div className="mt-0.5 text-sm text-zinc-400">Fecha límite: {new Date(payment.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}</div>
+            <div className="mt-0.5 text-sm text-zinc-400">{tl(lang, "fecha_limite_pago")} {new Date(payment.dueDate).toLocaleDateString(dateLocale(lang), { day: "numeric", month: "long", year: "numeric" })}</div>
           )}
           {displayProofName && (
             <div className="mt-1 flex items-center gap-1.5 text-sm text-zinc-500">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-              <span>Justificante: {displayProofName}</span>
+              <span>{tl(lang, "justificante")} {displayProofName}</span>
             </div>
           )}
           {pct !== undefined && (
             <div className="mt-2">
               <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
-                <span>{pct < 100 ? "Subiendo a Google Drive…" : "¡Subido correctamente!"}</span>
+                <span>{pct < 100 ? tl(lang, "subiendo_drive") : tl(lang, "subido_correctamente")}</span>
                 <span>{Math.round(pct)}%</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
@@ -1275,7 +1365,7 @@ function PaymentRow({ title, payment, onUploadProof }) {
                 .finally(() => setTimeout(() => setPct(undefined), 2500));
             }} />
             <span className="inline-flex h-10 items-center rounded-2xl px-4 text-sm font-medium text-white" style={{ backgroundColor: CORPORATE_RED }}>
-              <FolderUp className="mr-2 h-4 w-4" />{uploading ? `${Math.round(pct)}%` : "Subir justificante"}
+              <FolderUp className="mr-2 h-4 w-4" />{uploading ? `${Math.round(pct)}%` : tl(lang, "subir_justificante")}
             </span>
           </label>
         </div>
@@ -1285,6 +1375,7 @@ function PaymentRow({ title, payment, onUploadProof }) {
 }
 
 function ClientPayments({ user, trip, onUploadProof }) {
+  const lang = useLang();
   const payments = user.payments || {};
   const initialPrice = Number(payments.initialPrice || 0);
   const discount = Number(payments.discount || 0);
@@ -1304,17 +1395,17 @@ function ClientPayments({ user, trip, onUploadProof }) {
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-6">
               {[
-                ["Precio inicial", initialPrice],
-                discount > 0 ? ["Tu descuento", discount] : null,
-                ["Precio final", finalPrice],
-                ["Importe reserva", Number(reservation.amount || 0)],
-                ["Primera cuota", Number(firstInstallment.amount || 0)],
-                ["Segunda cuota", Number(secondInstallment.amount || 0)],
-              ].filter(Boolean).map(([label, value]) => (
+                [tl(lang, "precio_inicial"), initialPrice, false],
+                discount > 0 ? [tl(lang, "tu_descuento"), discount, true] : null,
+                [tl(lang, "precio_final"), finalPrice, false],
+                [tl(lang, "importe_reserva"), Number(reservation.amount || 0), false],
+                [tl(lang, "primera_cuota"), Number(firstInstallment.amount || 0), false],
+                [tl(lang, "segunda_cuota"), Number(secondInstallment.amount || 0), false],
+              ].filter(Boolean).map(([label, value, isDiscount]) => (
                 // [MENOR-3] Key única: label es único en este array
-                <div key={String(label)} className={`rounded-2xl border p-4 ${label === "Tu descuento" ? "border-green-200 bg-green-50" : "border-zinc-200 bg-white"}`}>
-                  <div className={`text-xs uppercase tracking-[0.18em] ${label === "Tu descuento" ? "text-green-600" : "text-zinc-500"}`}>{label}</div>
-                  <div className={`mt-2 text-xl font-semibold whitespace-nowrap ${label === "Tu descuento" ? "text-green-700" : "text-zinc-950"}`}>
+                <div key={String(label)} className={`rounded-2xl border p-4 ${isDiscount ? "border-green-200 bg-green-50" : "border-zinc-200 bg-white"}`}>
+                  <div className={`text-xs uppercase tracking-[0.18em] ${isDiscount ? "text-green-600" : "text-zinc-500"}`}>{label}</div>
+                  <div className={`mt-2 text-xl font-semibold whitespace-nowrap ${isDiscount ? "text-green-700" : "text-zinc-950"}`}>
                     {formatCurrency(value)}
                   </div>
                 </div>
@@ -1328,24 +1419,24 @@ function ClientPayments({ user, trip, onUploadProof }) {
         <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
           <CardContent className="space-y-4 p-5">
             <div>
-              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Datos de transferencia</div>
+              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">{tl(lang, "datos_transferencia")}</div>
               <div className="mt-3 space-y-2 text-sm text-zinc-700">
-                <div><span className="font-medium text-zinc-950">Banco:</span> {trip.transferInfo?.bank}</div>
-                <div><span className="font-medium text-zinc-950">Titular:</span> {trip.transferInfo?.accountHolder}</div>
-                <div><span className="font-medium text-zinc-950">IBAN:</span> {trip.transferInfo?.iban}</div>
-                <div><span className="font-medium text-zinc-950">Concepto:</span> {trip.transferInfo?.concept}</div>
+                <div><span className="font-medium text-zinc-950">{tl(lang, "banco")}</span> {trip.transferInfo?.bank}</div>
+                <div><span className="font-medium text-zinc-950">{tl(lang, "titular")}</span> {trip.transferInfo?.accountHolder}</div>
+                <div><span className="font-medium text-zinc-950">{tl(lang, "iban")}</span> {trip.transferInfo?.iban}</div>
+                <div><span className="font-medium text-zinc-950">{tl(lang, "concepto")}</span> {trip.transferInfo?.concept}</div>
               </div>
             </div>
             <Separator />
             <div>
-              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Resumen</div>
+              <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">{tl(lang, "resumen")}</div>
               <div className="mt-3 space-y-3">
                 <div className="rounded-2xl bg-white p-4">
-                  <div className="text-sm text-zinc-500">Importe ya enviado/abonado</div>
+                  <div className="text-sm text-zinc-500">{tl(lang, "importe_enviado")}</div>
                   <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(paidAmount)}</div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
-                  <div className="text-sm text-zinc-500">Importe residual pendiente</div>
+                  <div className="text-sm text-zinc-500">{tl(lang, "importe_residual")}</div>
                   <div className="mt-2 text-2xl font-semibold text-zinc-950">{formatCurrency(calculatedOutstanding)}</div>
                 </div>
               </div>
@@ -1353,13 +1444,13 @@ function ClientPayments({ user, trip, onUploadProof }) {
             <>
               <Separator />
               <div>
-                <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">Factura</div>
+                <div className="text-sm uppercase tracking-[0.18em] text-zinc-500">{tl(lang, "factura_label")}</div>
                 {user.invoiceUrl ? (
                   <Button variant="outline" className="mt-3 w-full rounded-2xl" onClick={() => window.open(user.invoiceUrl, "_blank", "noopener,noreferrer")}>
-                    <Download className="mr-2 h-4 w-4" />Descargar factura
+                    <Download className="mr-2 h-4 w-4" />{tl(lang, "descargar_factura")}
                   </Button>
                 ) : (
-                  <p className="mt-2 text-sm text-zinc-400">Tu factura estará disponible aquí en cuanto el equipo de GIMELOOS la emita.</p>
+                  <p className="mt-2 text-sm text-zinc-400">{tl(lang, "factura_pendiente")}</p>
                 )}
               </div>
             </>
@@ -1371,11 +1462,12 @@ function ClientPayments({ user, trip, onUploadProof }) {
 }
 
 function ClientLogistics({ trip }) {
+  const lang = useLang();
   const items = trip.logistics || [];
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-zinc-400">
-        El equipo de GIMELOOS publicará pronto la información logística de tu experiencia.
+        {tl(lang, "logistics_empty")}
       </div>
     );
   }
@@ -1397,11 +1489,12 @@ function ClientLogistics({ trip }) {
 }
 
 function ClientItinerary({ trip }) {
+  const lang = useLang();
   const items = trip.itinerary || [];
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-zinc-400">
-        El equipo de GIMELOOS publicará el itinerario próximamente.
+        {tl(lang, "itinerary_empty")}
       </div>
     );
   }
@@ -1410,7 +1503,7 @@ function ClientItinerary({ trip }) {
       {items.map((item, index) => (
         <div key={`itin-${index}`} className="flex gap-4 items-start rounded-2xl border border-stone-100 bg-stone-50 p-4">
           <div className="shrink-0 min-w-[56px] rounded-xl px-2 py-1.5 text-center text-white text-xs font-semibold" style={{ backgroundColor: CORPORATE_RED }}>
-            {item.day || `Día ${index + 1}`}
+            {item.day || `${tl(lang, "dia")} ${index + 1}`}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1428,6 +1521,7 @@ function ClientItinerary({ trip }) {
 }
 
 function ClientChecklist({ user, trip, onToggleItem }) {
+  const lang = useLang();
   const checklistItems = Array.isArray(trip?.checklist) ? trip.checklist : [];
   const checklistState = user?.checklistState || {};
   const total = checklistItems.length;
@@ -1440,7 +1534,7 @@ function ClientChecklist({ user, trip, onToggleItem }) {
         <CardContent className="space-y-5 p-5">
           <div>
             <div className="mb-2 flex items-center justify-between text-sm text-zinc-500">
-              <span>Progreso</span>
+              <span>{tl(lang, "progreso")}</span>
               <span>{completed}/{total} · {progress}%</span>
             </div>
             <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200">
@@ -1463,6 +1557,7 @@ function ClientChecklist({ user, trip, onToggleItem }) {
 }
 
 function ClientQuestions({ questions = [], onSendQuestion }) {
+  const lang = useLang();
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -1484,43 +1579,43 @@ function ClientQuestions({ questions = [], onSendQuestion }) {
   return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-zinc-200 bg-white p-5">
-        <div className="text-lg font-semibold text-zinc-950">¿Tienes alguna duda?</div>
+        <div className="text-lg font-semibold text-zinc-950">{tl(lang, "tienes_duda")}</div>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          Escríbenos aquí cualquier duda sobre el viaje, la documentación, los pagos o el equipaje y te responderemos lo antes posible.
+          {tl(lang, "escribe_duda")}
         </p>
         <div className="mt-4 space-y-3">
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Escribe aquí tu consulta..."
+            placeholder={tl(lang, "escribe_aqui")}
             className="min-h-[140px] rounded-2xl border-zinc-200 bg-white"
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-zinc-500">Tu mensaje quedará registrado para que el equipo de GIMELOOS pueda responderte.</div>
+            <div className="text-xs text-zinc-500">{tl(lang, "mensaje_registrado")}</div>
             <Button onClick={handleSubmit} disabled={sending || !message.trim()} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
-              <Send className="mr-2 h-4 w-4" />{sending ? "Enviando…" : "Enviar duda"}
+              <Send className="mr-2 h-4 w-4" />{sending ? tl(lang, "enviando") : tl(lang, "enviar_duda")}
             </Button>
           </div>
-          {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{tl(lang, "no_pudo_enviar")}</div>}
         </div>
       </div>
 
       {questions.length > 0 && (
         <div className="space-y-3">
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Historial de consultas</div>
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">{tl(lang, "historial")}</div>
           {[...questions].reverse().map((q) => (
             <div key={q.id} className="space-y-2 rounded-3xl border border-zinc-200 bg-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm text-zinc-800">{q.message}</p>
-                <span className="shrink-0 text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>
+                <span className="shrink-0 text-xs text-zinc-400">{new Date(q.createdAt).toLocaleDateString(dateLocale(lang), { day: "numeric", month: "short" })}</span>
               </div>
               {q.reply ? (
                 <div className="rounded-2xl bg-white px-4 py-3">
-                  <div className="mb-1 text-xs font-medium text-zinc-500">Respuesta del equipo GIMELOOS</div>
+                  <div className="mb-1 text-xs font-medium text-zinc-500">{tl(lang, "respuesta_gimeloos")}</div>
                   <p className="text-sm text-zinc-800">{q.reply}</p>
                 </div>
               ) : (
-                <div className="text-xs text-zinc-400">Pendiente de respuesta</div>
+                <div className="text-xs text-zinc-400">{tl(lang, "pendiente_respuesta")}</div>
               )}
             </div>
           ))}
@@ -1579,6 +1674,15 @@ function AccordionSection({ title, icon: Icon, subtitle, children, defaultOpen =
 // ─── Portal del cliente ──────────────────────────────────────────────────────
 
 function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("gimeloos-portal-lang") || "es"; } catch { return "es"; }
+  });
+  const toggleLang = () => setLang((l) => {
+    const next = l === "es" ? "en" : "es";
+    try { localStorage.setItem("gimeloos-portal-lang", next); } catch {}
+    return next;
+  });
+
   const trip = trips.find((t) => t.id === user.tripId);
 
   if (!trip) {
@@ -1715,31 +1819,37 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   const paymentsBadge = sentPayments > (seenCounts.payments ?? sentPayments) ? sentPayments : null;
 
   const pendingSummary = [
-    { key: "docs",      label: "Docs",       icon: FileCheck2,           count: docsBadge ?? 0,   sectionId: "section-docs" },
-    { key: "payments",  label: "Pagos",      icon: Wallet,               count: pendingPayments,  sectionId: "section-payments" },
-    { key: "replies",   label: "Respuestas", icon: MessageCircleQuestion, count: unreadReplies,   sectionId: "section-questions" },
-    { key: "notifs",    label: "Avisos",     icon: Bell,                 count: unreadCount,      sectionId: null },
+    { key: "docs",      label: "Docs",                       icon: FileCheck2,           count: docsBadge ?? 0,   sectionId: "section-docs" },
+    { key: "payments",  label: tl(lang, "ps_pagos"),         icon: Wallet,               count: pendingPayments,  sectionId: "section-payments" },
+    { key: "replies",   label: tl(lang, "ps_respuestas"),    icon: MessageCircleQuestion, count: unreadReplies,   sectionId: "section-questions" },
+    { key: "notifs",    label: tl(lang, "ps_avisos"),        icon: Bell,                 count: unreadCount,      sectionId: null },
   ];
 
   const clientTabs = [
-    { key: "docs",       label: "Documentación", icon: FileCheck2,            badge: docsBadge },
-    { key: "payments",   label: "Pagos",          icon: Wallet,               badge: paymentsBadge },
-    ...(trip.showLogistics !== false ? [{ key: "logistics", label: "Lo que llevar", icon: MapPinned }] : []),
-    ...(trip.showItinerary !== false ? [{ key: "itinerary", label: "Itinerario",    icon: CalendarDays }] : []),
-    { key: "checklist",  label: "Checklist",      icon: CheckCircle2,          badge: null },
-    { key: "questions",  label: "Dudas",          icon: MessageCircleQuestion, badge: unreadReplies > 0 ? unreadReplies : null },
-    ...(user.invoiceUrl ? [{ key: "invoice", label: "Factura", icon: Download }] : []),
+    { key: "docs",       label: tl(lang, "tab_docs"),       icon: FileCheck2,            badge: docsBadge },
+    { key: "payments",   label: tl(lang, "tab_pagos"),      icon: Wallet,               badge: paymentsBadge },
+    ...(trip.showLogistics !== false ? [{ key: "logistics", label: tl(lang, "tab_logistics"), icon: MapPinned }] : []),
+    ...(trip.showItinerary !== false ? [{ key: "itinerary", label: tl(lang, "tab_itinerary"), icon: CalendarDays }] : []),
+    { key: "checklist",  label: tl(lang, "tab_checklist"),  icon: CheckCircle2,          badge: null },
+    { key: "questions",  label: tl(lang, "tab_dudas"),      icon: MessageCircleQuestion, badge: unreadReplies > 0 ? unreadReplies : null },
+    ...(user.invoiceUrl ? [{ key: "invoice", label: tl(lang, "tab_factura"), icon: Download }] : []),
   ];
 
   return (
+    <LangContext.Provider value={lang}>
     <div className="min-h-screen bg-white text-zinc-950">
       <div className="mx-auto max-w-7xl p-6 lg:p-8">
         <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200 bg-white px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <LogoMark />
           <div className="flex items-center gap-3">
             <div className="hidden rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 sm:block">
-              Participante: <span className="font-medium text-zinc-950">{user.participantName}</span>
+              {tl(lang, "participante")} <span className="font-medium text-zinc-950">{user.participantName}</span>
             </div>
+            {/* Selector de idioma */}
+            <button type="button" onClick={toggleLang}
+              className="hidden sm:flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition">
+              {lang === "es" ? "🇺🇸 EN" : "🇪🇸 ES"}
+            </button>
             {/* Campana de notificaciones */}
             <div className="relative" ref={notifRef}>
               <Button variant="outline" className="relative rounded-2xl px-3" onClick={() => setShowNotifications((v) => !v)}>
@@ -1751,22 +1861,22 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               {showNotifications && (
                 <div className="absolute right-0 top-12 z-50 w-80 rounded-3xl border border-zinc-200 bg-white shadow-xl">
                   <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
-                    <span className="font-semibold text-zinc-950">Notificaciones</span>
+                    <span className="font-semibold text-zinc-950">{tl(lang, "notificaciones")}</span>
                     <div className="flex items-center gap-2">
                       {unreadCount > 0 && (
-                        <button onClick={markAllRead} className="text-xs text-zinc-400 hover:text-zinc-700 underline">Marcar leídas</button>
+                        <button onClick={markAllRead} className="text-xs text-zinc-400 hover:text-zinc-700 underline">{tl(lang, "marcar_leidas")}</button>
                       )}
                       <button onClick={() => setShowNotifications(false)} className="text-zinc-400 hover:text-zinc-700 ml-1">✕</button>
                     </div>
                   </div>
                   <div className="max-h-80 overflow-y-auto rounded-b-3xl">
                     {notifications.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-zinc-400">Sin notificaciones</div>
+                      <div className="px-4 py-6 text-center text-sm text-zinc-400">{tl(lang, "sin_notificaciones")}</div>
                     ) : notifications.map((n, i, arr) => (
                       <div key={n.id} className={`border-b border-zinc-50 px-4 py-3 ${n.read ? "" : "bg-red-50"} ${i === arr.length - 1 ? "rounded-b-3xl" : ""}`}>
                         <div className="font-medium text-sm text-zinc-950">{n.title}</div>
                         <div className="text-xs text-zinc-500 mt-0.5">{n.body}</div>
-                        <div className="text-xs text-zinc-400 mt-1">{new Date(n.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                        <div className="text-xs text-zinc-400 mt-1">{new Date(n.created_at).toLocaleDateString(dateLocale(lang), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                       </div>
                     ))}
                   </div>
@@ -1774,7 +1884,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
               )}
             </div>
             <Button variant="outline" className="rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
-              <LogOut className="mr-2 h-4 w-4" />Salir
+              <LogOut className="mr-2 h-4 w-4" />{tl(lang, "salir")}
             </Button>
           </div>
         </div>
@@ -1898,9 +2008,9 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
             {activeTab === "invoice" && user.invoiceUrl && (
               <div className="rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
                 <Download className="mx-auto mb-3 h-8 w-8 text-zinc-400" />
-                <div className="mb-4 text-sm text-zinc-500">Tu factura está disponible para descargar.</div>
+                <div className="mb-4 text-sm text-zinc-500">{tl(lang, "factura_pendiente")}</div>
                 <Button variant="outline" className="rounded-2xl" onClick={() => window.open(user.invoiceUrl, "_blank", "noopener,noreferrer")}>
-                  <Download className="mr-2 h-4 w-4" />Descargar factura
+                  <Download className="mr-2 h-4 w-4" />{tl(lang, "descargar_factura")}
                 </Button>
               </div>
             )}
@@ -1908,6 +2018,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
         </div>
       </div>
     </div>
+    </LangContext.Provider>
   );
 }
 
@@ -6159,6 +6270,14 @@ function SchoolOnboarding({ onDone, tripCount = 1 }) {
 }
 
 function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("gimeloos-portal-lang") || "es"; } catch { return "es"; }
+  });
+  const toggleLang = () => setLang((l) => {
+    const next = l === "es" ? "en" : "es";
+    try { localStorage.setItem("gimeloos-portal-lang", next); } catch {}
+    return next;
+  });
   const [activeTab, setActiveTab] = useState("trips");
   const [school, setSchool] = useState(null);
   const [schoolTrips, setSchoolTrips] = useState([]);
@@ -6271,17 +6390,18 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   const pendingQuestions = schoolQuestions.filter((q) => !q.reply).length; // sent by school, no reply yet
 
   const tabs = [
-    { key: "trips",     label: "Mis viajes",    icon: CalendarDays },
-    { key: "students",  label: "Alumnos",       icon: Users },
-    { key: "allergies", label: "Alergias",      icon: AlertCircle },
-    { key: "docs",      label: "Documentación", icon: FileCheck2 },
-    { key: "rooming",   label: "Rooming",       icon: Home },
-    { key: "groups",    label: "Grupos",        icon: Grid2x2 },
-    { key: "checklist", label: "Checklist",     icon: CheckCircle2 },
-    { key: "questions", label: "Dudas",         icon: MessageCircleQuestion, badge: (pendingQuestions + repliedQuestions) > 0 ? pendingQuestions + repliedQuestions : null },
+    { key: "trips",     label: tl(lang, "tab_mis_viajes"),          icon: CalendarDays },
+    { key: "students",  label: tl(lang, "tab_alumnos"),             icon: Users },
+    { key: "allergies", label: tl(lang, "tab_alergias"),            icon: AlertCircle },
+    { key: "docs",      label: tl(lang, "tab_documentacion_school"), icon: FileCheck2 },
+    { key: "rooming",   label: tl(lang, "tab_rooming"),             icon: Home },
+    { key: "groups",    label: tl(lang, "tab_grupos"),              icon: Grid2x2 },
+    { key: "checklist", label: tl(lang, "tab_checklist_school"),    icon: CheckCircle2 },
+    { key: "questions", label: tl(lang, "tab_dudas_school"),        icon: MessageCircleQuestion, badge: (pendingQuestions + repliedQuestions) > 0 ? pendingQuestions + repliedQuestions : null },
   ];
 
   return (
+    <LangContext.Provider value={lang}>
     <div className="min-h-screen bg-white text-zinc-950">
       <div className="mx-auto max-w-5xl p-6 lg:p-8">
         {/* Header card */}
@@ -6291,7 +6411,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">Portal Escolar</div>
+              <div className="text-xs uppercase tracking-[0.22em] text-zinc-400">{tl(lang, "portal_escolar")}</div>
               <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
             </div>
           </div>
@@ -6301,22 +6421,26 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
                 {school.name}
               </div>
             )}
+            <button type="button" onClick={toggleLang}
+              className="flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition h-11">
+              {lang === "es" ? "🇺🇸 EN" : "🇪🇸 ES"}
+            </button>
             <Button variant="outline" className="h-11 rounded-2xl" onClick={() => { onLogout(); notify("Sesión cerrada."); }}>
-              <LogOut className="mr-2 h-4 w-4" />Salir
+              <LogOut className="mr-2 h-4 w-4" />{tl(lang, "salir")}
             </Button>
           </div>
         </div>
 
         {loading ? (
           <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">Cargando datos del colegio...</div>
+            <div className="rounded-3xl border border-zinc-200 bg-white px-6 py-5 text-sm text-zinc-600 shadow-sm">{tl(lang, "cargando_colegio")}</div>
           </div>
         ) : loadErr ? (
           <div className="flex min-h-[60vh] items-center justify-center">
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-8 py-6 shadow-sm">
               <AlertCircle className="h-8 w-8 text-red-500" />
               <div className="text-sm text-zinc-700">{loadErr}</div>
-              <Button onClick={() => window.location.reload()} className="h-11 rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>Reintentar</Button>
+              <Button onClick={() => window.location.reload()} className="h-11 rounded-2xl text-white text-xs" style={{ backgroundColor: CORPORATE_RED }}>{tl(lang, "reintentar")}</Button>
             </div>
           </div>
         ) : (
@@ -6394,6 +6518,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
         )}
       </div>
     </div>
+    </LangContext.Provider>
   );
 }
 
