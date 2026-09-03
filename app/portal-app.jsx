@@ -9206,6 +9206,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
   });
   useEffect(() => { if (typeof window !== "undefined") window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, activeSection); }, [activeSection]);
   const totalParticipants = users.filter((u) => u.role === "client" && !u.schoolId).length;
+  const campTrips = trips.filter((t) => t.tipo !== "escolar");
   const [purging, setPurging] = useState(false);
   const handlePurge = async () => {
     if (!window.confirm("¿Borrar TODOS los datos de prueba? Se eliminarán participantes, colegios, viajes y archivos de Drive. Esta acción no se puede deshacer.")) return;
