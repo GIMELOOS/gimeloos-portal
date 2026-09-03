@@ -148,6 +148,43 @@ const CORPORATE_RED = "#FF3131";
 const LOCAL_STORAGE_AUTH_KEY = "gimeloos-portal-auth-user-id";
 const ADMIN_SECTION_STORAGE_KEY = "gimeloos-admin-active-section";
 
+// ─── Datos demo para vista previa sin registros ───────────────────────────────
+const DEMO_TRIP = {
+  id: "__demo_trip__",
+  tipo: "campamento",
+  name: "Campamento de ejemplo",
+  departureDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+  heroImage: null,
+  heroImages: [],
+  description: "Esta es una descripción de ejemplo.",
+  checklist: ["Mochila", "Saco de dormir", "Linterna", "Botiquín"],
+  logistics: [],
+  itinerary: [],
+  transferInfo: { bank: "Banco Ejemplo", accountHolder: "GIMELOOS S.L.", iban: "ES00 0000 0000 0000 0000 0000", concept: "Nombre participante" },
+  showLogistics: true,
+  showItinerary: true,
+};
+const DEMO_CLIENT_USER = {
+  id: "__demo__",
+  username: "demo@gimeloos.com",
+  role: "client",
+  participantName: "Participante Ejemplo",
+  parentName: "Familia Ejemplo",
+  email: "demo@gimeloos.com",
+  tripId: "__demo_trip__",
+  documents: [],
+  payments: {
+    initialPrice: 1200, discount: 0, finalPrice: 1200,
+    reservation:       { name: "Reserva",        amount: 300, status: "pending", proofName: "", dueDate: "" },
+    firstInstallment:  { name: "Primera cuota",  amount: 450, status: "pending", proofName: "", dueDate: "" },
+    secondInstallment: { name: "Segunda cuota",  amount: 450, status: "pending", proofName: "", dueDate: "" },
+  },
+  checklistState: {},
+  questions: [],
+  invoiceUrl: null,
+  schoolId: null,
+};
+
 // ─── Internacionalización (ES / EN) ──────────────────────────────────────────
 const LangContext = React.createContext("es");
 const useLang = () => React.useContext(LangContext);
@@ -1683,7 +1720,7 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
     return next;
   });
 
-  const trip = trips.find((t) => t.id === user.tripId);
+  const trip = trips.find((t) => t.id === user.tripId) ?? (user.id === "__demo__" ? DEMO_TRIP : null);
 
   if (!trip) {
     return (
@@ -6297,6 +6334,18 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
       setLoading(true);
       setLoadErr(null);
       try {
+        // Modo demo — sin datos reales
+        if (previewSchoolId === "__demo__") {
+          setSchool({ id: "__demo__", name: "Colegio de ejemplo" });
+          setSchoolTrips([]);
+          setCourses([]);
+          setStudents([]);
+          setSchoolDocuments([]);
+          setSchoolQuestions([]);
+          setLoading(false);
+          return;
+        }
+
         // 1. Get school — by previewSchoolId (admin) > schoolId (participant.school_id) > auth_uid
         const query = supabase.from("schools").select("*");
         const { data: schoolData, error: schoolErr } = previewSchoolId
@@ -9171,18 +9220,38 @@ function AdminSchoolPreviewButton({ onPreview, variant = "sidebar" }) {
     }
   }, [open]);
 
+  const schoolList = open ? (
+    <div className="space-y-1 px-1">
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un colegio</div>
+      <button type="button" onClick={() => onPreview("__demo__")}
+        className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 transition-all text-left font-medium">
+        <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />Vista general (sin datos)
+      </button>
+      {schools.map((s) => (
+        <button key={s.id} type="button" onClick={() => onPreview(s.id)}
+          className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
+          <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{s.name}
+        </button>
+      ))}
+      <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
+    </div>
+  ) : null;
+
   if (variant === "dashboard") {
     return open ? (
       <div className="space-y-1">
         <div className="text-[11px] font-semibold uppercase tracking-widest text-amber-600 px-1 py-1">Selecciona un colegio</div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onPreview("__demo__")}
+            className="flex items-center gap-1.5 rounded-2xl border border-amber-400 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition">
+            <Eye className="h-3.5 w-3.5" />Vista general (sin datos)
+          </button>
           {schools.map((s) => (
             <button key={s.id} type="button" onClick={() => onPreview(s.id)}
               className="flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
               <Eye className="h-3.5 w-3.5" />{s.name}
             </button>
           ))}
-          {!schools.length && <span className="text-xs text-amber-600">Sin colegios registrados</span>}
         </div>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-amber-500 hover:text-amber-700 underline">Cancelar</button>
       </div>
@@ -9201,19 +9270,7 @@ function AdminSchoolPreviewButton({ onPreview, variant = "sidebar" }) {
           className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
           <Eye className="h-4 w-4 shrink-0" />Vista previa colegio
         </button>
-      ) : (
-        <div className="space-y-1 px-1">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un colegio</div>
-          {schools.map((s) => (
-            <button key={s.id} type="button" onClick={() => onPreview(s.id)}
-              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
-              <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{s.name}
-            </button>
-          ))}
-          {!schools.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin colegios registrados</div>}
-          <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
-        </div>
-      )}
+      ) : schoolList}
     </div>
   );
 }
@@ -9222,18 +9279,38 @@ function AdminClientPreviewButton({ users, onPreview, variant = "sidebar" }) {
   const [open, setOpen] = useState(false);
   const clients = users.filter((u) => u.role === "client" && !u.schoolId);
 
+  const clientList = open ? (
+    <div className="space-y-1 px-1">
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un participante</div>
+      <button type="button" onClick={() => { onPreview(DEMO_CLIENT_USER); setOpen(false); }}
+        className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 transition-all text-left font-medium">
+        <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />Vista general (sin datos)
+      </button>
+      {clients.slice(0, 8).map((u) => (
+        <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
+          className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
+          <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{u.participantName || u.username}
+        </button>
+      ))}
+      <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
+    </div>
+  ) : null;
+
   if (variant === "dashboard") {
     return open ? (
       <div className="space-y-1">
         <div className="text-[11px] font-semibold uppercase tracking-widest text-amber-600 px-1 py-1">Selecciona un participante</div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => { onPreview(DEMO_CLIENT_USER); setOpen(false); }}
+            className="flex items-center gap-1.5 rounded-2xl border border-amber-400 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition">
+            <Eye className="h-3.5 w-3.5" />Vista general (sin datos)
+          </button>
           {clients.slice(0, 10).map((u) => (
             <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
               className="flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
               <Eye className="h-3.5 w-3.5" />{u.participantName || u.username}
             </button>
           ))}
-          {!clients.length && <span className="text-xs text-amber-600">Sin participantes registrados</span>}
         </div>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-amber-500 hover:text-amber-700 underline">Cancelar</button>
       </div>
@@ -9252,19 +9329,7 @@ function AdminClientPreviewButton({ users, onPreview, variant = "sidebar" }) {
           className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
           <Eye className="h-4 w-4 shrink-0" />Vista previa cliente
         </button>
-      ) : (
-        <div className="space-y-1 px-1">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un participante</div>
-          {clients.slice(0, 8).map((u) => (
-            <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
-              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
-              <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{u.participantName || u.username}
-            </button>
-          ))}
-          {!clients.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin participantes registrados</div>}
-          <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
-        </div>
-      )}
+      ) : clientList}
     </div>
   );
 }
