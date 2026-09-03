@@ -9161,7 +9161,7 @@ function AdminEmailTemplates({ category, notify }) {
   );
 }
 
-function AdminSchoolPreviewButton({ onPreview }) {
+function AdminSchoolPreviewButton({ onPreview, variant = "sidebar" }) {
   const [schools, setSchools] = useState([]);
   const [open, setOpen] = useState(false);
 
@@ -9171,8 +9171,31 @@ function AdminSchoolPreviewButton({ onPreview }) {
     }
   }, [open]);
 
+  if (variant === "dashboard") {
+    return open ? (
+      <div className="space-y-1">
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-amber-600 px-1 py-1">Selecciona un colegio</div>
+        <div className="flex flex-wrap gap-2">
+          {schools.map((s) => (
+            <button key={s.id} type="button" onClick={() => onPreview(s.id)}
+              className="flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
+              <Eye className="h-3.5 w-3.5" />{s.name}
+            </button>
+          ))}
+          {!schools.length && <span className="text-xs text-amber-600">Sin colegios registrados</span>}
+        </div>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-amber-500 hover:text-amber-700 underline">Cancelar</button>
+      </div>
+    ) : (
+      <button type="button" onClick={() => setOpen(true)}
+        className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
+        <Eye className="h-4 w-4" />Ver portal de colegio
+      </button>
+    );
+  }
+
   return (
-    <div className="border-t border-zinc-200 pt-2 mt-1">
+    <div className="pt-1">
       {!open ? (
         <button type="button" onClick={() => setOpen(true)}
           className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
@@ -9195,12 +9218,35 @@ function AdminSchoolPreviewButton({ onPreview }) {
   );
 }
 
-function AdminClientPreviewButton({ users, onPreview }) {
+function AdminClientPreviewButton({ users, onPreview, variant = "sidebar" }) {
   const [open, setOpen] = useState(false);
   const clients = users.filter((u) => u.role === "client" && !u.schoolId);
 
+  if (variant === "dashboard") {
+    return open ? (
+      <div className="space-y-1">
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-amber-600 px-1 py-1">Selecciona un participante</div>
+        <div className="flex flex-wrap gap-2">
+          {clients.slice(0, 10).map((u) => (
+            <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
+              className="flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
+              <Eye className="h-3.5 w-3.5" />{u.participantName || u.username}
+            </button>
+          ))}
+          {!clients.length && <span className="text-xs text-amber-600">Sin participantes registrados</span>}
+        </div>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-amber-500 hover:text-amber-700 underline">Cancelar</button>
+      </div>
+    ) : (
+      <button type="button" onClick={() => setOpen(true)}
+        className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition">
+        <Eye className="h-4 w-4" />Ver portal de cliente
+      </button>
+    );
+  }
+
   return (
-    <div className="mt-1">
+    <div className="pt-1">
       {!open ? (
         <button type="button" onClick={() => setOpen(true)}
           className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all">
@@ -9208,14 +9254,14 @@ function AdminClientPreviewButton({ users, onPreview }) {
         </button>
       ) : (
         <div className="space-y-1 px-1">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un cliente</div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 px-2 py-1">Selecciona un participante</div>
           {clients.slice(0, 8).map((u) => (
             <button key={u.id} type="button" onClick={() => { onPreview(u); setOpen(false); }}
               className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-all text-left">
               <Eye className="h-3.5 w-3.5 shrink-0 text-amber-500" />{u.participantName || u.username}
             </button>
           ))}
-          {!clients.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin clientes registrados</div>}
+          {!clients.length && <div className="px-3 py-2 text-xs text-zinc-400">Sin participantes registrados</div>}
           <button type="button" onClick={() => setOpen(false)} className="w-full text-left px-3 py-1 text-xs text-zinc-400 hover:text-zinc-600">Cancelar</button>
         </div>
       )}
@@ -9223,7 +9269,7 @@ function AdminClientPreviewButton({ users, onPreview }) {
   );
 }
 
-function AdminDashboard({ users, trips, setActiveSection, lastSeenStudents, onStudentsViewed }) {
+function AdminDashboard({ users, trips, setActiveSection, lastSeenStudents, onStudentsViewed, onPreviewClient, onPreviewSchool }) {
   const clients = users.filter((u) => u.role === "client" && !u.schoolId);
   const pendingDocs = clients.reduce((sum, u) => sum + (u.documents || []).filter((d) => d.status === "pending_confirmation").length, 0);
   const pendingPayments = clients.reduce((sum, u) => {
@@ -9351,6 +9397,33 @@ function AdminDashboard({ users, trips, setActiveSection, lastSeenStudents, onSt
                 </button>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Vistas previas de portales */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Preview portal cliente */}
+        <Card className="rounded-3xl border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Eye className="h-4 w-4 text-amber-600" />
+              <div className="text-xs font-bold uppercase tracking-widest text-amber-600">Vista previa — Portal de cliente</div>
+            </div>
+            <p className="mb-3 text-xs text-amber-700">Visualiza el portal tal como lo ve un participante de campamento.</p>
+            <AdminClientPreviewButton users={users} onPreview={onPreviewClient} variant="dashboard" />
+          </CardContent>
+        </Card>
+
+        {/* Preview portal escolar */}
+        <Card className="rounded-3xl border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Eye className="h-4 w-4 text-amber-600" />
+              <div className="text-xs font-bold uppercase tracking-widest text-amber-600">Vista previa — Portal de colegio</div>
+            </div>
+            <p className="mb-3 text-xs text-amber-700">Visualiza el portal tal como lo ve el coordinador de un colegio.</p>
+            <AdminSchoolPreviewButton onPreview={onPreviewSchool} variant="dashboard" />
           </CardContent>
         </Card>
       </div>
@@ -9515,8 +9588,6 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
                   </button>
                 );
               })}
-              {/* Vista previa portal cliente — al final de Campamentos */}
-              {campExpanded && <AdminClientPreviewButton users={users} onPreview={setPreviewClientUser} />}
 
               {/* COLEGIOS colapsable */}
               <div className="pt-1">
@@ -9552,8 +9623,6 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
                 })}
               </div>
 
-              {/* Vista previa portal colegio — al final de Colegios */}
-              {colExpanded && <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} />}
 
               {/* Calculadora separada al fondo */}
               <div className="border-t border-zinc-200 pt-2 mt-2">
@@ -9565,6 +9634,13 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
                   {activeSection === "calculadora" && <ChevronRight className="ml-auto h-3 w-3 opacity-60" />}
                 </button>
               </div>
+              {/* Vistas previas — siempre visibles */}
+              <div className="border-t border-zinc-100 pt-2 mt-2">
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Vistas previas</div>
+                <AdminClientPreviewButton users={users} onPreview={setPreviewClientUser} />
+                <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} />
+              </div>
+
               {/* Borrar datos de prueba */}
               <div className="border-t border-zinc-100 pt-2 mt-2">
                 <button type="button" onClick={handlePurge} disabled={purging}
@@ -9634,7 +9710,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          {activeSection === "home"                && <AdminDashboard users={users} trips={campTrips} setActiveSection={setActiveSection} lastSeenStudents={lastSeenStudents} onStudentsViewed={() => { const now = new Date().toISOString(); try { localStorage.setItem("gimeloos_last_seen_students", now); } catch {} setLastSeenStudents(now); }} />}
+          {activeSection === "home"                && <AdminDashboard users={users} trips={campTrips} setActiveSection={setActiveSection} lastSeenStudents={lastSeenStudents} onStudentsViewed={() => { const now = new Date().toISOString(); try { localStorage.setItem("gimeloos_last_seen_students", now); } catch {} setLastSeenStudents(now); }} onPreviewClient={setPreviewClientUser} onPreviewSchool={setPreviewSchoolId} />}
           {activeSection === "clients"             && <AdminClients users={users} trips={campTrips} setUsers={setUsers} templates={templates} notify={notify} setTrips={setTrips} />}
           {activeSection === "tracking"            && <AdminTracking users={users} trips={campTrips} templates={templates} setUsers={setUsers} notify={notify} />}
           {activeSection === "participants_export" && <AdminParticipantsExport users={users} trips={campTrips} />}
