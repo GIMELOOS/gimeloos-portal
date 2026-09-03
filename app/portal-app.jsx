@@ -4050,6 +4050,7 @@ function AdminTrips({ trips, setTrips, notify }) {
   const [selectedTripId, setSelectedTripId] = useState(campTrips[0]?.id || "");
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const selectedTrip = campTrips.find((t) => t.id === selectedTripId) || campTrips[0];
 
   const callUpdateTrip = async (id, fields) => {
@@ -4141,11 +4142,11 @@ function AdminTrips({ trips, setTrips, notify }) {
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre del viaje</Label>
-                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} onBlur={(e) => saveField("name", e.target.value)} className="rounded-2xl" />
+                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} className="rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); try { await callUpdateTrip(selectedTripId, { departure_date: e.target.value || null }); } catch (err) { notify("Error guardando fecha: " + err.message); } }} className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={(e) => syncField("departureDate", e.target.value)} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
@@ -4153,14 +4154,30 @@ function AdminTrips({ trips, setTrips, notify }) {
               <CoverImageInput
                 value={selectedTrip.heroImage || ""}
                 onChange={(v) => syncField("heroImage", v)}
-                onBlur={(v) => saveField("hero_image", v)}
                 tripId={selectedTripId}
                 notify={notify}
               />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} onBlur={(e) => saveField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+            </div>
+            <div className="flex justify-end">
+              <Button disabled={saving} onClick={async () => {
+                setSaving(true);
+                try {
+                  await callUpdateTrip(selectedTripId, {
+                    name: selectedTrip.name,
+                    departure_date: selectedTrip.departureDate || null,
+                    hero_image: selectedTrip.heroImage || null,
+                    description: selectedTrip.description || null,
+                  });
+                  notify("Cambios guardados.");
+                } catch (err) { notify("Error guardando: " + err.message); }
+                finally { setSaving(false); }
+              }} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -6503,6 +6520,7 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
   const [selectedTripId, setSelectedTripId] = useState(escolarTrips[0]?.id || "");
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const selectedTrip = escolarTrips.find((t) => t.id === selectedTripId) || escolarTrips[0];
 
   const callUpdateTrip = async (id, fields) => {
@@ -6594,11 +6612,11 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre del viaje</Label>
-                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} onBlur={(e) => saveField("name", e.target.value)} className="rounded-2xl" />
+                <Input value={selectedTrip.name} onChange={(e) => syncField("name", e.target.value)} className="rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Fecha de salida</Label>
-                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={async (e) => { syncField("departureDate", e.target.value); try { await callUpdateTrip(selectedTripId, { departure_date: e.target.value || null }); } catch (err) { notify("Error guardando fecha: " + err.message); } }} className="rounded-2xl" />
+                <Input type="datetime-local" value={(selectedTrip?.departureDate || "").slice(0, 16)} onChange={(e) => syncField("departureDate", e.target.value)} className="rounded-2xl" />
               </div>
             </div>
             <div className="space-y-2">
@@ -6606,14 +6624,30 @@ function AdminSchoolViajes({ allSchoolTrips, setAllSchoolTrips, schools, trips, 
               <CoverImageInput
                 value={selectedTrip.heroImage || ""}
                 onChange={(v) => syncField("heroImage", v)}
-                onBlur={(v) => saveField("hero_image", v)}
                 tripId={selectedTripId}
                 notify={notify}
               />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} onBlur={(e) => saveField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+              <Textarea value={selectedTrip.description || ""} onChange={(e) => syncField("description", e.target.value)} className="min-h-[120px] rounded-2xl" />
+            </div>
+            <div className="flex justify-end">
+              <Button disabled={saving} onClick={async () => {
+                setSaving(true);
+                try {
+                  await callUpdateTrip(selectedTripId, {
+                    name: selectedTrip.name,
+                    departure_date: selectedTrip.departureDate || null,
+                    hero_image: selectedTrip.heroImage || null,
+                    description: selectedTrip.description || null,
+                  });
+                  notify("Cambios guardados.");
+                } catch (err) { notify("Error guardando: " + err.message); }
+                finally { setSaving(false); }
+              }} className="rounded-2xl text-white" style={{ backgroundColor: CORPORATE_RED }}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </Button>
             </div>
           </CardContent>
         </Card>
