@@ -6336,8 +6336,17 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
       try {
         // Modo demo — sin datos reales
         if (previewSchoolId === "__demo__") {
+          const demoDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
           setSchool({ id: "__demo__", name: "Colegio de ejemplo" });
-          setSchoolTrips([]);
+          setSchoolTrips([{
+            id: "__demo_st__",
+            school_id: "__demo__",
+            trip_id: "__demo_trip__",
+            rooming: [],
+            activity_groups: [],
+            payment_info: null,
+            trips: { name: "Viaje de ejemplo", departure_date: demoDate, hero_image: null, hero_images: [] },
+          }]);
           setCourses([]);
           setStudents([]);
           setSchoolDocuments([]);
