@@ -1430,7 +1430,7 @@ function ClientPayments({ user, trip, onUploadProof }) {
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="grid gap-4">
           <Card className="rounded-3xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-6">
+            <CardContent className="grid grid-cols-2 gap-4 p-5 xl:grid-cols-6">
               {[
                 [tl(lang, "precio_inicial"), initialPrice, false],
                 discount > 0 ? [tl(lang, "tu_descuento"), discount, true] : null,
@@ -1875,16 +1875,16 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
   return (
     <LangContext.Provider value={lang}>
     <div className="min-h-screen bg-white text-zinc-950">
-      <div className="mx-auto max-w-7xl p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200 bg-white px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <LogoMark />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 sm:block">
               {tl(lang, "participante")} <span className="font-medium text-zinc-950">{user.participantName}</span>
             </div>
             {/* Selector de idioma */}
             <button type="button" onClick={toggleLang}
-              className="hidden sm:flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition">
+              className="flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition">
               {lang === "es" ? "🇺🇸 EN" : "🇪🇸 ES"}
             </button>
             {/* Campana de notificaciones */}
@@ -1930,12 +1930,12 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
           <HeroBanner trip={trip} user={user} pendingSummary={pendingSummary} onNavigate={navigateTo} />
 
           {/* Tabs — igual que portal de colegios */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {clientTabs.map(({ key, label, icon: Icon, badge }) => {
               const isActive = activeTab === key;
               return (
                 <button key={key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setActiveTab(key)}
-                  className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition ${isActive ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  className={`relative flex flex-none items-center gap-2 rounded-2xl whitespace-nowrap px-4 py-2.5 text-sm font-medium transition ${isActive ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
                   style={isActive ? { backgroundColor: CORPORATE_RED } : {}}>
                   <Icon className="h-4 w-4" />{label}
                   {badge != null && (
@@ -5044,7 +5044,7 @@ function SchoolStudents({ schoolTrips, courses, setCourses, setSchoolTrips, stud
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <SectionTitle icon={Users} title="Alumnos" subtitle="Gestiona los alumnos asignados a cada curso." />
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ backgroundColor: CORPORATE_RED }}>
           <FolderUp className="h-4 w-4" />Importar listado
@@ -6148,7 +6148,7 @@ function SchoolChecklist({ schoolTrips, setSchoolTrips, notify }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <SectionTitle icon={CheckCircle2} title="Checklist de equipaje" subtitle="Marca los ítems que ya tienes listos para el viaje." />
         {checklist.length > 0 && (
           <Button variant="outline" className="shrink-0 rounded-2xl text-sm" onClick={exportChecklist}>
@@ -6461,7 +6461,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
   return (
     <LangContext.Provider value={lang}>
     <div className="min-h-screen bg-white text-zinc-950">
-      <div className="mx-auto max-w-5xl p-6 lg:p-8">
+      <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
         {/* Header card */}
         <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-zinc-200 bg-white px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -6473,7 +6473,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
               <div className="text-base font-bold tracking-[0.12em] text-zinc-950">GIMELOOS</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {school?.name && (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700">
                 {school.name}
@@ -6514,7 +6514,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
             />
 
             {/* Tab nav */}
-            <div className="mb-6 flex gap-1.5">
+            <div className="mb-6 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {tabs.map(({ key, label, icon: Icon, badge }) => {
                 const active = activeTab === key;
                 return (
@@ -6523,7 +6523,7 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setActiveTab(key)}
-                    className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-2xl px-2 py-2 text-sm font-medium transition ${
+                    className={`relative flex flex-none items-center justify-center gap-1.5 rounded-2xl whitespace-nowrap px-3 py-2 text-sm font-medium transition lg:flex-1 ${
                       active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
                     }`}
                     style={active ? { backgroundColor: CORPORATE_RED } : {}}
