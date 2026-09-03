@@ -9614,7 +9614,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
     <div className="min-h-screen text-zinc-950" style={{ background: "linear-gradient(160deg,#fff5f5 0%,#fafafa 40%,#f4f4f5 100%)" }}>
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-4">
           <div className="flex items-center gap-3">
             <img src="/logo-gimeloos.png" alt="GIMELOOS" className="h-10 w-10 object-contain" />
             <div>
@@ -9631,7 +9631,7 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-6 py-6">
+      <div className="mx-auto flex flex-col gap-6 px-4 sm:px-6 py-6 lg:flex-row max-w-[1400px]">
         {/* Sidebar */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-24 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: "calc(100vh - 7rem)" }}>
@@ -9779,6 +9779,12 @@ function AdminPanel({ users, setUsers, trips, setTrips, schoolTripIds = new Set(
               style={activeSection === "calculadora" ? { backgroundColor: CORPORATE_RED } : {}}>
               <Calculator className="h-3.5 w-3.5" />Calculadora
             </button>
+          </div>
+          {/* Vistas previas */}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-2 space-y-1">
+            <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-600">Vistas previas</div>
+            <AdminClientPreviewButton users={users} onPreview={setPreviewClientUser} variant="dashboard" />
+            <AdminSchoolPreviewButton onPreview={setPreviewSchoolId} variant="dashboard" />
           </div>
         </div>
 
