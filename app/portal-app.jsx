@@ -267,7 +267,7 @@ const TRANSLATIONS = {
     pendiente_respuesta: "Awaiting reply",
     portal_escolar: "School Portal", cargando_colegio: "Loading school data...",
     tab_mis_viajes: "My trips", tab_alumnos: "Students", tab_alergias: "Allergies",
-    tab_documentacion_school: "Documentation", tab_rooming: "Rooming", tab_grupos: "Groups",
+    tab_documentacion_school: "Documents", tab_rooming: "Rooming", tab_grupos: "Groups",
     tab_checklist_school: "Checklist", tab_dudas_school: "Questions",
   },
 };
