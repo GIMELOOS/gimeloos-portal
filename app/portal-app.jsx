@@ -1930,21 +1930,24 @@ function ClientPortal({ user, trips, templates, setUsers, onLogout, notify }) {
           <HeroBanner trip={trip} user={user} pendingSummary={pendingSummary} onNavigate={navigateTo} />
 
           {/* Tabs — igual que portal de colegios */}
-          <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {clientTabs.map(({ key, label, icon: Icon, badge }) => {
-              const isActive = activeTab === key;
-              return (
-                <button key={key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setActiveTab(key)}
-                  className={`relative flex flex-none items-center gap-2 rounded-2xl whitespace-nowrap px-4 py-2.5 text-sm font-medium transition ${isActive ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
-                  style={isActive ? { backgroundColor: CORPORATE_RED } : {}}>
-                  <Icon className="h-4 w-4" />{label}
-                  {badge != null && (
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isActive ? "bg-white text-red-600" : "text-white"}`}
-                      style={!isActive ? { backgroundColor: CORPORATE_RED } : {}}>{badge}</span>
-                  )}
-                </button>
-              );
-            })}
+          <div className="relative">
+            <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {clientTabs.map(({ key, label, icon: Icon, badge }) => {
+                const isActive = activeTab === key;
+                return (
+                  <button key={key} type="button" onMouseDown={(e) => e.preventDefault()} onClick={(e) => { setActiveTab(key); e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" }); }}
+                    className={`relative flex flex-none items-center gap-2 rounded-2xl whitespace-nowrap px-4 py-2.5 text-sm font-medium transition ${isActive ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                    style={isActive ? { backgroundColor: CORPORATE_RED } : {}}>
+                    <Icon className="h-4 w-4" />{label}
+                    {badge != null && (
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isActive ? "bg-white text-red-600" : "text-white"}`}
+                        style={!isActive ? { backgroundColor: CORPORATE_RED } : {}}>{badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
           </div>
 
           {/* Contenido del tab activo */}
@@ -6514,27 +6517,30 @@ function SchoolPortal({ user, onLogout, notify, previewSchoolId = null }) {
             />
 
             {/* Tab nav */}
-            <div className="mb-6 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {tabs.map(({ key, label, icon: Icon, badge }) => {
-                const active = activeTab === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setActiveTab(key)}
-                    className={`relative flex flex-none items-center justify-center gap-1.5 rounded-2xl whitespace-nowrap px-3 py-2 text-sm font-medium transition lg:flex-1 ${
-                      active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                    }`}
-                    style={active ? { backgroundColor: CORPORATE_RED } : {}}
-                  >
-                    <Icon className="h-4 w-4" />{label}
-                    {badge != null && (
-                      <span className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: active ? "rgba(255,255,255,0.3)" : CORPORATE_RED }}>{badge}</span>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="relative mb-6">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {tabs.map(({ key, label, icon: Icon, badge }) => {
+                  const active = activeTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => { setActiveTab(key); e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" }); }}
+                      className={`relative flex flex-none items-center justify-center gap-1.5 rounded-2xl whitespace-nowrap px-3 py-2 text-sm font-medium transition lg:flex-1 ${
+                        active ? "text-white shadow-sm" : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                      }`}
+                      style={active ? { backgroundColor: CORPORATE_RED } : {}}
+                    >
+                      <Icon className="h-4 w-4" />{label}
+                      {badge != null && (
+                        <span className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: active ? "rgba(255,255,255,0.3)" : CORPORATE_RED }}>{badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
             </div>
 
             {/* Banner 30 días — visible en secciones de gestión */}
