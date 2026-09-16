@@ -44,10 +44,10 @@ export async function GET(request) {
   );
 
   return new NextResponse(
-    `<html><body style="font-family:sans-serif;padding:40px">
-      <h2>✅ Google Drive conectado correctamente</h2>
+    `<html><head><meta charset="utf-8"></head><body style="font-family:sans-serif;padding:40px">
+      <h2>&#x2705; Google Drive conectado correctamente</h2>
       <p>Ya puedes cerrar esta ventana y volver al portal.</p>
     </body></html>`,
-    { headers: { "Content-Type": "text/html" } }
+    { headers: { "Content-Type": "text/html; charset=utf-8" } }
   );
 }
