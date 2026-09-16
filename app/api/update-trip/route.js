@@ -14,9 +14,22 @@ export async function POST(request) {
   const { id, fields } = await request.json();
   if (!id || !fields) return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
 
+  const ALLOWED_FIELDS = new Set([
+    "name", "departure_date", "hero_image", "hero_images", "description",
+    "checklist", "itinerary", "logistics", "automation", "transfer_info",
+    "tipo", "document_rules", "payment_schedule",
+  ]);
+
+  const safe = Object.fromEntries(
+    Object.entries(fields).filter(([k]) => ALLOWED_FIELDS.has(k))
+  );
+  if (!Object.keys(safe).length) {
+    return NextResponse.json({ error: "No hay campos válidos para actualizar" }, { status: 400 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("trips")
-    .update(fields)
+    .update(safe)
     .eq("id", id)
     .select("id");
 

@@ -16,9 +16,19 @@ export async function POST(request) {
     return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
   }
 
+  const ALLOWED_FIELDS = new Set([
+    "id", "name", "departure_date", "hero_image", "hero_images", "description",
+    "checklist", "itinerary", "logistics", "automation", "transfer_info",
+    "tipo", "document_rules", "payment_schedule",
+  ]);
+
+  const safe = trips.map((t) =>
+    Object.fromEntries(Object.entries(t).filter(([k]) => ALLOWED_FIELDS.has(k)))
+  );
+
   const { error } = await supabaseAdmin
     .from("trips")
-    .upsert(trips, { onConflict: "id" });
+    .upsert(safe, { onConflict: "id" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

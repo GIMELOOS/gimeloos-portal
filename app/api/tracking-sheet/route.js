@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { readFileSync, existsSync, writeFileSync } from "fs";
-import { join } from "path";
+import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
-const TOKEN_PATH = join(process.cwd(), ".google-token.json");
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 // Columnas: 0=Nombre, 1=Email, 2=Teléfono, 3=DNI, 4=Reserva, 5=1ª Cuota, 6=2ª Cuota
@@ -14,16 +17,29 @@ const HEADERS = ["Nombre", "Email", "Teléfono", "DNI", "Reserva", "1ª Cuota", 
 const PAY_COL = { reservation: 4, firstInstallment: 5, secondInstallment: 6 };
 const COL_LETTER = (n) => String.fromCharCode(65 + n); // A=0, B=1, ...
 
-function getClients() {
-  if (!existsSync(TOKEN_PATH)) throw new Error("Google Drive no autorizado. Visita /api/auth/google-setup.");
-  const tokens = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
+async function getClients() {
+  const { data, error } = await supabaseAdmin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "google_drive_token")
+    .single();
+  if (error || !data) throw new Error("Google Drive no autorizado. Visita /api/auth/google-setup.");
+
+  const tokens = JSON.parse(data.value);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const oauth2 = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/google-callback`
+    `${appUrl}/api/auth/google-callback`
   );
   oauth2.setCredentials(tokens);
-  oauth2.on("tokens", (t) => writeFileSync(TOKEN_PATH, JSON.stringify({ ...tokens, ...t }, null, 2)));
+  oauth2.on("tokens", async (newTokens) => {
+    const updated = { ...tokens, ...newTokens };
+    await supabaseAdmin.from("app_settings").upsert(
+      { key: "google_drive_token", value: JSON.stringify(updated) },
+      { onConflict: "key" }
+    );
+  });
   return {
     drive: google.drive({ version: "v3", auth: oauth2 }),
     sheets: google.sheets({ version: "v4", auth: oauth2 }),
@@ -107,7 +123,7 @@ export async function POST(request) {
 
     if (!tripName) return NextResponse.json({ error: "tripName requerido" }, { status: 400 });
 
-    const { drive, sheets } = getClients();
+    const { drive, sheets } = await getClients();
     const { id: spreadsheetId, url: sheetUrl } = await findOrCreateSheet(drive, sheets, tripName);
 
     // ── Actualizar un pago concreto ────────────────────────────────────────────

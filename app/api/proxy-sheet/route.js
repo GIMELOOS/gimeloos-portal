@@ -71,7 +71,13 @@ export async function GET(request) {
       });
     }
 
-    // Para URLs de Excel normales, descarga directa
+    // Para URLs de Excel normales, solo se permiten https:// con extensión xlsx/xls
+    let parsedUrl;
+    try { parsedUrl = new URL(url); } catch { return NextResponse.json({ error: "URL inválida" }, { status: 400 }); }
+    if (parsedUrl.protocol !== "https:" || !/\.(xlsx|xls)(\?|$)/i.test(parsedUrl.pathname + parsedUrl.search)) {
+      return NextResponse.json({ error: "URL no permitida. Solo se aceptan URLs https de archivos .xlsx o .xls" }, { status: 400 });
+    }
+
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!res.ok) {
       return NextResponse.json(
